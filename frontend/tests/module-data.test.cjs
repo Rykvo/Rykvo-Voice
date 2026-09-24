@@ -47,8 +47,18 @@ test("ICCID is a display fallback and search key, never a dialable phone number"
   assert.equal(Lines.options()[1].number, "");
   assert.equal(item.number, "");
   item.number = "+447700900123";
+  ModuleData.merge([item]);
   assert.match(Modules.render(), /447700900123/);
   assert.doesNotMatch(Modules.render(), /ICCID 8944/);
   assert.equal(ModuleData.identity("", "").value, "—");
   assert.equal(ModuleData.identity("  ", card).label, "ICCID");
+});
+
+test("nearby LTE reception is not displayed as a registered cellular service", () => {
+  const { Modules } = setup();
+  const item = { managed: true, status: "online", kind: "usb", signal: "none", hardware: { technology: "LTE", operator: "" } };
+  assert.equal(Modules.signalLabel(item.signal, item), "无服务");
+  item.signal = "cellular";
+  item.hardware.operator = "CHINA MOBILE";
+  assert.equal(Modules.signalLabel(item.signal, item), "CHINA MOBILE · LTE");
 });

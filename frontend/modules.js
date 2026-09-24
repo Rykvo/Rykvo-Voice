@@ -69,6 +69,7 @@ const Modules = (() => {
     if (item?.managed) {
       if (item.status !== "online") return "—";
       if (item.kind === "reader") return "SIM 读卡器";
+      if (item.signal === "none") return "无服务";
       return [item.hardware?.operator || item.hardware?.plmn, item.hardware?.technology].filter(Boolean).join(" · ") || "无服务";
     }
     return Object.hasOwn(signals, value) ? signals[value] : signals.none;
