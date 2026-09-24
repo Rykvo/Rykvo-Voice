@@ -13,6 +13,7 @@ const Backend = (() => {
       lines: ["GET", "/modules/:moduleId/lines"],
       updateLine: ["PATCH", "/modules/:moduleId/lines/:lineId"],
       networks: ["GET", "/modules/:moduleId/lines/:lineId/networks"],
+      scanNetworks: ["POST", "/modules/:moduleId/lines/:lineId/networks"],
       installESIM: ["POST", "/modules/:moduleId/esim"],
       removeLine: ["DELETE", "/modules/:moduleId/lines/:lineId"],
       notifyESIM: ["POST", "/modules/:moduleId/esim/notifications"],

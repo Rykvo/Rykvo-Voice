@@ -12,7 +12,7 @@
 | 高通 410 / MHI WWAN | WWAN AT 节点；AT 不可用时使用 qmicli 读取 QMI 状态 |
 | USB SIM 读卡器 | PCSC 枚举，独占读卡会话读取 ICCID；无蜂窝信号、无通话能力 |
 
-发现设备不等于其全部业务可用。上述路径需要不同型号/固件实机验证；本版本接入标准 eUICC 管理，不实现短信、通话、SIP、射频切换或数据拨号。没有 AT/QMI/PCSC 可用通道时显示异常，不伪造在线状态。
+发现设备不等于其全部业务可用。上述路径需要不同型号/固件实机验证；本版本接入标准 eUICC 管理，不实现短信、通话、SIP、飞行模式切换或数据拨号。没有 AT/QMI/PCSC 可用通道时显示异常，不伪造在线状态。
 
 ## 约束
 
@@ -43,7 +43,7 @@
 - `PATCH /modules/:moduleId`，正文 `{label}` → 更新后的 Module。
 - 旧标签迁移可额外传 `{ifUnmodified:true}`；服务器已有自定义标签时返回 409。
 - `GET /modules/:moduleId/lines` → `{data:SIM[]}`。
-- eSIM 下载、线路启停、卡内昵称和删除沿用预留接口；详情见前端 BACKEND.md。网络选择仍返回 `NOT_CONNECTED`。
+- eSIM 下载、线路启停、卡内昵称和删除沿用预留接口；详情见前端 BACKEND.md。网络选择复用线路接口，见下文。
 
 Module 保留 `{id,name,label,number,status,signal,sims}`，增加 `managed`、`labelCustom`、`kind`、`hardware`、`issue` 和 `capabilities`。`status` 仍为 online/offline/error；控制通道可响应不代表驻网成功。`signal` 增加 cellular，真实运营商/制式/信号指标放在 hardware 中。未知 RSSI 等指标为 null。
 
@@ -51,13 +51,21 @@ Module 保留 `{id,name,label,number,status,signal,sims}`，增加 `managed`、`
 
 `capabilities.esimDownload` 表示已确认 eUICC 管理能力，与任务忙闲分开：普通 SIM、离线或未识别卡不显示下载入口；支持卡在任务执行期间保留入口但禁用。最终下载仍取决于卡内空间、激活码和运营商校验。
 
-## 网络控制待接入
+## 网络选择
 
-保留现有 `updateLine` 与 `networks` 接口，不把 UI 开关当作设备状态。网络扫描及选网需独占目标模块控制通道、异步执行并核对 IMEI / ICCID；数据连接需管理 APN、数据上下文和漫游许可，不修改主机默认管理路由。
+已有 AT 模式读数且 SIM 就绪时开放当前线路选网；不把 UI 开关当作设备状态。普通 SIM 与当前启用的 eSIM 使用同一流程，未启用配置及纯读卡器不开放选网。
+
+- `GET /modules/:moduleId/lines/:lineId/networks`：读取最近搜索任务。
+- `POST` 同一路径，正文 `{requestId}`：异步搜索。
+- `PATCH /modules/:moduleId/lines/:lineId`：`{requestId,networkAutomatic:true}` 恢复自动选网；手动选择传 `{requestId,networkAutomatic:false,operator,accessTechnology}`。
+
+关闭自动开关先搜索，点击运营商才提交手动选择，不先注销网络。搜索与选网共用原任务表、设备锁、并发限制及前端轮询；AT+COPS 操作最多等待 180 秒，HTTP 立即返回任务。不设置 CFUN、不切换 USB、不修改主机默认路由。执行前后核对 IMEI / ICCID；相同请求不重放，超时只读回确认，不自动重试写入。选网模式确认与运营商驻网状态分别显示。
+
+数据连接及漫游控制仍待接入，需要管理 APN、数据上下文和漫游许可。
 
 已核对 VoCat `484cd236` 的 Wi-Fi 通话流程：记录射频状态，对当前模块设置 CFUN=4 并停止蜂窝数据，再执行 SIM AKA、ePDG / IKE / IPsec 和 IMS 注册。重试保持射频关闭；显式关闭时按原状态及飞行模式策略恢复。该流程不等同于单独设置飞行模式，且与同模块蜂窝数据并行使用存在冲突。
 
-参考用于协议和流程分析，不复制其受限实现。Rykvo 当前尚未接入上述选网、数据连接和 VoWiFi 链路；未启动真实服务前继续保持能力关闭，不宣称已注册或可通话。
+参考用于协议和流程分析，不复制其受限实现。Rykvo 当前尚未接入数据连接和 VoWiFi 链路；未启动真实服务前继续保持能力关闭，不宣称已注册或可通话。
 
 标签错误：`INVALID_LABEL`（400）、`LABEL_EXISTS`（409）、`LABEL_ALREADY_SET`（409）。读取失败与空列表分开表示；发现错误字段不带系统原始路径/错误正文。
 

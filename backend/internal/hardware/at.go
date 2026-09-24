@@ -168,22 +168,7 @@ func readATFields(ctx context.Context, s *atSession, r *Reading) {
 			}
 		}
 	}
-	for _, line := range query("AT+COPS?") {
-		if !strings.HasPrefix(line, "+COPS:") {
-			continue
-		}
-		v := fields(line)
-		if len(v) > 2 {
-			if v[1] == "2" {
-				r.PLMN = v[2]
-			} else {
-				r.Operator = v[2]
-			}
-		}
-		if len(v) > 3 {
-			r.Technology = map[string]string{"0": "GSM", "2": "UMTS", "7": "LTE", "9": "NB-IoT", "11": "5G", "12": "5G"}[v[3]]
-		}
-	}
+	readOperator(query("AT+COPS?"), r)
 	for _, cmd := range []string{"AT+CEREG?", "AT+CGREG?", "AT+CREG?"} {
 		v := query(cmd)
 		if len(v) == 0 {
@@ -252,4 +237,30 @@ func errorCode(err error) string {
 		}
 	}
 	return "DEVICE_UNAVAILABLE"
+}
+
+func openATSession(ctx context.Context, c Candidate, expectedIMEI string) (*atSession, error) {
+	last := errors.New("AT_PORT_MISSING")
+	for _, port := range c.Ports {
+		fd, err := openAT(port.Path)
+		if err != nil {
+			last = err
+			continue
+		}
+		s := &atSession{port: fd}
+		if _, err = s.query(ctx, "AT"); err != nil {
+			fd.Close()
+			last = err
+			continue
+		}
+		if expectedIMEI != "" {
+			lines, err := s.query(ctx, "AT+CGSN")
+			if err != nil || digits(lines, 14, 17) != expectedIMEI {
+				fd.Close()
+				return nil, errors.New("DEVICE_CHANGED")
+			}
+		}
+		return s, nil
+	}
+	return nil, last
 }

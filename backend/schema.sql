@@ -79,3 +79,5 @@ CREATE TABLE IF NOT EXISTS module_jobs (
 );
 CREATE INDEX IF NOT EXISTS module_jobs_latest ON module_jobs(module_id,created_at DESC);
 ALTER TABLE module_jobs ADD COLUMN IF NOT EXISTS verification jsonb NOT NULL DEFAULT 'null';
+
+ALTER TABLE module_jobs ADD COLUMN IF NOT EXISTS networks jsonb NOT NULL DEFAULT 'null';

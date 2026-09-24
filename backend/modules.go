@@ -180,6 +180,10 @@ func (s *server) modulesAPI(ctx context.Context, w http.ResponseWriter, r *http.
 			reply(w, 200, map[string]any{"data": s.moduleView(v)["sims"]})
 			return
 		}
+		if len(parts) == 4 && parts[1] == "lines" && parts[3] == "networks" {
+			s.networksAPI(ctx, w, r, v, parts[2])
+			return
+		}
 		s.moduleControl(ctx, w, r, v, parts)
 		return
 	}
@@ -284,9 +288,16 @@ func (s *server) moduleView(v moduleRecord) map[string]any {
 	} else if present && reading.ICCID != "" && !cardReading {
 		sims = append(sims, map[string]any{"id": "line-" + hardware.Digest(reading.ICCID)[:24], "iccid": reading.ICCID, "label": "SIM", "number": reading.Number, "enabled": reading.SIM == "READY", "readOnly": true})
 	}
+	for _, row := range sims {
+		sim := row.(map[string]any)
+		if sim["enabled"] == true && sim["iccid"] == reading.ICCID && reading.NetworkMode != nil {
+			sim["networkAutomatic"] = *reading.NetworkMode == 0
+			sim["networkAvailable"] = networkAvailable(reading)
+		}
+	}
 	signal := "none"
 	if reading.Registration == "home" || reading.Registration == "roaming" || reading.Registration == "registered" {
 		signal = "cellular"
 	}
-	return map[string]any{"id": moduleID(v.ID), "name": moduleName(v.ID), "label": v.Label, "labelCustom": v.Custom, "number": reading.Number, "status": status, "signal": signal, "sims": sims, "kind": v.Kind, "hardware": reading, "issue": issue, "managed": true, "cardReading": cardReading, "job": job, "capabilities": map[string]bool{"read": true, "sms": false, "calls": false, "lineControl": false, "esim": esim && !job.active(), "esimDownload": esim}}
+	return map[string]any{"id": moduleID(v.ID), "name": moduleName(v.ID), "label": v.Label, "labelCustom": v.Custom, "number": reading.Number, "status": status, "signal": signal, "sims": sims, "kind": v.Kind, "hardware": reading, "issue": issue, "managed": true, "cardReading": cardReading, "job": job, "capabilities": map[string]bool{"read": true, "sms": false, "calls": false, "lineControl": false, "esim": esim && !job.active(), "esimDownload": esim, "network": present && networkAvailable(reading) && !job.active()}}
 }

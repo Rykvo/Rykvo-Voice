@@ -1,4 +1,4 @@
-// Package hardware reads local devices without changing radio or SIM settings.
+// Package hardware reads devices and applies explicit per-device operations.
 package hardware
 
 import (
@@ -29,26 +29,28 @@ type Candidate struct {
 }
 
 type Reading struct {
-	ReaderSerial string    `json:"readerSerial,omitempty"`
-	Model        string    `json:"model"`
-	Firmware     string    `json:"firmware"`
-	IMEI         string    `json:"imei"`
-	ICCID        string    `json:"iccid"`
-	Number       string    `json:"number"`
-	SIM          string    `json:"simState"`
-	Operator     string    `json:"operator"`
-	PLMN         string    `json:"plmn"`
-	Technology   string    `json:"technology"`
-	Registration string    `json:"registration"`
-	RSSI         *int      `json:"rssi"`
-	RSRP         *int      `json:"rsrp"`
-	RSRQ         *int      `json:"rsrq"`
-	SINR         *int      `json:"sinr"`
-	Responsive   bool      `json:"responsive"`
-	Issue        string    `json:"issue"`
-	Warnings     []string  `json:"warnings,omitempty"`
-	UpdatedAt    time.Time `json:"updatedAt"`
-	ESIM         *ESIMInfo `json:"esim,omitempty"`
+	NetworkMode      *int      `json:"networkMode"`
+	AccessTechnology *int      `json:"accessTechnology"`
+	ReaderSerial     string    `json:"readerSerial,omitempty"`
+	Model            string    `json:"model"`
+	Firmware         string    `json:"firmware"`
+	IMEI             string    `json:"imei"`
+	ICCID            string    `json:"iccid"`
+	Number           string    `json:"number"`
+	SIM              string    `json:"simState"`
+	Operator         string    `json:"operator"`
+	PLMN             string    `json:"plmn"`
+	Technology       string    `json:"technology"`
+	Registration     string    `json:"registration"`
+	RSSI             *int      `json:"rssi"`
+	RSRP             *int      `json:"rsrp"`
+	RSRQ             *int      `json:"rsrq"`
+	SINR             *int      `json:"sinr"`
+	Responsive       bool      `json:"responsive"`
+	Issue            string    `json:"issue"`
+	Warnings         []string  `json:"warnings,omitempty"`
+	UpdatedAt        time.Time `json:"updatedAt"`
+	ESIM             *ESIMInfo `json:"esim,omitempty"`
 }
 
 type Source interface {

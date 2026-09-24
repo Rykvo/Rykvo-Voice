@@ -86,6 +86,7 @@ controller.abort();
 | modules.lines                | GET                  | /modules/:moduleId/lines                  |
 | modules.updateLine           | PATCH                | /modules/:moduleId/lines/:lineId          |
 | modules.networks             | GET                  | /modules/:moduleId/lines/:lineId/networks |
+| modules.scanNetworks         | POST                 | /modules/:moduleId/lines/:lineId/networks |
 | modules.installESIM          | POST                 | /modules/:moduleId/esim                   |
 | calls.list / dial            | GET / POST           | /calls                                    |
 | calls.get                    | GET                  | /calls/:callId                            |

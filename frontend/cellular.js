@@ -1,10 +1,11 @@
 const Cellular = (() => {
   let module = null;
   let activeLine = -1, activeID = null, unsubscribe = null;
-  let view = "overview", rendered = "", submitting = false;
+  let view = "overview", rendered = "", submitting = false, manualNetwork = false;
   const dismissedJobs = new Set();
   const editable = (item) => !item.managed || (item.capabilities?.esim && !submitting);
   const downloadable = (item) => !item.managed || item.capabilities?.esimDownload === true;
+  const networkEditable = (item, sim = active()) => item.capabilities?.network && sim?.enabled && sim.networkAvailable && !submitting;
   function active() {
     if (activeID) activeLine = module?.sims?.findIndex((sim) => sim.id === activeID) ?? -1;
     return module?.sims?.[activeLine];
@@ -13,15 +14,16 @@ const Cellular = (() => {
     const job = item.job;
     if (!job?.id || job.state === "succeeded" || dismissedJobs.has(job.id)) return "";
     const busy = ["queued", "running"].includes(job.state);
-    const stage = { waiting: "等待设备", checking: "检查卡片", writing: job.action === "enable" ? "正在切换号码" : "正在处理", authenticating: "正在验证", downloading: "正在下载", installing: "正在写入", verifying: "正在确认卡片状态", notifying: "正在上报状态" };
+    const stage = { waiting: "等待设备", checking: "检查设备", scanning: "正在搜索网络", selecting: "正在选择网络", writing: job.action === "enable" ? "正在切换号码" : "正在处理", authenticating: "正在验证", downloading: "正在下载", installing: "正在写入", verifying: "正在确认卡片状态", notifying: "正在上报状态" };
     const text = busy ? stage[job.stage] || "正在处理" : ModuleData.issueText(job.issue) || "操作未完成";
     return `<div class="cellular-job"><div class="cellular-job-heading"><span role="status">${UI.escape(text)}</span>${busy ? "" : '<button type="button" class="text-button" data-cellular-dismiss aria-label="关闭操作提示">×</button>'}</div>${busy ? `<progress aria-label="${UI.escape(text)}"></progress>` : ""}</div>`;
   }
   function refreshDialog() {
-    if (!module || !["overview", "detail"].includes(view)) return;
+    if (!module || !["overview", "detail", "network"].includes(view)) return;
     active();
-    if (view === "detail" && !active()) view = "overview";
-    const html = view === "detail" ? detail(module, activeLine, false) : overview(module, false);
+    if (view !== "overview" && !active()) view = "overview";
+    const render = (showJob) => view === "network" ? networkPage(module, showJob) : view === "detail" ? detail(module, activeLine, showJob) : overview(module, showJob);
+    const html = render(false);
     const content = document.getElementById("dialog-content"), dialog = document.getElementById("dialog");
     if (html === rendered) {
       const slot = content.querySelector("[data-cellular-job]");
@@ -33,14 +35,15 @@ const Cellular = (() => {
     const scroll = dialog.scrollTop;
     const focus = document.activeElement;
     const setting = focus?.dataset?.cellularSetting, action = focus?.dataset?.cellularAction;
-    const title = view === "detail" ? active().label : "蜂窝网络";
-    content.innerHTML = `<h2 id="dialog-title">${UI.escape(title)}</h2>${view === "detail" ? detail(module, activeLine) : overview(module)}`;
+    const title = view === "network" ? "网络选择" : view === "detail" ? active().label : "蜂窝网络";
+    content.innerHTML = `<h2 id="dialog-title">${UI.escape(title)}</h2>${render(true)}`;
     dialog.scrollTop = scroll;
     if (setting) content.querySelector(`[data-cellular-setting="${setting}"]`)?.focus({ preventScroll: true });
     else if (action) content.querySelector(`[data-cellular-action="${action}"]`)?.focus({ preventScroll: true });
   }
   async function control(item, operation, body, lineId, requestId) {
-    if (!editable(item)) return false;
+    const network = operation === "scanNetworks" || body.networkAutomatic !== undefined;
+    if (network ? !networkEditable(item) : !editable(item)) return false;
     submitting = true;
     try {
       await ModuleData.control(item, operation, body, lineId, requestId);
@@ -90,7 +93,7 @@ const Cellular = (() => {
   function open(item) {
     unsubscribe?.();
     module = item;
-    activeLine = -1; activeID = null; view = "overview";
+    activeLine = -1; activeID = null; view = "overview"; manualNetwork = false;
     rendered = overview(item, false);
     UI.modal("蜂窝网络", overview(item));
     unsubscribe = ModuleData.subscribe(refreshDialog);
@@ -121,13 +124,24 @@ const Cellular = (() => {
         ${switchRow("enabled", "启用此号码", sim.enabled, disabled || (realESIM && sim.enabled && !sim.canDisable))}
       </div>
       <div class="cellular-group cellular-settings">
-        ${valueRow("网络选择", pending || (sim.networkAutomatic ? "自动" : "手动"), "network", networkDisabled)}
+        ${valueRow("网络选择", item.managed && !sim.networkAvailable ? "待接入" : sim.networkAutomatic ? "自动" : "手动", "network", item.managed ? !networkEditable(item, sim) : networkDisabled)}
         ${valueRow(identity.label, identity.value)}
         ${valueRow("Wi-Fi 通话", pending || (sim.wifiCalling ? "开启" : "关闭"), "wifi", networkDisabled)}
         ${switchRow("roaming", "数据漫游", sim.roaming, networkDisabled, pending)}
       </div>${remove}<div data-cellular-job>${showJob ? jobNote(item) : ""}</div></section>`;
   }
 
+  function networkPage(item, showJob = true) {
+    const sim = active(), job = item.job;
+    const busy = !networkEditable(item, sim);
+    const manual = manualNetwork || sim?.networkAutomatic === false;
+    const operators = job?.action === "network-scan" && job.state === "succeeded" ? job.networks || [] : [];
+    return `<section class="cellular-page">${back(true)}<div class="cellular-group cellular-settings">${switchRow("networkAutomatic", "自动", !manual, busy)}</div>${manual ? `<div class="cellular-group cellular-settings">${operators.map((op, index) => `<button type="button" class="cellular-setting" data-network-index="${index}" ${busy || op.status === 3 ? "disabled" : ""}><span>${UI.escape(op.name)}</span><span class="cellular-setting-value">${UI.escape(op.technology === 7 ? "LTE" : op.technology === 2 ? "UMTS" : op.technology === 0 ? "GSM" : op.plmn)}${op.status === 2 ? " ✓" : ""}</span></button>`).join("")}<button type="button" class="cellular-setting text-button" data-network-scan ${busy ? "disabled" : ""}>搜索网络</button></div>` : ""}<div data-cellular-job>${showJob ? jobNote(item) : ""}</div></section>`;
+  }
+  function showNetwork() {
+    view = "network"; rendered = networkPage(module, false);
+    UI.modal("网络选择", networkPage(module));
+  }
   function showDetail() {
     active();
     const sim = lines(module)[activeLine];
@@ -150,10 +164,22 @@ const Cellular = (() => {
       else open(module);
       return;
     }
+    const operator = event.target.closest("[data-network-index]");
+    if (operator) {
+      if (!networkEditable(module) || module.job?.action !== "network-scan" || module.job.state !== "succeeded") return;
+      const op = module.job.networks?.[Number(operator.dataset.networkIndex)];
+      if (op && op.status !== 3) control(module, "updateLine", { networkAutomatic: false, operator: op.plmn, accessTechnology: op.technology }, active().id);
+      return;
+    }
+    if (event.target.closest("[data-network-scan]")) { control(module, "scanNetworks", {}, active()?.id); return; }
     const action = event.target.closest("[data-cellular-action]");
     if (action) {
       active();
       const sim = lines(module)[activeLine];
+      if (module.managed && action.dataset.cellularAction === "network") {
+        if (networkEditable(module, sim)) { manualNetwork = false; showNetwork(); }
+        return;
+      }
       if (module.managed && (!editable(module) || !sim?.esim || action.dataset.cellularAction !== "label")) return;
       if (!sim) return;
       if (action.dataset.cellularAction === "label") {
@@ -218,6 +244,12 @@ const Cellular = (() => {
     if (module.managed) {
       const enabled = input.checked;
       input.checked = Boolean(sim[key]);
+      if (key === "networkAutomatic" && networkEditable(module, sim)) {
+        manualNetwork = !enabled;
+        if (enabled) control(module, "updateLine", { networkAutomatic: true }, sim.id);
+        else control(module, "scanNetworks", {}, sim.id);
+        refreshDialog(); return;
+      }
       if (key !== "enabled" || !sim.esim || !editable(module) || (!enabled && !sim.canDisable)) return;
       input.disabled = true;
       control(module, "updateLine", { enabled }, sim.id);

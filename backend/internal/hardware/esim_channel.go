@@ -98,34 +98,16 @@ func parseCSIM(lines []string) ([]byte, error) {
 	return nil, errors.New("INVALID_RESPONSE")
 }
 func openATCard(ctx context.Context, c Candidate, expectedIMEI string) (*cardChannel, error) {
-	last := errors.New("AT_PORT_MISSING")
-	for _, port := range c.Ports {
-		fd, err := openAT(port.Path)
-		if err != nil {
-			last = err
-			continue
-		}
-		s := &atSession{port: fd}
-		if _, err = s.query(ctx, "AT"); err != nil {
-			fd.Close()
-			last = err
-			continue
-		}
-		if expectedIMEI != "" {
-			lines, err := s.query(ctx, "AT+CGSN")
-			if err != nil || digits(lines, 14, 17) != expectedIMEI {
-				fd.Close()
-				return nil, errors.New("DEVICE_CHANGED")
-			}
-		}
-		return &cardChannel{ctx: ctx, close: fd.Close, send: func(ctx context.Context, apdu []byte) ([]byte, error) {
-			command := fmt.Sprintf("AT+CSIM=%d,\"%X\"", len(apdu)*2, apdu)
-			lines, err := s.exchange(ctx, command, 30*time.Second)
-			if err != nil {
-				return nil, err
-			}
-			return parseCSIM(lines)
-		}}, nil
+	s, err := openATSession(ctx, c, expectedIMEI)
+	if err != nil {
+		return nil, err
 	}
-	return nil, last
+	return &cardChannel{ctx: ctx, close: s.port.Close, send: func(ctx context.Context, apdu []byte) ([]byte, error) {
+		command := fmt.Sprintf("AT+CSIM=%d,\"%X\"", len(apdu)*2, apdu)
+		lines, err := s.exchange(ctx, command, 30*time.Second)
+		if err != nil {
+			return nil, err
+		}
+		return parseCSIM(lines)
+	}}, nil
 }

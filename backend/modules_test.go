@@ -234,3 +234,29 @@ func TestModuleViewReturnsEveryESIMProfile(t *testing.T) {
 		})
 	}
 }
+
+func TestModuleNetworkLineAndVerification(t *testing.T) {
+	mode := 0
+	reading := hardware.Reading{Responsive: true, SIM: "READY", IMEI: "123456789012345", ICCID: "89123456789012345678", NetworkMode: &mode}
+	line := "line-" + hardware.Digest(reading.ICCID)[:24]
+	if !currentNetworkLine(reading, line) || currentNetworkLine(reading, "another-line") {
+		t.Fatal("physical line identity")
+	}
+	reading.ESIM = &hardware.ESIMInfo{EID: "89049032001001234500012345678901", Profiles: []hardware.ESIMProfile{{ICCID: reading.ICCID, Enabled: true}, {ICCID: "89123456789012345679", Enabled: false}}}
+	if !currentNetworkLine(reading, hardware.ProfileID(reading.ESIM.EID, reading.ICCID)) || currentNetworkLine(reading, hardware.ProfileID(reading.ESIM.EID, "89123456789012345679")) {
+		t.Fatal("inactive eSIM line")
+	}
+	job := moduleJob{Action: "network-select", State: "uncertain", Verification: &moduleVerification{Network: &hardware.NetworkRequest{IMEI: reading.IMEI, ICCID: reading.ICCID, Automatic: true}}}
+	if !job.confirm(reading) || job.State != "succeeded" {
+		t.Fatal("network confirmation")
+	}
+	job.Action = "network-scan"
+	if job.confirm(reading) {
+		t.Fatal("scan inferred from selection")
+	}
+	job.Action = "network-select"
+	reading.ICCID = "89123456789012345679"
+	if job.confirm(reading) {
+		t.Fatal("replacement card")
+	}
+}

@@ -413,3 +413,28 @@ test("add eSIM is visible only for detected download-capable cards", () => {
   item.capabilities.esim = false;
   assert.match(f.cellular.overview(item), /data-cellular-add disabled/);
 });
+
+test("physical SIM network selection reuses async controls without changing local state", async () => {
+  const f = setup();
+  const item = { managed: true, capabilities: { network: true }, sims: [{ id: "physical", label: "SIM", enabled: true, networkAvailable: true, networkAutomatic: true }] };
+  const calls = [];
+  f.data.control = async (...args) => calls.push(args);
+  f.cellular.open(item); clickLine(f.events, 0);
+  f.events.click({ target: { closest: s => s === "#dialog-content" ? {} : s === "[data-cellular-action]" ? { dataset: { cellularAction: "network" } } : null } });
+  assert.equal(f.dialogs.at(-1)[0], "网络选择");
+  assert.doesNotMatch(f.dialogs.at(-1)[1], /尚未接入|待接入/);
+  f.events.change({ target: { dataset: { cellularSetting: "networkAutomatic" }, checked: false, closest: () => ({}) } });
+  await Promise.resolve();
+  assert.equal(calls[0][1], "scanNetworks");
+  assert.equal(calls[0][3], "physical");
+  assert.equal(item.sims[0].networkAutomatic, true);
+  item.job = { action: "network-scan", state: "succeeded", networks: [{name: "Test", plmn: "00101", technology: 7, status: 1}] };
+  f.events.click({target:{closest:s => s === "#dialog-content" ? {} : s === "[data-network-index]" ? {dataset:{networkIndex:"0"}} : null}});
+  await Promise.resolve();
+  assert.equal(calls[1][1], "updateLine");
+  assert.equal(calls[1][2].operator, "00101");
+  assert.equal(calls[1][2].networkAutomatic, false);
+  item.job.networks[0].status = 3;
+  f.events.click({target:{closest:s => s === "#dialog-content" ? {} : s === "[data-network-index]" ? {dataset:{networkIndex:"0"}} : null}});
+  assert.equal(calls.length, 2);
+});
