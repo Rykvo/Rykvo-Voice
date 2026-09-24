@@ -43,6 +43,7 @@ const Visibility = (() => {
     }
   }
   function visible(id) {
+    if (id === "sipServer") id = "server";
     return (
       state[id] !== false &&
       (!settings.some((item) => item.id === id) || state.general !== false)

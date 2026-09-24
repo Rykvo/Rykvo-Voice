@@ -69,18 +69,18 @@ function setup(hash = "#general", remembered = null) {
   );
   return { context, dialogs, nodes, urls, storage };
 }
-test("general settings present the seven requested entries in order", () => {
+test("general settings present the six requested entries in order", () => {
   const { context } = setup();
   assert.deepEqual(
     Array.from(
       vm.runInContext("generalItems.map(item => item.title)", context),
     ),
-    ["管理员", "SIP 电话", "主机服务器", "SIP 电话服务器", "开发者", "自动清理", "软件更新"],
+    ["管理员", "SIP 电话", "服务器", "开发者", "自动清理", "软件更新"],
   );
   const html = vm.runInContext("general()", context);
   assert.equal(
     (html.match(/class="setting-row general-entry"/g) || []).length,
-    7,
+    6,
   );
   assert.doesNotMatch(html, /data-action="sip" aria-haspopup="dialog"/);
   assert.match(html, /data-action="cleanup" aria-haspopup="dialog"/);
@@ -182,9 +182,24 @@ test("unavailable session storage does not block navigation", () => {
   assert.equal(f.urls.at(-1), "/");
 });
 
-test("SIP server is separate from SIP accounts and follows host server", () => {
+test("SIP server remains an internal route separate from SIP accounts", () => {
   const { context, nodes } = setup();
   vm.runInContext("actions.sipServer()", context);
   assert.equal(nodes.get("#app-window main").dataset.page, "sipServer");
   assert.equal(vm.runInContext("generalPages.has('sipServer')", context), true);
+});
+
+test('server navigation groups both forms inside the single server entry',()=>{
+ const context=vm.createContext({Forms:{header:title=>`<h1>${title}</h1>`}});
+ vm.runInContext(readFileSync(join(__dirname,'..','server-navigation.js'),'utf8'),context);
+ const navigation=vm.runInContext('ServerNavigation',context);
+ for (const active of ['server','sipServer']) {
+  const html=navigation.header(active);
+  assert.match(html,/<h1>服务器<\/h1>/);
+  assert.match(html,/主机服务器/);assert.match(html,/SIP 电话服务器/);
+  assert.equal((html.match(/aria-pressed="true"/g)||[]).length,1);
+  assert.match(html,new RegExp(`data-action="${active}" aria-pressed="true"`));
+ }
+ const {context:appContext}=setup();const html=vm.runInContext('general()',appContext);
+ assert.match(html,/data-action="server"/);assert.doesNotMatch(html,/data-action="sipServer"/);
 });

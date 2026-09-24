@@ -30,6 +30,7 @@ function setup(enabled = true) {
       })[selector],
   };
   const context = vm.createContext({
+    ServerNavigation: {header:()=>"服务器 主机服务器 SIP 电话服务器"},
     URL,
     URLSearchParams,
     FormData,

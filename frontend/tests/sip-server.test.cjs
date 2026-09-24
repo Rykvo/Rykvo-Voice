@@ -15,6 +15,7 @@ function setup(connect = async () => { throw Object.assign(Error('offline'), {co
     reset(){ for(const field of Object.values(fields)) field.value=''; }
   };
   const context=vm.createContext({
+    ServerNavigation: {header:()=>"服务器 主机服务器 SIP 电话服务器"},
     AbortController,
     document:{getElementById:()=>form},
     Forms:{header:t=>`<h1>${t}</h1>`,field:options=>JSON.stringify(options),report:(_form,error)=>{if(error)reports.push(error);return !!error;}},

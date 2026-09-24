@@ -1,7 +1,7 @@
 const SIPServer = (() => {
   let form = null, controller = null;
   function render() {
-    return `<section class="form-page server-page">${Forms.header("SIP 电话服务器", "sip.svg")}
+    return `<section class="form-page server-page">${ServerNavigation.header("sipServer")}
       <form id="sip-server-form" class="settings-form" novalidate>
         <div class="form-fields">
           ${Forms.field({ prefix: "sip-server", name: "address", label: "接入地址", placeholder: "sip.example.com:5061", maxLength: 512, required: true })}

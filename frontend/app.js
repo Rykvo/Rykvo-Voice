@@ -16,8 +16,7 @@ const { icon } = Forms;
 const generalItems = [
   { id: "administrator", title: "管理员", icon: "privacy.svg" },
   { id: "sip", title: "SIP 电话", icon: "sip.svg" },
-  { id: "server", title: "主机服务器", icon: "cloud.svg" },
-  { id: "sipServer", title: "SIP 电话服务器", icon: "sip.svg" },
+  { id: "server", title: "服务器", icon: "cloud.svg" },
   { id: "developer", title: "开发者", icon: "developer.svg" },
   { id: "cleanup", title: "自动清理", icon: "cleanup.svg" },
   { id: "updates", title: "软件更新", icon: "updates.svg" },
