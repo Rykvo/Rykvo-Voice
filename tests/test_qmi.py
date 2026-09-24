@@ -61,4 +61,4 @@ class QMIReadTests(unittest.TestCase):
             self.assertIn(path, builder)
             self.assertIn(path, installer)
         self.assertIn('"qmi-socket:$QMI_SOCKET" "qmi-unit:$QMI_UNIT"', installer)
-        self.assertIn('"$PCSC_RULE" "$QMI_SOCKET" "$QMI_UNIT"', installer.split("uninstall() {")[1])
+        self.assertIn('"$PCSC_RULE" "$QMI_SOCKET" "$QMI_UNIT"', installer.split("\nuninstall() {")[1])
