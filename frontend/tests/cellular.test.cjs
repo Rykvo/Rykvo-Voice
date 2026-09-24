@@ -424,13 +424,13 @@ test("physical SIM network selection reuses async controls without changing loca
   assert.equal(f.dialogs.at(-1)[0], "网络选择");
   assert.doesNotMatch(f.dialogs.at(-1)[1], /尚未接入|待接入/);
   f.events.change({ target: { dataset: { cellularSetting: "networkAutomatic" }, checked: false, closest: () => ({}) } });
-  await Promise.resolve();
+  await new Promise(setImmediate);
   assert.equal(calls[0][1], "scanNetworks");
   assert.equal(calls[0][3], "physical");
   assert.equal(item.sims[0].networkAutomatic, true);
   item.job = { action: "network-scan", state: "succeeded", networks: [{name: "Test", plmn: "00101", technology: 7, status: 1}] };
   f.events.click({target:{closest:s => s === "#dialog-content" ? {} : s === "[data-network-index]" ? {dataset:{networkIndex:"0"}} : null}});
-  await Promise.resolve();
+  await new Promise(setImmediate);
   assert.equal(calls[1][1], "updateLine");
   assert.equal(calls[1][2].operator, "00101");
   assert.equal(calls[1][2].networkAutomatic, false);

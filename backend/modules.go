@@ -275,6 +275,9 @@ func (s *server) moduleView(v moduleRecord) map[string]any {
 	job := moduleJob{}
 	if s.modules != nil {
 		job = s.modules.job(v.ID)
+		if job.Verification != nil && job.Verification.Network != nil && (job.Verification.Network.ICCID != reading.ICCID || job.Verification.Network.IMEI != reading.IMEI) {
+			job.Networks = nil
+		}
 	}
 	cardReading := present && !esim && reading.SIM != "absent" && reading.ESIM != nil && reading.ESIM.Issue != "NO_EUICC"
 	if esim {
