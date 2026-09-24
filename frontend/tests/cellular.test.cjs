@@ -229,7 +229,7 @@ test("activation validation and submission never claim installation", () => {
 
 test("managed modules hide hardware diagnostics and retain real eSIM controls", () => {
   const { cellular } = setup();
-  const item = { ...structuredClone(fixture), managed: true, capabilities: { esim: true }, hardware: { model: "EC20", imei: "123456789012345", esim: { eid: "89049032001001234500012345678901" } } };
+  const item = { ...structuredClone(fixture), managed: true, capabilities: { esim: true, esimDownload: true }, hardware: { model: "EC20", imei: "123456789012345", esim: { eid: "89049032001001234500012345678901" } } };
   item.sims[0] = { ...item.sims[0], number: item.number, id: "line-active", esim: true, iccid: "89123456789012345678", canDisable: true, canDelete: true };
   for (const html of [cellular.overview(item), cellular.detail(item, 0)]) {
     assert.doesNotMatch(html, /设备信息|IMEI|ICCID|EID|EC20|123456789012345|89123456789012345678/);
@@ -398,4 +398,18 @@ test("read errors and pending inventory are not presented as an absent SIM", () 
   assert.doesNotMatch(cellular.overview(item), /无 SIM 卡/);
   item.issue = ""; item.cardReading = true;
   assert.match(cellular.overview(item), /正在读取卡片/);
+});
+
+test("add eSIM is visible only for detected download-capable cards", () => {
+  const f = setup();
+  const item = { name: "模块", managed: true, sims: [], capabilities: { esim: false, esimDownload: false } };
+  assert.doesNotMatch(f.cellular.overview(item), /data-cellular-add|添加 eSIM/);
+  item.capabilities.esim = true;
+  f.cellular.open(item);
+  f.events.click({ target: { closest: selector => ["#dialog-content", "[data-cellular-add]"].includes(selector) ? {} : null } });
+  assert.equal(f.dialogs.at(-1)[0], "蜂窝网络");
+  item.capabilities.esimDownload = true;
+  assert.match(f.cellular.overview(item), /data-cellular-add/);
+  item.capabilities.esim = false;
+  assert.match(f.cellular.overview(item), /data-cellular-add disabled/);
 });

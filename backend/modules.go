@@ -288,5 +288,5 @@ func (s *server) moduleView(v moduleRecord) map[string]any {
 	if reading.Registration == "home" || reading.Registration == "roaming" || reading.Registration == "registered" {
 		signal = "cellular"
 	}
-	return map[string]any{"id": moduleID(v.ID), "name": moduleName(v.ID), "label": v.Label, "labelCustom": v.Custom, "number": reading.Number, "status": status, "signal": signal, "sims": sims, "kind": v.Kind, "hardware": reading, "issue": issue, "managed": true, "cardReading": cardReading, "job": job, "capabilities": map[string]bool{"read": true, "sms": false, "calls": false, "lineControl": false, "esim": esim && !job.active()}}
+	return map[string]any{"id": moduleID(v.ID), "name": moduleName(v.ID), "label": v.Label, "labelCustom": v.Custom, "number": reading.Number, "status": status, "signal": signal, "sims": sims, "kind": v.Kind, "hardware": reading, "issue": issue, "managed": true, "cardReading": cardReading, "job": job, "capabilities": map[string]bool{"read": true, "sms": false, "calls": false, "lineControl": false, "esim": esim && !job.active(), "esimDownload": esim}}
 }

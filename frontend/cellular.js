@@ -4,6 +4,7 @@ const Cellular = (() => {
   let view = "overview", rendered = "", submitting = false;
   const dismissedJobs = new Set();
   const editable = (item) => !item.managed || (item.capabilities?.esim && !submitting);
+  const downloadable = (item) => !item.managed || item.capabilities?.esimDownload === true;
   function active() {
     if (activeID) activeLine = module?.sims?.findIndex((sim) => sim.id === activeID) ?? -1;
     return module?.sims?.[activeLine];
@@ -80,9 +81,9 @@ const Cellular = (() => {
           <span class="cellular-sim-meta">${UI.escape(sim.state)}</span>
           <span class="chevron" aria-hidden="true">›</span>
         </button>`).join("") : `<p class="cellular-empty">${UI.escape(item.issue ? ModuleData.issueText(item.issue) : item.cardReading ? "正在读取卡片" : "无 SIM 卡")}</p>`}</div>
-      <button type="button" class="cellular-add" data-cellular-add ${editable(item) ? "" : "disabled"}>
+      ${downloadable(item) ? `<button type="button" class="cellular-add" data-cellular-add ${editable(item) ? "" : "disabled"}>
         <span aria-hidden="true">＋</span>添加 eSIM<span class="chevron" aria-hidden="true">›</span>
-      </button>
+      </button>` : ""}
       ${item.hardware?.esim?.pending > 0 ? `<button type="button" class="text-button cellular-notify" data-cellular-notify ${editable(item) ? "" : "disabled"}>重试状态上报</button>` : ""}<div data-cellular-job>${showJob ? jobNote(item) : ""}</div>
     </section>`;
   }
@@ -178,7 +179,7 @@ const Cellular = (() => {
       return;
     }
     if (event.target.closest("[data-cellular-add]")) {
-      if (!editable(module)) return;
+      if (!downloadable(module) || !editable(module)) return;
       view = "form";
       UI.modal(
         "添加 eSIM",
@@ -277,7 +278,7 @@ const Cellular = (() => {
     )
       return;
     if (!module?.managed) { UI.toast("eSIM 服务尚未接入，未添加"); return; }
-    if (!editable(module)) return;
+    if (!downloadable(module) || !editable(module)) return;
     const item = module, form = event.target;
     const button = form.querySelector('[type="submit"]');
     button.disabled = true;

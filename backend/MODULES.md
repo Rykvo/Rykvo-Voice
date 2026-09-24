@@ -49,6 +49,16 @@ Module 保留 `{id,name,label,number,status,signal,sims}`，增加 `managed`、`
 
 普通 SIM 带 `readOnly:true`。eSIM 配置 ID 由 EID + ICCID 生成，不依赖数组下标。capabilities 中 sms/calls/lineControl 为 false；esim 由真实探测和任务占用状态决定。
 
+`capabilities.esimDownload` 表示已确认 eUICC 管理能力，与任务忙闲分开：普通 SIM、离线或未识别卡不显示下载入口；支持卡在任务执行期间保留入口但禁用。最终下载仍取决于卡内空间、激活码和运营商校验。
+
+## 网络控制待接入
+
+保留现有 `updateLine` 与 `networks` 接口，不把 UI 开关当作设备状态。网络扫描及选网需独占目标模块控制通道、异步执行并核对 IMEI / ICCID；数据连接需管理 APN、数据上下文和漫游许可，不修改主机默认管理路由。
+
+已核对 VoCat `484cd236` 的 Wi-Fi 通话流程：记录射频状态，对当前模块设置 CFUN=4 并停止蜂窝数据，再执行 SIM AKA、ePDG / IKE / IPsec 和 IMS 注册。重试保持射频关闭；显式关闭时按原状态及飞行模式策略恢复。该流程不等同于单独设置飞行模式，且与同模块蜂窝数据并行使用存在冲突。
+
+参考用于协议和流程分析，不复制其受限实现。Rykvo 当前尚未接入上述选网、数据连接和 VoWiFi 链路；未启动真实服务前继续保持能力关闭，不宣称已注册或可通话。
+
 标签错误：`INVALID_LABEL`（400）、`LABEL_EXISTS`（409）、`LABEL_ALREADY_SET`（409）。读取失败与空列表分开表示；发现错误字段不带系统原始路径/错误正文。
 
 ## 运行环境

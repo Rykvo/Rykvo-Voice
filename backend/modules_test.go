@@ -91,6 +91,9 @@ func TestModuleStateAndStaleSIM(t *testing.T) {
 	if s.moduleView(v)["status"] != "online" {
 		t.Fatal("not online")
 	}
+	if s.moduleView(v)["capabilities"].(map[string]bool)["esimDownload"] {
+		t.Fatal("physical SIM offered eSIM download")
+	}
 	line := s.moduleView(v)["sims"].([]any)[0].(map[string]any)
 	if line["iccid"] != "89123456789012345678" || line["number"] != "12345" {
 		t.Fatal("physical SIM identity missing or used as number")
@@ -201,6 +204,11 @@ func TestModuleViewReturnsEveryESIMProfile(t *testing.T) {
 			m.seen[c.Key] = c
 			m.lastScan = time.Now()
 			m.values[v.ID] = moduleSample{c, r}
+			m.jobs[v.ID] = moduleJob{State: "running"}
+			capabilities := s.moduleView(v)["capabilities"].(map[string]bool)
+			if !capabilities["esimDownload"] || capabilities["esim"] {
+				t.Fatal("card capability confused with operation availability")
+			}
 			rows := s.moduleView(v)["sims"].([]any)
 			if len(rows) != count {
 				t.Fatalf("got %d profiles, want %d", len(rows), count)
