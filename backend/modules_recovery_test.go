@@ -49,7 +49,7 @@ func (s *recoverySource) Read(context.Context, hardware.Candidate) hardware.Read
 func (s *recoverySource) Restart(context.Context, hardware.Candidate) error { s.resets++; return nil }
 
 func TestModuleRecoveryDoesNotInterruptOperationsOrHotplug(t *testing.T) {
-	for _, reason := range []string{"job", "gate", "grace", "changed", "stale", "cancelled"} {
+	for _, reason := range []string{"job", "gate", "grace", "changed", "stale", "cancelled", "unproven"} {
 		t.Run(reason, func(t *testing.T) {
 			source := &recoverySource{}
 			m := newModuleManager(nil, source)
@@ -76,6 +76,8 @@ func TestModuleRecoveryDoesNotInterruptOperationsOrHotplug(t *testing.T) {
 				m.lastScan = time.Now().Add(-time.Minute)
 			case "cancelled":
 				cancel()
+			case "unproven":
+				delete(m.recoveryProof, c.Key)
 			}
 			m.read(ctx, c)
 			if source.resets != 0 {
@@ -109,6 +111,14 @@ func testRecoveryDatabase(t *testing.T, s *server, module int64) {
 	}
 	first := reserve(true)
 	reserve(false)
+	var other hardware.Candidate
+	var identity string
+	if err := s.db.QueryRow(ctx, "SELECT endpoint,endpoint_generation,hardware_key FROM modules WHERE id<>$1 LIMIT 1", module).Scan(&other.Key, &other.Generation, &identity); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := m.reserveRecovery(ctx, other, identity); err == nil {
+		t.Fatal("global restart grace ignored")
+	}
 	// Limits survive replacing the manager and moving the last attempt outside global grace.
 	m = newModuleManager(s.db, nil)
 	exec("UPDATE module_recoveries SET result='requested',attempted_at=now()-interval '5 minutes' WHERE id=$1", first)
@@ -130,5 +140,29 @@ func testRecoveryDatabase(t *testing.T, s *server, module int64) {
 	exec("INSERT INTO module_jobs(id,module_id,action,state) VALUES('recovery-busy-test',$1,'download','running')", module)
 	reserve(false)
 	exec("DELETE FROM module_jobs WHERE id='recovery-busy-test'")
+	exec("DELETE FROM module_recoveries")
+	// Exercise the complete scheduler path with no real hardware or production database.
+	source := &recoverySource{}
+	m = newModuleManager(s.db, source)
+	c = recoveryCandidate()
+	c.Key = "usb:moved"
+	exec("UPDATE modules SET endpoint_generation=$2 WHERE id=$1", module, c.Generation)
+	m.ready, m.recoveryReady = true, true
+	m.seen[c.Key], m.lastScan = c, time.Now()
+	m.recoveryProof[c.Key] = moduleSample{c, hardware.Reading{IMEI: "123456789012300"}}
+	m.recovery[c.Key] = recoveryStreak{generation: c.Generation, since: time.Now().Add(-2 * time.Minute), last: time.Now(), count: 4}
+	m.read(ctx, c)
+	m.read(ctx, c)
+	if source.resets != 1 || source.reads != 1 {
+		t.Fatal("reset not serialized", source)
+	}
+	var result string
+	if err := s.db.QueryRow(ctx, "SELECT result FROM module_recoveries WHERE module_id=$1", module).Scan(&result); err != nil || result != "requested" {
+		t.Fatal(result, err)
+	}
+	m.verifyRecovery(ctx, module, hardware.Reading{Responsive: true, IMEI: "123456789012300"})
+	if err := s.db.QueryRow(ctx, "SELECT result FROM module_recoveries WHERE module_id=$1", module).Scan(&result); err != nil || result != "recovered" {
+		t.Fatal(result, err)
+	}
 	exec("DELETE FROM module_recoveries")
 }
