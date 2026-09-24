@@ -102,6 +102,10 @@ func openATCard(ctx context.Context, c Candidate, expectedIMEI string) (*cardCha
 	if err != nil {
 		return nil, err
 	}
+	return atCard(ctx, s), nil
+}
+
+func atCard(ctx context.Context, s *atSession) *cardChannel {
 	return &cardChannel{ctx: ctx, close: s.port.Close, send: func(ctx context.Context, apdu []byte) ([]byte, error) {
 		command := fmt.Sprintf("AT+CSIM=%d,\"%X\"", len(apdu)*2, apdu)
 		lines, err := s.exchange(ctx, command, 30*time.Second)
@@ -109,5 +113,5 @@ func openATCard(ctx context.Context, c Candidate, expectedIMEI string) (*cardCha
 			return nil, err
 		}
 		return parseCSIM(lines)
-	}}, nil
+	}}
 }

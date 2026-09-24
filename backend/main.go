@@ -28,7 +28,15 @@ func main() {
 	initializeVisibility := flag.Bool("init-visibility", false, "Initialize independent display password from stdin")
 	card := flag.String("hardware-card", "", "Internal isolated PC/SC reader")
 	esim := flag.Bool("hardware-esim", false, "Internal isolated eUICC session")
+	wifiCheck := flag.Bool("hardware-wifi-check", false, "Read Wi-Fi calling SIM prerequisites from stdin")
 	flag.Parse()
+	if *wifiCheck {
+		if err := hardware.WiFiSIMCheck(); err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+		return
+	}
 	if *esim {
 		if hardware.ESIMHelper() != nil {
 			os.Exit(1)
