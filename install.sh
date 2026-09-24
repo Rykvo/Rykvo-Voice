@@ -10,6 +10,7 @@ BACKUPS=/var/backups/rykvo-voice
 UNIT=/etc/systemd/system/rykvo-auth.service
 SITE=/etc/nginx/sites-available/rykvo-voice
 ENABLED=/etc/nginx/sites-enabled/rykvo-voice
+WRAPPER=/usr/local/bin/rykvo
 DB=rykvo_voice
 DB_URL='postgres:///rykvo_voice?host=/var/run/postgresql&user=rykvo_voice'
 TEMP=
@@ -29,7 +30,7 @@ remove_app_path() {
     [[ ! -L "$path" ]] || { unlink -- "$path"; return; }
     resolved=$(realpath -m -- "$path")
     case "$resolved" in
-        "$BASE/releases/"*|"$BASE/live"|"$STATE"|/var/cache/rykvo-voice|"$MANAGER") ;;
+        "$BASE"|"$BASE/releases/"*|"$BASE/live"|"$STATE"|"$BACKUPS"|/var/cache/rykvo-voice|"$MANAGER") ;;
         *) die "拒绝清理范围外路径：$resolved" ;;
     esac
     [[ "$resolved" != "$BASE/releases/" ]] || die '清理路径无效'
@@ -241,8 +242,8 @@ install_manager() {
     install -m 755 "$SOURCE/install.sh" "$MANAGER/.install.sh"
     mv -Tf "$MANAGER/.install.sh" "$MANAGER/install.sh"
     install -m 644 "$SOURCE/deploy/release.py" "$MANAGER/deploy/release.py"
-    printf '#!/usr/bin/env bash\nexec /opt/rykvo-manager/install.sh "$@"\n' > /usr/local/bin/rykvo
-    chmod 755 /usr/local/bin/rykvo
+    printf '#!/usr/bin/env bash\nexec /opt/rykvo-manager/install.sh "$@"\n' > "$WRAPPER"
+    chmod 755 "$WRAPPER"
 }
 
 deploy() {
@@ -274,21 +275,24 @@ deploy() {
     say '管理命令：sudo rykvo'
 }
 
+confirm_uninstall() {
+    local confirm
+    read -r -p '永久删除本应用、数据库、配置和所有备份。输入 DELETE rykvo_voice：' confirm </dev/tty
+    [[ "$confirm" == 'DELETE rykvo_voice' ]] || die '已取消'
+}
+
 uninstall() {
-    local purge=${1:-} confirm binding=''
-    [[ -f "$UNIT" || -L "$BASE/live" ]] || die '尚未安装'
+    local binding='' has_database
+    [[ -f "$UNIT" || -d "$BASE" || -d "$STATE" ]] || die '尚未安装'
     preflight
-    if [[ "$purge" == --purge ]]; then
+    has_database=$(db_sql "SELECT 1 FROM pg_database WHERE datname='$DB'")
+    if [[ "$has_database" == 1 && "$(app_sql "SELECT to_regclass('tunnel_settings') IS NOT NULL")" == t ]]; then
         binding=$(app_sql "SELECT COALESCE(binding->>'domain','') FROM tunnel_settings")
         [[ -z "$binding" ]] || die '请先在云服务器页面注销云连接，再彻底卸载，避免遗留远端 DNS 和隧道'
-        read -r -p '永久删除账号、数据库、配置。输入 DELETE rykvo_voice：' confirm </dev/tty
-        [[ "$confirm" == 'DELETE rykvo_voice' ]] || die '已取消'
-    else
-        read -r -p '卸载程序，保留数据库和配置？[y/N] ' confirm </dev/tty
-        [[ "$confirm" == y || "$confirm" == Y ]] || die '已取消'
     fi
+    confirm_uninstall
     snapshot
-    systemctl disable --now rykvo-auth
+    systemctl disable --now rykvo-auth 2>/dev/null || [[ ! -f "$UNIT" ]]
     rm -f -- "$UNIT" "$ENABLED" "$SITE"
     if [[ -f "$BASE/default-site-link" && ! -e /etc/nginx/sites-enabled/default ]]; then
         ln -s "$(cat "$BASE/default-site-link")" /etc/nginx/sites-enabled/default
@@ -297,22 +301,18 @@ uninstall() {
     nginx -t
     systemctl reload nginx
     SWITCHING=0
-    if [[ -L "$BASE/live" ]]; then unlink "$BASE/live"; fi
-    local release
-    for release in "$BASE"/releases/*; do
-        [[ -f "$release/.managed" && ! -L "$release" ]] || continue
-        remove_app_path "$release"
-    done
-    if [[ "$purge" == --purge ]]; then
-        runuser -u postgres -- dropdb --if-exists --force "$DB"
-        runuser -u postgres -- dropuser --if-exists "$DB"
-        remove_app_path "$STATE"
-        remove_app_path /var/cache/rykvo-voice
-        say "数据已删除；恢复备份仍保留在 $BACKUP（包含敏感数据，目录仅 root 可读）。"
-    else
-        say '程序已卸载，账号、数据库、云配置与备份保留。云端隧道和 DNS 不会被删除。'
-    fi
-    say '系统软件包与其他服务未删除；再次安装运行 sudo rykvo install。'
+    runuser -u postgres -- dropdb --if-exists --force "$DB"
+    runuser -u postgres -- dropuser --if-exists "$DB"
+    remove_app_path "$STATE"
+    remove_app_path /var/cache/rykvo-voice
+    remove_app_path "$BASE"
+    remove_app_path "$BACKUPS"
+    remove_app_path "$MANAGER"
+    rm -f -- "$WRAPPER" /var/log/nginx/rykvo-voice.access.log* /var/log/nginx/rykvo-voice.error.log*
+    if getent passwd "$DB" >/dev/null; then userdel "$DB"; fi
+    if getent group "$DB" >/dev/null; then groupdel "$DB"; fi
+    say '已彻底卸载：程序、数据库、账号、配置、备份、缓存和管理入口已删除。'
+    say '其他项目、共用系统组件和系统审计日志未改动。'
 }
 
 status() {
@@ -325,19 +325,19 @@ status() {
 main() {
     local action=${1:-} option=${2:-}
     case "$action" in
-        -h|--help) printf '用法：sudo bash install.sh [install|update|uninstall [--purge]|status]\n'; return ;;
+        -h|--help) printf '用法：sudo bash install.sh [install|update|uninstall|status]\n'; return ;;
         '')
-            printf 'Rykvo Voice\n1. 安装\n2. 更新\n3. 卸载（保留数据）\n4. 状态\n0. 退出\n'
+            printf 'Rykvo Voice\n1. 安装\n2. 更新\n3. 彻底卸载\n4. 状态\n0. 退出\n'
             read -r -p '选择：' action </dev/tty
             case "$action" in 1) action=install;; 2) action=update;; 3) action=uninstall;; 4) action=status;; 0) return;; *) die '选择无效';; esac ;;
     esac
     [[ "$action" =~ ^(install|update|uninstall|status)$ ]] || die '操作无效'
-    [[ -z "$option" || ( "$action" == uninstall && "$option" == --purge ) ]] || die '参数无效'
+    [[ -z "$option" ]] || die '参数无效'
     check_system
     case "$action" in
         install) deploy ;;
         update) [[ -f "$UNIT" ]] || die '尚未安装，请先安装'; deploy ;;
-        uninstall) uninstall "$option" ;;
+        uninstall) uninstall ;;
         status) status ;;
     esac
 }

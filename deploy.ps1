@@ -10,7 +10,7 @@ if ($Server -notmatch '^[a-zA-Z0-9][a-zA-Z0-9.-]*$' -or $User -notmatch '^[a-zA-
     throw '服务器或用户名格式无效'
 }
 if (-not $Action) {
-    Write-Host "1. 安装`n2. 更新`n3. 卸载（保留数据）`n4. 状态"
+    Write-Host "1. 安装`n2. 更新`n3. 彻底卸载`n4. 状态"
     $Action = @{ '1' = 'install'; '2' = 'update'; '3' = 'uninstall'; '4' = 'status' }[(Read-Host '选择')]
     if (-not $Action) { throw '选择无效' }
 }

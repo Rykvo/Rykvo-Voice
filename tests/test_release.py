@@ -112,6 +112,34 @@ curl() {
   else printf 404; fi
 }; health;''', directory)
 
+    def test_uninstall_deletes_app_data_backups_and_manager(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.run_shell('''BASE="$2/app"; STATE="$2/state"; BACKUPS="$2/backups"; MANAGER="$2/manager";
+UNIT="$2/unit"; SITE="$2/site"; ENABLED="$2/enabled"; WRAPPER="$2/command";
+mkdir -p "$BASE"; touch "$UNIT"; calls="$2/calls";
+preflight() { :; }; db_sql() { printf 1; }; app_sql() { printf f; };
+confirm_uninstall() { printf 'confirmed\\n' >> "$calls"; };
+snapshot() { printf 'snapshot\\n' >> "$calls"; SWITCHING=1; };
+systemctl() { printf 'systemctl %s\\n' "$*" >> "$calls"; };
+nginx() { :; }; getent() { return 1; };
+runuser() { printf 'runuser %s\\n' "$*" >> "$calls"; };
+remove_app_path() { printf 'remove %s\\n' "$1" >> "$calls"; };
+rm() { printf 'rm %s\\n' "$*" >> "$calls"; };
+uninstall;
+grep -Fq 'dropdb --if-exists --force rykvo_voice' "$calls";
+grep -Fq 'dropuser --if-exists rykvo_voice' "$calls";
+for path in "$STATE" "$BACKUPS" "$BASE" "$MANAGER"; do grep -Fq "remove $path" "$calls"; done;
+[[ $(head -n 1 "$calls") == confirmed && $SWITCHING == 0 ]];''', directory)
+
+    def test_connected_tunnel_blocks_deletion(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.run_shell('''BASE="$2/app"; UNIT="$2/unit"; mkdir -p "$BASE";
+preflight() { :; }; db_sql() { printf 1; };
+app_sql() { if [[ "$*" == *to_regclass* ]]; then printf t; else printf panel.example.com; fi; };
+confirm_uninstall() { touch "$2/confirmed"; };
+if (uninstall); then exit 1; fi;
+[[ -d "$BASE" && ! -f "$2/confirmed" ]];''', directory)
+
 
 if __name__ == "__main__":
     unittest.main()
