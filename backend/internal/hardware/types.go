@@ -97,6 +97,12 @@ func (s *System) Read(ctx context.Context, c Candidate) Reading {
 			r.Warnings = append(r.Warnings, "AT:"+atIssue)
 		}
 	}
+	// Plain AT ERROR does not distinguish an empty slot from an unreadable card.
+	if r.Responsive && r.Issue == "" && r.SIM == "unknown" && c.Control != "" && ctx.Err() == nil {
+		if status, err := queryQMI(ctx, c.Control, "--uim-get-card-status"); err == nil {
+			r.SIM = qmiSIMState(status)
+		}
+	}
 	if r.Responsive && r.Issue == "" && r.Operator == "" && r.PLMN != "" && c.Control != "" {
 		// Numeric COPS format persists after manual selection; do not change it to fetch a label.
 		if status, err := queryQMI(ctx, c.Control, "--nas-get-serving-system"); err == nil {

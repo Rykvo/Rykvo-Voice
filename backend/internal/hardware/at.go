@@ -59,6 +59,12 @@ func (s *atSession) exchange(ctx context.Context, command string, timeout time.D
 				return lines, nil
 			}
 			if line == "ERROR" || strings.HasPrefix(line, "+CME ERROR") || strings.HasPrefix(line, "+CMS ERROR") {
+				if strings.HasPrefix(line, "+CME ERROR:") {
+					code := strings.TrimSpace(strings.TrimPrefix(line, "+CME ERROR:"))
+					if code == "10" || strings.EqualFold(code, "SIM not inserted") {
+						return nil, errors.New("NO_SIM")
+					}
+				}
 				return nil, errors.New("COMMAND_UNSUPPORTED")
 			}
 			if line == "RING" || strings.HasPrefix(line, "+CMT") || strings.HasPrefix(line, "+QIND") {
@@ -115,6 +121,10 @@ func readATFields(ctx context.Context, s *atSession, r *Reading) {
 		}
 		v, err := s.query(ctx, cmd)
 		if err != nil {
+			if cmd == "AT+CPIN?" && errorCode(err) == "NO_SIM" {
+				r.SIM = "absent"
+				return nil
+			}
 			r.Warnings = append(r.Warnings, cmd+":"+errorCode(err))
 			// Close this session after a timeout; late replies must not satisfy a different query.
 			if errors.Is(err, errTimeout) || errorCode(err) != "COMMAND_UNSUPPORTED" {
@@ -136,9 +146,12 @@ func readATFields(ctx context.Context, s *atSession, r *Reading) {
 	}
 	r.Firmware = first("AT+CGMR")
 	r.IMEI = digits(query("AT+CGSN"), 14, 17)
-	r.SIM = strings.TrimSpace(strings.TrimPrefix(first("AT+CPIN?"), "+CPIN:"))
-	if r.SIM == "" {
-		r.SIM = "unknown"
+	sim := strings.TrimSpace(strings.TrimPrefix(first("AT+CPIN?"), "+CPIN:"))
+	if r.SIM != "absent" {
+		r.SIM = sim
+		if r.SIM == "" {
+			r.SIM = "unknown"
+		}
 	}
 	if r.SIM == "READY" {
 		r.ICCID = digits(query("AT+CCID"), 18, 22)

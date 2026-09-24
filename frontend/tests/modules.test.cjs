@@ -109,6 +109,19 @@ test("network rejection is distinct from a failed modem read", () => {
   assert.match(modules.rows([item]), /正在恢复/);
   assert.doesNotMatch(modules.rows([item]), /读取异常/);
 });
+test("empty slot is distinct from a card without service", () => {
+  const { modules } = setup();
+  const item = { id: "test", name: "模块", managed: true, status: "online", signal: "none", hardware: { simState: "absent" } };
+  assert.match(modules.rows([item]), /无 SIM 卡/);
+  assert.doesNotMatch(modules.rows([item]), /无服务/);
+  item.hardware.simState = "READY";
+  assert.match(modules.rows([item]), /无服务/);
+  assert.doesNotMatch(modules.rows([item]), /无 SIM 卡/);
+  item.hardware.simState = "unknown";
+  item.status = "error";
+  item.issue = "READ_TIMEOUT";
+  assert.doesNotMatch(modules.rows([item]), /无 SIM 卡/);
+});
 test("counts and filters derive from records without mutating them", () => {
   const { modules } = setup();
   const records = Object.freeze(

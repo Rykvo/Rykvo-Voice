@@ -117,6 +117,7 @@ func TestStableIdentityIndependentOfPortAndSIM(t *testing.T) {
 type transcript struct {
 	response string
 	commands []string
+	simReply string
 }
 
 func (p *transcript) Write(b []byte) (int, error) {
@@ -124,6 +125,10 @@ func (p *transcript) Write(b []byte) (int, error) {
 	p.commands = append(p.commands, cmd)
 	responses := map[string]string{
 		"AT+CGMM": "EC20", "AT+CGMR": "test-firmware", "AT+CGSN": "123456789012345", "AT+CPIN?": "+CPIN: READY", "AT+QCCID": "+QCCID: 89123456789012345678F", "AT+CNUM": "+CNUM: \"\",\"+12025550123\",145", "AT+CSQ": "+CSQ: 20,99", "AT+COPS?": "+COPS: 0,0,\"Test Network\",7", "AT+CEREG?": "+CEREG: 0,5", `AT+QENG="servingcell"`: `+QENG: "servingcell","NOCONN","LTE","FDD",001,01,0,0,0,0,0,0,0,-90,-12,-65,15`,
+	}
+	if cmd == "AT+CPIN?" && p.simReply != "" {
+		p.response = p.simReply + "\r\n"
+		return len(b), nil
 	}
 	if v, ok := responses[cmd]; ok {
 		p.response = cmd + "\r\n" + v + "\r\nOK\r\n"
@@ -155,6 +160,29 @@ func TestReadOnlyATSnapshot(t *testing.T) {
 	for _, cmd := range p.commands {
 		if strings.HasPrefix(cmd, "AT+CFUN") || strings.HasPrefix(cmd, "AT+CPBS") || strings.Contains(cmd, "CMGS") {
 			t.Fatalf("unexpected control: %s", cmd)
+		}
+	}
+}
+
+func TestAbsentSIMIsNotAnESIMOperationFailure(t *testing.T) {
+	for _, tc := range []struct{ reply, want string }{
+		{"+CME ERROR: 10", "absent"},
+		{"+CME ERROR: SIM not inserted", "absent"},
+		{"ERROR", "unknown"},
+		{"+CME ERROR: 13", "unknown"},
+		{"+CME ERROR: SIM failure", "unknown"},
+		{"+CPIN: SIM PIN\r\nOK", "SIM PIN"},
+	} {
+		p := &transcript{simReply: tc.reply}
+		r := Reading{Responsive: true}
+		readATFields(context.Background(), &atSession{port: p}, &r)
+		if r.SIM != tc.want || r.Issue != "" || r.IMEI == "" || CommunicationStalled(r) {
+			t.Fatalf("%s: %+v", tc.reply, r)
+		}
+		for _, cmd := range p.commands {
+			if cmd == "AT+CCID" || cmd == "AT+QCCID" || cmd == "AT+CNUM" {
+				t.Fatal("queried unavailable SIM", cmd)
+			}
 		}
 	}
 }
