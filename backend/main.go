@@ -30,7 +30,14 @@ func main() {
 	esim := flag.Bool("hardware-esim", false, "Internal isolated eUICC session")
 	wifiCheck := flag.Bool("hardware-wifi-check", false, "Read Wi-Fi calling SIM prerequisites from stdin")
 	wifiRun := flag.Bool("hardware-wifi-run", false, "Bounded Wi-Fi calling maintenance test")
+	wifiWorker := flag.Bool("hardware-wifi-worker", false, "Private socket-activated VoWiFi session")
 	flag.Parse()
+	if *wifiWorker {
+		if hardware.WiFiWorker() != nil {
+			os.Exit(1)
+		}
+		return
+	}
 	if *wifiRun {
 		if err := hardware.WiFiSIMRun(); err != nil {
 			log.Print(err)
@@ -126,7 +133,16 @@ func main() {
 	}
 	defer listener.Close()
 	moduleContext, stopModules := context.WithCancel(ctx)
-	api.modules = newModuleManager(pool, hardware.NewSystem())
+	system := hardware.NewSystem()
+	var wifi wifiSource = system
+	switch os.Getenv("RYKVO_WIFI_ENGINE") {
+	case "", "legacy":
+	case "vocat":
+		wifi = &hardware.VocatWorkerClient{}
+	default:
+		log.Fatal("Invalid Wi-Fi engine selection")
+	}
+	api.modules = newModuleManagerWithWiFi(pool, system, wifi)
 	go api.modules.run(moduleContext)
 	defer func() { stopModules(); <-api.modules.done }()
 	if dir := os.Getenv("TUNNEL_DIR"); dir != "" {

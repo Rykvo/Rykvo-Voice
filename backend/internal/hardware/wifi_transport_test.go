@@ -204,3 +204,30 @@ func TestWiFiESPRejectsWrongSPI(t *testing.T) {
 		t.Fatal("wrong association")
 	}
 }
+
+func TestWiFiAuthenticatedTFCPadding(t *testing.T) {
+	for _, pair := range [][2]string{{"192.0.2.1", "192.0.2.2"}, {"2001:db8::1", "2001:db8::2"}} {
+		for _, padding := range []int{1, 46, 1500} {
+			a, b := espPair(false)
+			packet, kind, e := wifiUDP(net.ParseIP(pair[0]), net.ParseIP(pair[1]), 40000, 5060, []byte("fixture"))
+			if e != nil {
+				t.Fatal(e)
+			}
+			wire, e := a.seal(append(bytes.Clone(packet), bytes.Repeat([]byte{0xa5}, padding)...), kind)
+			if e != nil {
+				t.Fatal(e)
+			}
+			plain, next, e := b.open(wire)
+			if e != nil || next != kind || !bytes.Equal(plain, packet) {
+				t.Fatal("authenticated TFC not removed", padding, e)
+			}
+			if _, _, e = b.open(wire); e == nil {
+				t.Fatal("TFC bypassed replay check")
+			}
+			wire[len(wire)-1] ^= 1
+			if _, _, e = b.open(wire); e == nil {
+				t.Fatal("TFC bypassed integrity check")
+			}
+		}
+	}
+}

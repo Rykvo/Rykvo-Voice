@@ -5,19 +5,25 @@ import (
 	"errors"
 	"log"
 	"rykvo.local/auth/internal/hardware"
+	"strings"
 	"time"
 )
 
 type moduleWiFi struct {
-	ICCID, RequestID string
-	Enabled          bool
-	State, Issue     string
-	Registered       bool
-	candidate        hardware.Candidate
-	running          bool
-	cancel           context.CancelFunc
+	ICCID, RequestID   string
+	Enabled            bool
+	State, Issue       string
+	Profile, Transport string
+	Registered         bool
+	RadioOff           bool
+	refreshUntil       time.Time
+	candidate          hardware.Candidate
+	running            bool
+	cancel             context.CancelFunc
 }
 type wifiSource interface {
+	// Block through registration maintenance and cleanup. Cancellation must release
+	// the SIM and restore radio state before returning and releasing the module gate.
 	WiFi(context.Context, hardware.Candidate, string, string, func(string)) error
 }
 
@@ -64,10 +70,12 @@ func (m *moduleManager) wifiView(id int64, iccid string) map[string]any {
 		return v
 	}
 	v["enabled"], v["registered"], v["state"], v["issue"] = w.Enabled, w.Registered, w.State, w.Issue
+	v["carrierProfile"], v["transport"] = w.Profile, w.Transport
+	v["radioOffConfirmed"] = w.RadioOff
 	return v
 }
 func (m *moduleManager) setWiFi(ctx context.Context, v moduleRecord, line, id string, enabled bool) error {
-	if _, ok := m.source.(wifiSource); !ok {
+	if m.wifiEngine == nil {
 		return errors.New("WIFI_MODEM_UNSUPPORTED")
 	}
 	m.mu.Lock()
@@ -96,6 +104,9 @@ func (m *moduleManager) setWiFi(ctx context.Context, v moduleRecord, line, id st
 	if enabled && w != nil && w.running && (!w.Enabled || w.ICCID != sample.Reading.ICCID) {
 		return errors.New("DEVICE_BUSY")
 	}
+	if !enabled && (w == nil || !w.running) && (m.jobs[v.ID].active() || time.Now().Before(m.recoveryUntil[v.Endpoint])) {
+		return errors.New("DEVICE_BUSY")
+	}
 	if _, err := m.db.Exec(ctx, `INSERT INTO module_wifi(module_id,iccid,enabled,request_id) VALUES($1,$2,$3,$4) ON CONFLICT(module_id) DO UPDATE SET iccid=$2,enabled=$3,request_id=$4`, v.ID, sample.Reading.ICCID, enabled, id); err != nil {
 		return errors.New("DATABASE_UNAVAILABLE")
 	}
@@ -111,6 +122,15 @@ func (m *moduleManager) setWiFi(ctx context.Context, v moduleRecord, line, id st
 			w.cancel()
 		} else {
 			w.State, w.Issue = "off", ""
+			if restorer, ok := m.wifiEngine.(radioRestorer); ok {
+				call, cancel := context.WithTimeout(m.ctx, 30*time.Second)
+				w.cancel = cancel
+				w.running = true
+				w.candidate = sample.Candidate
+				w.State = "stopping"
+				m.operations.Add(1)
+				go func() { defer cancel(); m.runWiFi(call, v.ID, w, sample, radioRestoreSource{restorer}) }()
+			}
 		}
 		return nil
 	}
@@ -124,16 +144,26 @@ func (m *moduleManager) setWiFi(ctx context.Context, v moduleRecord, line, id st
 // Called under m.mu after a verified hardware sample.
 func (m *moduleManager) startWiFiLocked(id int64, sample moduleSample) {
 	w := m.wifi[id]
-	if w == nil || !w.Enabled || w.running || w.State != "waiting" || w.ICCID != sample.Reading.ICCID || sample.Reading.SIM != "READY" || !sample.Reading.Responsive || sample.Reading.Issue != "" || m.jobs[id].active() || time.Now().Before(m.recoveryUntil[sample.Candidate.Key]) {
+	if w == nil || !w.Enabled || w.running || w.ICCID != sample.Reading.ICCID || sample.Reading.SIM != "READY" || !sample.Reading.Responsive || sample.Reading.Issue != "" || m.jobs[id].active() || time.Now().Before(m.recoveryUntil[sample.Candidate.Key]) {
 		return
 	}
-	source, ok := m.source.(wifiSource)
-	if !ok || !hardware.WiFiSupported(sample.Candidate) {
+	source := m.wifiEngine
+	if source == nil || !hardware.WiFiSupported(sample.Candidate) {
 		return
+	}
+	if m.ctx == nil || m.ctx.Err() != nil {
+		return
+	}
+	if w.State != "waiting" {
+		// A verified new USB generation gets one new attempt, not one per poll.
+		if w.candidate.Key != sample.Candidate.Key || w.candidate.Generation == "" || sameEndpoint(w.candidate, sample.Candidate) || !hardware.CommunicationHealthy(sample.Reading) || !resumeWiFiIntent(w, sample.Reading) {
+			return
+		}
 	}
 	ctx, cancel := context.WithCancel(m.ctx)
 	w.cancel, w.running, w.candidate = cancel, true, sample.Candidate
 	w.State, w.Registered, w.Issue = "connecting", false, ""
+	w.RadioOff = false
 	m.operations.Add(1)
 	go m.runWiFi(ctx, id, w, sample, source)
 }
@@ -152,13 +182,48 @@ func (m *moduleManager) runWiFi(ctx context.Context, id int64, w *moduleWiFi, sa
 		defer func() { <-gate }()
 	}
 	if acquired && ctx.Err() == nil {
-		err = source.WiFi(ctx, sample.Candidate, sample.Candidate.Identity(sample.Reading), sample.Reading.ICCID, func(stage string) {
+		connect := source.WiFi
+		if policy, ok := source.(interface {
+			WiFiWithPolicy(context.Context, hardware.Candidate, string, string, func() bool, func(string)) error
+		}); ok {
+			connect = func(ctx context.Context, c hardware.Candidate, identity, iccid string, emit func(string)) error {
+				return policy.WiFiWithPolicy(ctx, c, identity, iccid, func() bool { m.mu.RLock(); defer m.mu.RUnlock(); return m.wifi[id] == w && !w.Enabled }, emit)
+			}
+		}
+		err = connect(ctx, sample.Candidate, sample.Candidate.Identity(sample.Reading), sample.Reading.ICCID, func(stage string) {
+			if raw, ok := strings.CutPrefix(stage, "config:"); ok {
+				m.acceptCarrierConfig(ctx, id, w, sample, raw)
+				return
+			}
+			if number, ok := strings.CutPrefix(stage, "phone:"); ok {
+				m.acceptWiFiNumber(ctx, id, w, sample, number)
+				return
+			}
 			m.mu.Lock()
 			defer m.mu.Unlock()
 			if m.wifi[id] != w {
 				return
 			}
+			if strings.HasPrefix(stage, "carrier:") {
+				w.Profile = strings.TrimPrefix(stage, "carrier:")
+				log.Printf("module %d Wi-Fi profile: %s", id, w.Profile)
+			}
+			if strings.HasPrefix(stage, "attempt:") {
+				log.Printf("module %d Wi-Fi attempt: %s", id, strings.TrimPrefix(stage, "attempt:"))
+			}
+			if strings.HasPrefix(stage, "cleanup-failed:") {
+				log.Printf("module %d Wi-Fi cleanup: %s", id, strings.TrimPrefix(stage, "cleanup-failed:"))
+			}
+			if strings.HasPrefix(stage, "transport:") {
+				w.Transport = strings.TrimPrefix(stage, "transport:")
+				log.Printf("module %d Wi-Fi IMS transport: %s", id, w.Transport)
+			}
+			if strings.HasPrefix(stage, "diagnostic:") {
+				log.Printf("module %d Wi-Fi %s", id, stage)
+			}
 			switch stage {
+			case "radio-off":
+				w.RadioOff = true
 			case "connected", "renewed":
 				if w.Enabled && ctx.Err() == nil {
 					w.State, w.Registered, w.Issue = "connected", true, ""
@@ -171,6 +236,9 @@ func (m *moduleManager) runWiFi(ctx context.Context, id int64, w *moduleWiFi, sa
 			case "reconnecting":
 				w.State, w.Registered = "connecting", false
 			case "ims-cleaned", "radio-restored":
+				if stage == "radio-restored" {
+					w.refreshUntil = time.Now().Add(80 * time.Second)
+				}
 				w.Registered = false
 			}
 		})
@@ -184,17 +252,27 @@ func (m *moduleManager) runWiFi(ctx context.Context, id int64, w *moduleWiFi, sa
 		return
 	}
 	w.running, w.Registered = false, false
+	if !w.Enabled {
+		w.RadioOff = false
+	}
 	w.cancel = nil
 	current, present := m.seen[sample.Candidate.Key]
 	changed := !present || !sameEndpoint(current, sample.Candidate)
 	code := hardware.WiFiIssue(err)
+	uncertain := strings.HasSuffix(code, "_UNCONFIRMED")
+	if uncertain {
+		w.RadioOff = false
+		// A disconnected worker may still be finishing its bounded cleanup.
+		// Suppress immediate recovery/APN/eSIM writes against that endpoint.
+		m.recoveryUntil[sample.Candidate.Key] = time.Now().Add(90 * time.Second)
+	}
 	if err != nil && !errors.Is(err, context.Canceled) {
 		w.State, w.Issue = "failed", code
 		log.Printf("module %d Wi-Fi stopped: %s", id, code)
 	} else {
 		w.State, w.Issue = "off", ""
 	}
-	if w.Enabled && changed {
+	if w.Enabled && changed && !uncertain {
 		w.State, w.Issue = "waiting", ""
 	}
 }
@@ -216,4 +294,23 @@ func (m *moduleManager) stopWiFiLocked(ctx context.Context, id int64) error {
 		w.State = "off"
 	}
 	return nil
+}
+
+// Called under m.mu only after confirmed device recovery or a new USB generation.
+func resumeWiFiIntent(w *moduleWiFi, r hardware.Reading) bool {
+	if w == nil || !w.Enabled || w.running || w.ICCID != r.ICCID || r.SIM != "READY" || !hardware.CommunicationHealthy(r) || (w.State != "failed" && w.State != "off") {
+		return false
+	}
+	w.State, w.Issue, w.Registered = "waiting", "", false
+	w.Profile, w.Transport = "", ""
+	return true
+}
+
+type radioRestorer interface {
+	RestoreRadio(context.Context, hardware.Candidate, string, string) error
+}
+type radioRestoreSource struct{ radioRestorer }
+
+func (r radioRestoreSource) WiFi(ctx context.Context, c hardware.Candidate, identity, iccid string, _ func(string)) error {
+	return r.RestoreRadio(ctx, c, identity, iccid)
 }

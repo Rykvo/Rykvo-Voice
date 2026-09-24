@@ -5,6 +5,7 @@ Requires=postgresql.service
 
 [Service]
 Environment=WEB_ROOT=/opt/rykvo-voice/live/web
+Environment=RYKVO_WIFI_ENGINE=vocat
 Type=simple
 User=rykvo_voice
 Group=rykvo_voice
@@ -16,8 +17,9 @@ StateDirectoryMode=0700
 ExecStart=/opt/rykvo-voice/live/rykvo-auth
 Restart=on-failure
 RestartSec=3
-TimeoutStopSec=60
+TimeoutStopSec=100
 NoNewPrivileges=true
+CapabilityBoundingSet=
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true

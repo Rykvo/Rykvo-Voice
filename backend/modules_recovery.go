@@ -38,6 +38,9 @@ func (m *moduleManager) verifyRecovery(ctx context.Context, id int64, r hardware
 	}
 	if _, err := m.db.Exec(ctx, "UPDATE module_recoveries SET result='recovered' WHERE module_id=$1 AND result<>'recovered'", id); err == nil {
 		delete(m.recoveryPending, id)
+		if resumeWiFiIntent(m.wifi[id], r) {
+			log.Printf("module %d Wi-Fi resume after recovery", id)
+		}
 		log.Printf("module recovery: module=%d result=recovered", id)
 	}
 }

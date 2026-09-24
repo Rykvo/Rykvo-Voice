@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"rykvo.local/auth/internal/carrierconfig"
 	"strings"
 	"time"
 )
@@ -29,28 +30,29 @@ type Candidate struct {
 }
 
 type Reading struct {
-	NetworkMode      *int      `json:"networkMode"`
-	AccessTechnology *int      `json:"accessTechnology"`
-	ReaderSerial     string    `json:"readerSerial,omitempty"`
-	Model            string    `json:"model"`
-	Firmware         string    `json:"firmware"`
-	IMEI             string    `json:"imei"`
-	ICCID            string    `json:"iccid"`
-	Number           string    `json:"number"`
-	SIM              string    `json:"simState"`
-	Operator         string    `json:"operator"`
-	PLMN             string    `json:"plmn"`
-	Technology       string    `json:"technology"`
-	Registration     string    `json:"registration"`
-	RSSI             *int      `json:"rssi"`
-	RSRP             *int      `json:"rsrp"`
-	RSRQ             *int      `json:"rsrq"`
-	SINR             *int      `json:"sinr"`
-	Responsive       bool      `json:"responsive"`
-	Issue            string    `json:"issue"`
-	Warnings         []string  `json:"warnings,omitempty"`
-	UpdatedAt        time.Time `json:"updatedAt"`
-	ESIM             *ESIMInfo `json:"esim,omitempty"`
+	CarrierConfig    *carrierconfig.Selection `json:"-"`
+	NetworkMode      *int                     `json:"networkMode"`
+	AccessTechnology *int                     `json:"accessTechnology"`
+	ReaderSerial     string                   `json:"readerSerial,omitempty"`
+	Model            string                   `json:"model"`
+	Firmware         string                   `json:"firmware"`
+	IMEI             string                   `json:"imei"`
+	ICCID            string                   `json:"iccid"`
+	Number           string                   `json:"number"`
+	SIM              string                   `json:"simState"`
+	Operator         string                   `json:"operator"`
+	PLMN             string                   `json:"plmn"`
+	Technology       string                   `json:"technology"`
+	Registration     string                   `json:"registration"`
+	RSSI             *int                     `json:"rssi"`
+	RSRP             *int                     `json:"rsrp"`
+	RSRQ             *int                     `json:"rsrq"`
+	SINR             *int                     `json:"sinr"`
+	Responsive       bool                     `json:"responsive"`
+	Issue            string                   `json:"issue"`
+	Warnings         []string                 `json:"warnings,omitempty"`
+	UpdatedAt        time.Time                `json:"updatedAt"`
+	ESIM             *ESIMInfo                `json:"esim,omitempty"`
 }
 
 type Source interface {
@@ -78,9 +80,10 @@ func (c Candidate) Identity(r Reading) string {
 }
 
 type System struct {
-	Sys     string
-	Dev     string
-	Readers func(context.Context) ([]string, error)
+	carriers carrierCache
+	Sys      string
+	Dev      string
+	Readers  func(context.Context) ([]string, error)
 }
 
 func NewSystem() *System { return &System{Sys: "/sys", Dev: "/dev"} }
@@ -122,6 +125,7 @@ func (s *System) Read(ctx context.Context, c Candidate) Reading {
 	if r.Model == "" {
 		r.Model = c.Model
 	}
+	r.CarrierConfig = s.carrierConfiguration(ctx, c, r)
 	r.UpdatedAt = time.Now().UTC()
 	return r
 }

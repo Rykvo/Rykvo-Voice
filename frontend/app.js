@@ -16,12 +16,13 @@ const { icon } = Forms;
 const generalItems = [
   { id: "administrator", title: "管理员", icon: "privacy.svg" },
   { id: "sip", title: "SIP 电话", icon: "sip.svg" },
-  { id: "server", title: "云服务器", icon: "cloud.svg" },
+  { id: "server", title: "主机服务器", icon: "cloud.svg" },
+  { id: "sipServer", title: "SIP 电话服务器", icon: "sip.svg" },
   { id: "developer", title: "开发者", icon: "developer.svg" },
   { id: "cleanup", title: "自动清理", icon: "cleanup.svg" },
   { id: "updates", title: "软件更新", icon: "updates.svg" },
 ];
-const generalPages = new Set(["administrator", "developer", "server", "sip"]);
+const generalPages = new Set(["administrator", "developer", "server", "sip", "sipServer"]);
 function general() {
   return `<div class="page-head"><h1>通用</h1></div><div class="settings-list general-list">${generalItems.map((item) => `<button type="button" class="setting-row general-entry" data-action="${item.id}" ${generalPages.has(item.id) ? "" : 'aria-haspopup="dialog"'}>${icon(item.icon)}<span class="row-copy"><strong>${item.title}</strong></span><span class="chevron" aria-hidden="true">›</span></button>`).join("")}</div>`;
 }
@@ -36,6 +37,7 @@ const pages = {
   administrator: Admin,
   developer: Developer,
   server: Server,
+  sipServer: SIPServer,
   sip: SIP,
 };
 const pageKey = "rykvo-voice-page-v1";
@@ -75,6 +77,7 @@ const actions = {
   administrator: () => render("administrator"),
   "general-back": () => render("general"),
   server: () => render("server"),
+  sipServer: () => render("sipServer"),
   developer: () => render("developer"),
   sip: () => render("sip"),
   cleanup: () => Cleanup.open(),

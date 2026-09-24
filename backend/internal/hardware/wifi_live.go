@@ -163,6 +163,7 @@ func runWiFi(ctx context.Context, c Candidate, session *atSession, iccid string,
 		}
 	}()
 	emit("sim-ready")
+	emit("carrier:" + sim.profile.ID)
 	for attempt := 0; ; attempt++ {
 		connectedAt := time.Now()
 		err = wifiConnect(ctx, sim, hold, live, emit)
@@ -179,7 +180,12 @@ func runWiFi(ctx context.Context, c Candidate, session *atSession, iccid string,
 			attempt = 0
 		}
 		emit("reconnecting")
-		timer := time.NewTimer(time.Duration(30<<attempt) * time.Second)
+		delay := time.Duration(30<<attempt) * time.Second
+		var retry *wifiRegistrarDelay
+		if errors.As(err, &retry) && time.Until(retry.until) > delay {
+			delay = time.Until(retry.until)
+		}
+		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
@@ -192,8 +198,15 @@ func runWiFi(ctx context.Context, c Candidate, session *atSession, iccid string,
 	}
 }
 func wifiRetryable(err error) bool {
+	var retry *wifiRegistrarDelay
+	if errors.As(err, &retry) {
+		return true
+	}
 	s := err.Error()
-	return strings.HasPrefix(s, "WIFI_NETWORK_") || s == "WIFI_IMS_TIMEOUT" || s == "WIFI_TUNNEL_CLOSED" || s == "WIFI_REKEY_REQUIRED" || s == "WIFI_IMS_REGISTRATION_EXPIRED"
+	if strings.HasPrefix(s, "WIFI_TCP_") {
+		return true
+	}
+	return strings.HasPrefix(s, "WIFI_NETWORK_") || s == "WIFI_IMS_TIMEOUT" || s == "WIFI_TUNNEL_CLOSED" || s == "WIFI_REKEY_REQUIRED" || s == "WIFI_IMS_REAUTH_REQUIRED" || s == "WIFI_IMS_REGISTRATION_EXPIRED"
 }
 func wifiConnect(ctx context.Context, sim *wifiSIM, hold time.Duration, live bool, emit func(string)) (err error) {
 	call, cancel := context.WithTimeout(ctx, 120*time.Second)
@@ -215,21 +228,21 @@ func wifiConnect(ctx context.Context, sim *wifiSIM, hold time.Duration, live boo
 	}
 	defer child.close()
 	emit("tunnel-ready")
-	ims, err := newWiFiIMS(child, sim)
+	emit("ims-registering")
+	ims, err := registerWiFiIMS(call, child, sim, emit)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		if e := ims.close(); e != nil {
-			err = e
+			emit("cleanup-failed:" + WiFiIssue(e))
+			if err == nil || errors.Is(err, context.Canceled) {
+				err = e
+			}
 		} else {
 			emit("ims-cleaned")
 		}
 	}()
-	emit("ims-registering")
-	if _, err = ims.register(call); err != nil {
-		return err
-	}
 	cancel()
 	emit("connected")
 	until := time.Time{}
@@ -238,15 +251,24 @@ func wifiConnect(ctx context.Context, sim *wifiSIM, hold time.Duration, live boo
 			return nil
 		}
 		until = time.Now().Add(hold)
-		ims.renewAt = time.Now().Add(30 * time.Second)
+		if hold < 5*time.Minute {
+			ims.renewAt = time.Now().Add(30 * time.Second)
+		}
+		emit("renewal-in:" + time.Until(ims.renewAt).Round(time.Second).String())
 	}
-	return ims.maintain(ctx, emit, until)
+	return ims.maintain(ctx, emit, until, !live && hold >= 5*time.Minute)
 }
 func WiFiIssue(err error) string {
 	if err == nil {
 		return ""
 	}
+	if detail := wifiDetailedIssue(err); detail != "" {
+		return detail
+	}
 	code := err.Error()
+	if code == "WIFI_WORKER_UNAVAILABLE" {
+		return code
+	}
 	for _, v := range []string{"DEVICE_CHANGED", "SIM_NOT_READY", "DEVICE_BUSY", "PERMISSION_DENIED", "READ_TIMEOUT", "WIFI_RADIO_RESTORE_UNCONFIRMED", "WIFI_RADIO_UNCONFIRMED", "WIFI_SIM_CLEANUP_UNCONFIRMED", "WIFI_IMS_DEREGISTER_UNCONFIRMED", "WIFI_MODEM_UNSUPPORTED", "WIFI_DATA_ACTIVE", "WIFI_DATA_STATE_UNKNOWN", "WIFI_CERTIFICATE_INVALID", "WIFI_PEER_AUTH_FAILED", "WIFI_AUTH_REJECTED", "AKA_REJECTED", "WIFI_IMS_AKA_RESYNC_REQUIRED", "WIFI_IMS_SECURITY_UNSUPPORTED", "WIFI_IMS_AUTH_UNSUPPORTED"} {
 		if code == v {
 			return v

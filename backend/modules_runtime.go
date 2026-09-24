@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"rykvo.local/auth/internal/carrierconfig"
 	"rykvo.local/auth/internal/hardware"
 	"strings"
 	"sync"
@@ -14,9 +15,12 @@ type moduleSample struct {
 	Reading   hardware.Reading
 }
 type moduleManager struct {
+	carrierConfigs  map[string]carrierconfig.Selection
+	phoneNumbers    map[string]string
 	wifi            map[int64]*moduleWiFi
 	mu              sync.RWMutex
 	source          hardware.Source
+	wifiEngine      wifiSource
 	db              *pgxpool.Pool
 	seen            map[string]hardware.Candidate
 	values          map[int64]moduleSample
@@ -37,7 +41,13 @@ type moduleManager struct {
 }
 
 func newModuleManager(pool *pgxpool.Pool, source hardware.Source) *moduleManager {
-	return &moduleManager{wifi: map[int64]*moduleWiFi{}, db: pool, source: source, seen: map[string]hardware.Candidate{}, values: map[int64]moduleSample{}, done: make(chan struct{}), gates: map[string]chan struct{}{}, jobs: map[int64]moduleJob{}, operationSlots: make(chan struct{}, 4), recoveryProof: map[string]moduleSample{}, recoveryPending: map[int64]bool{}, recovery: map[string]recoveryStreak{}, recoveryUntil: map[string]time.Time{}}
+	engine, _ := source.(wifiSource)
+	return newModuleManagerWithWiFi(pool, source, engine)
+}
+
+// Select one engine at construction; never switch protocols inside a live session.
+func newModuleManagerWithWiFi(pool *pgxpool.Pool, source hardware.Source, engine wifiSource) *moduleManager {
+	return &moduleManager{carrierConfigs: map[string]carrierconfig.Selection{}, phoneNumbers: map[string]string{}, wifi: map[int64]*moduleWiFi{}, db: pool, source: source, wifiEngine: engine, seen: map[string]hardware.Candidate{}, values: map[int64]moduleSample{}, done: make(chan struct{}), gates: map[string]chan struct{}{}, jobs: map[int64]moduleJob{}, operationSlots: make(chan struct{}, 4), recoveryProof: map[string]moduleSample{}, recoveryPending: map[int64]bool{}, recovery: map[string]recoveryStreak{}, recoveryUntil: map[string]time.Time{}}
 }
 func (m *moduleManager) run(ctx context.Context) {
 	defer close(m.done)
@@ -46,6 +56,8 @@ func (m *moduleManager) run(ctx context.Context) {
 	m.mu.Unlock()
 	m.loadJobs(ctx)
 	m.loadRecovery(ctx)
+	m.loadPhoneNumbers(ctx)
+	m.loadCarrierConfigs(ctx)
 	m.loadWiFi(ctx)
 	defer m.operations.Wait()
 	jobs := make(chan hardware.Candidate, 4)
@@ -215,8 +227,11 @@ func (m *moduleManager) accept(ctx context.Context, sample moduleSample) {
 		m.recoveryProof[c.Key] = sample
 	}
 	m.values[v.ID] = sample
-	m.startWiFiLocked(v.ID, sample)
+	if sample.Reading.CarrierConfig != nil {
+		m.saveCarrierConfig(call, sample.Reading.ICCID, *sample.Reading.CarrierConfig)
+	}
 	m.verifyRecovery(call, v.ID, sample.Reading)
+	m.startWiFiLocked(v.ID, sample)
 	job := m.jobs[v.ID]
 	if job.State == "uncertain" && job.confirm(sample.Reading) {
 		if m.persistJob(call, job) == nil {
@@ -242,11 +257,15 @@ func (m *moduleManager) state(v moduleRecord) (hardware.Reading, bool, string) {
 	}
 	wifi := m.wifi[v.ID]
 	wifiActive := wifi != nil && wifi.running && wifi.ICCID == sample.Reading.ICCID
-	if time.Since(m.lastScan) > 20*time.Second || (!m.jobs[v.ID].active() && !wifiActive && time.Since(sample.Reading.UpdatedAt) > 90*time.Second) {
+	wifiRefreshing := wifi != nil && !wifi.running && wifi.ICCID == sample.Reading.ICCID && time.Now().Before(wifi.refreshUntil)
+	if time.Since(m.lastScan) > 20*time.Second || (!m.jobs[v.ID].active() && !wifiActive && !wifiRefreshing && time.Since(sample.Reading.UpdatedAt) > 90*time.Second) {
 		return empty, true, "STATE_STALE"
 	}
 	reading := sample.Reading
-	if wifiActive {
+	if reading.Number == "" && reading.SIM == "READY" {
+		reading.Number = m.phoneNumbers[reading.ICCID]
+	}
+	if wifiActive || wifiRefreshing {
 		reading.Registration, reading.Operator, reading.PLMN, reading.Technology = "unknown", "", "", ""
 		reading.RSSI, reading.RSRP, reading.RSRQ, reading.SINR = nil, nil, nil, nil
 	}

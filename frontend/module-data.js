@@ -25,9 +25,16 @@ const ModuleData = (() => {
   let issue = "", loaded = false;
   const connected = () => typeof Backend !== "undefined" && Backend.enabled("modules");
   const issueText = (code) => ({
+    APN_INVALID: "请检查 APN、协议和认证信息；IMS / SOS 配置保留给系统",
+    APN_READ_FAILED: "APN 读取未完成，请稍后重新读取",
+    APN_NOT_FOUND: "APN 配置已变化，请重新读取",
+    APN_SYSTEM_CONTEXT: "当前数据上下文用于 IMS / SOS，已保留原配置",
+    APN_APPLY_UNCONFIRMED: "APN 写入结果待确认，请重新读取，勿连续重复应用",
+    NOT_CONNECTED: "服务尚未接入",
     WIFI_MODEM_UNSUPPORTED: "模块暂未支持 Wi-Fi 通话",
     WIFI_DATA_ACTIVE: "请先断开该模块的主机数据连接", WIFI_DATA_STATE_UNKNOWN: "蜂窝数据状态待确认",
-    WIFI_NETWORK_UNAVAILABLE: "网络暂不可用", WIFI_CONNECTION_FAILED: "连接失败",
+    WIFI_IMS_SERVICE_UNAVAILABLE: "运营商 IMS 暂不可用，等待重试", WIFI_IMS_CONTACT_UNCONFIRMED: "IMS 联系地址未确认", WIFI_IMS_TIMEOUT: "IMS 注册响应超时", WIFI_TCP_CONNECT_FAILED: "IMS TCP 连接失败", WIFI_TCP_CLOSED: "IMS TCP 连接中断", WIFI_TCP_WRITE_FAILED: "IMS TCP 发送失败", WIFI_IMS_PROTECTED_FAILED: "IMS 加密注册失败", WIFI_CARRIER_CONFIG_INVALID: "运营商配置无效", WIFI_CARRIER_UNSUPPORTED: "运营商鉴权方式待适配", WIFI_IMS_ADDRESS_MISSING: "IMS 地址不可用", WIFI_IMS_PEER_AUTH_FAILED: "IMS 对端校验失败",
+    WIFI_WORKER_UNAVAILABLE: "Wi-Fi 连接服务未就绪", WIFI_NETWORK_UNAVAILABLE: "网络暂不可用", WIFI_CONNECTION_FAILED: "连接失败",
     WIFI_IMS_REJECTED: "运营商未接受注册", WIFI_AUTH_REJECTED: "运营商鉴权未通过", AKA_REJECTED: "SIM 鉴权未通过",
     WIFI_CERTIFICATE_INVALID: "运营商证书验证失败", WIFI_PEER_AUTH_FAILED: "运营商身份验证失败",
     WIFI_IMS_AKA_RESYNC_REQUIRED: "SIM 鉴权需要重试", WIFI_IMS_SECURITY_UNSUPPORTED: "运营商安全协议暂未支持",

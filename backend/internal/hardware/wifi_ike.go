@@ -389,6 +389,9 @@ func openWiFiIKE(ctx context.Context, sim *wifiSIM) (s *wifiIKE, err error) {
 		return nil, err
 	}
 	s = &wifiIKE{host: sim.id.epdg(), eap: eap}
+	if sim.profile.EPDG != "" {
+		s.host = sim.profile.EPDG
+	}
 	current := s
 	defer func() {
 		if err != nil {

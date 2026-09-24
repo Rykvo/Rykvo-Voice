@@ -78,6 +78,12 @@ CREATE TABLE IF NOT EXISTS module_jobs (
  updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS module_jobs_latest ON module_jobs(module_id,created_at DESC);
+CREATE TABLE IF NOT EXISTS card_phone_numbers (
+    iccid text PRIMARY KEY CHECK (iccid ~ '^[0-9]{18,20}$'),
+    number text NOT NULL CHECK (number ~ '^\+[0-9]{5,15}$'),
+    source text NOT NULL DEFAULT 'ims' CHECK (source = 'ims'),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
 ALTER TABLE module_jobs ADD COLUMN IF NOT EXISTS verification jsonb NOT NULL DEFAULT 'null';
 
 ALTER TABLE module_jobs ADD COLUMN IF NOT EXISTS networks jsonb NOT NULL DEFAULT 'null';
@@ -96,4 +102,18 @@ CREATE TABLE IF NOT EXISTS module_wifi (
  iccid text NOT NULL CHECK (iccid ~ '^[0-9]{18,20}$'),
  enabled boolean NOT NULL DEFAULT false,
  request_id text NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS card_apn_profiles (
+ iccid text NOT NULL CHECK (iccid ~ '^[0-9]{18,20}$'),
+ id text NOT NULL,
+ configuration jsonb NOT NULL CHECK (jsonb_typeof(configuration) = 'object'),
+ updated_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY (iccid,id)
+);
+
+CREATE TABLE IF NOT EXISTS card_carrier_configs (
+ iccid text PRIMARY KEY CHECK (iccid ~ '^[0-9]{18,20}$'),
+ configuration jsonb NOT NULL,
+ updated_at timestamptz NOT NULL DEFAULT now()
 );

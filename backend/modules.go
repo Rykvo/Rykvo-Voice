@@ -33,7 +33,7 @@ func scanModule(row interface{ Scan(...any) error }) (moduleRecord, error) {
 	return v, err
 }
 func moduleID(id int64) string   { return fmt.Sprintf("module-%02d", id) }
-func moduleName(id int64) string { return fmt.Sprintf("模块 %02d", id) }
+func moduleName(id int64) string { return fmt.Sprintf("妯″潡 %02d", id) }
 func labelKey(v string) string   { return cases.Fold().String(norm.NFKC.String(strings.TrimSpace(v))) }
 func validModuleLabel(v string) bool {
 	if !utf8.ValidString(v) || utf8.RuneCountInString(v) < 1 || utf8.RuneCountInString(v) > 20 {
@@ -176,6 +176,10 @@ func (s *server) modulesAPI(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 	if len(parts) > 1 {
+		if len(parts) >= 4 && parts[1] == "lines" && parts[3] == "apns" {
+			s.moduleAPN(ctx, w, r, v, parts)
+			return
+		}
 		if len(parts) == 2 && parts[1] == "lines" && r.Method == http.MethodGet {
 			reply(w, 200, map[string]any{"data": s.moduleView(v)["sims"]})
 			return
@@ -304,5 +308,9 @@ func (s *server) moduleView(v moduleRecord) map[string]any {
 	if wifi["registered"] == true {
 		signal = "wifi"
 	}
-	return map[string]any{"wifi": wifi, "id": moduleID(v.ID), "name": moduleName(v.ID), "label": v.Label, "labelCustom": v.Custom, "number": reading.Number, "status": status, "signal": signal, "sims": sims, "kind": v.Kind, "hardware": reading, "issue": issue, "managed": true, "cardReading": cardReading, "job": job, "capabilities": map[string]bool{"read": true, "sms": false, "calls": false, "lineControl": false, "wifiCalling": supported, "esim": esim && !job.active(), "esimDownload": esim}}
+	var carrier any
+	if s.modules != nil && present {
+		carrier = s.modules.carrierView(reading.ICCID)
+	}
+	return map[string]any{"carrierConfiguration": carrier, "wifi": wifi, "id": moduleID(v.ID), "name": moduleName(v.ID), "label": v.Label, "labelCustom": v.Custom, "number": reading.Number, "status": status, "signal": signal, "sims": sims, "kind": v.Kind, "hardware": reading, "issue": issue, "managed": true, "cardReading": cardReading, "job": job, "capabilities": map[string]bool{"read": true, "sms": false, "calls": false, "lineControl": false, "wifiCalling": supported, "esim": esim && !job.active(), "esimDownload": esim}}
 }

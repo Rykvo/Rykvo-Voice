@@ -11,6 +11,8 @@ function setup() {
     controls = [{ disabled: false }, { disabled: false }, { disabled: false }],
     nodes = {};
   const context = vm.createContext({
+    AbortController,
+    Backend: { emergencyAddress: { start: async () => { throw Object.assign(Error("offline"), {code:"NOT_CONNECTED"}); } } },
     document: {
       addEventListener: (name, fn) => (events[name] = fn),
       querySelectorAll: () => controls,
@@ -30,6 +32,7 @@ function setup() {
     ContextMenu: { confirm: (...args) => confirmations.push(args) },
     Forms: { report: (_, error) => Boolean(error) },
     Countries: { format: (number) => number },
+    CellularAPN: { open: (_item, line, back) => dialogs.push(["APN", line, back]) },
     fetch() {
       throw Error("Must not transmit activation codes");
     },
@@ -74,8 +77,8 @@ test("cellular overview shows one module heading, SIMs and add eSIM entry", () =
   assert.doesNotMatch(html, /2 张|<h3>SIM<\/h3>|<small><\/small>/);
   assert.equal((html.match(/data-cellular-sim=/g) || []).length, 2);
   assert.match(html, /添加 eSIM/);
-  assert.match(html, /已启用/);
-  assert.match(html, /已关闭/);
+  assert.match(html, /data-enabled="true">打开/);
+  assert.match(html, /data-enabled="false">关闭/);
   assert.doesNotMatch(html, /<small>SIM<\/small>|<small>eSIM<\/small>/);
   assert.match(cellular.overview({ name: "空模块", sims: [] }), /无 SIM 卡/);
 });
@@ -110,6 +113,13 @@ function clickLine(events, index) {
     },
   });
 }
+
+test("manual APN entry is hidden without removing SIM controls", () => {
+ const f=setup();const html=f.cellular.detail(fixture,0);
+ assert.doesNotMatch(html,/蜂窝数据网络|data-cellular-action="apn"/);
+ assert.match(html,/Wi-Fi 通话/);assert.match(html,/数据漫游/);
+});
+
 test("switches update only the active sample line and disabled lines reject dependent changes", () => {
   const f = setup(),
     item = structuredClone(fixture);
@@ -131,7 +141,7 @@ test("switches update only the active sample line and disabled lines reject depe
   assert.ok(f.controls.every((control) => control.disabled));
   change("roaming", false);
   assert.equal(item.sims[0].roaming, true);
-  assert.equal(f.cellular.lines(item)[0].state, "已关闭");
+  assert.equal(f.cellular.lines(item)[0].state, "关闭");
   change("enabled", true);
   assert.ok(f.controls.every((control) => !control.disabled));
 });
@@ -157,11 +167,11 @@ test("label editing trims, validates and stays scoped to the selected line", () 
   assert.equal(f.cellular.validLabel("a".repeat(21)), false);
   assert.equal(f.cellular.validLabel("a\nb"), false);
 });
-test("SIM state reflects module service and disabled lines; details are scoped", () => {
+test("SIM state reflects saved line switch independently of service; details are scoped", () => {
   const { cellular, events, dialogs } = setup();
   assert.equal(
     cellular.lines({ ...fixture, status: "offline" })[0].state,
-    "无服务",
+    "打开",
   );
   assert.equal(cellular.lines(fixture)[1].number, "+8613900000002");
   cellular.open(fixture);
@@ -438,4 +448,25 @@ test("managed Wi-Fi switch uses line API once and does not change eSIM",async()=
   assert.equal(calls[0][2].wifiCalling,true);
   assert.equal(calls[0][3],"line-01");
   assert.equal(item.sims[0].wifiCalling,false);
+});
+
+test("cellular switch rows do not associate the whole row as an input label", () => {
+ const {cellular,events,dialogs}=setup();
+ cellular.open(structuredClone(fixture));
+ clickLine(events,0);
+ events.click({target:{closest:selector=>selector==="#dialog-content"?{}:selector==="[data-cellular-action]"?{dataset:{cellularAction:"wifi"}}:null}});
+ for(const html of [cellular.detail(fixture,0),dialogs.at(-1)[1]]){
+  assert.doesNotMatch(html,/<label class="cellular-setting"/);
+  assert.match(html,/<div class="cellular-setting"><span>/);
+  assert.match(html,/role="switch"[^>]*aria-label="/);
+ }
+});
+
+test('emergency address entry is available on physical SIM without toggling Wi-Fi',async()=>{
+ const f=setup(),item={...structuredClone(fixture),id:'module-03',managed:true,capabilities:{wifiCalling:true,esim:false},sims:[{id:'line-03',label:'SIM',enabled:true,wifiCalling:true}]};
+ f.cellular.open(item);clickLine(f.events,0);
+ const action=name=>f.events.click({target:{closest:selector=>selector==='#dialog-content'?{}:selector==='[data-cellular-action]'?{dataset:{cellularAction:name}}:null}});
+ action('wifi');assert.match(f.dialogs.at(-1)[1],/更新紧急联系地址/);
+ action('emergency-address');await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(f.notices.at(-1),'紧急联系地址服务尚未接入');assert.equal(item.sims[0].wifiCalling,true);
 });

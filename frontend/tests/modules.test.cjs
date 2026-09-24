@@ -206,7 +206,7 @@ test("signal column supports all connection labels and safely defaults to no ser
   const { modules } = setup();
   for (const [signal, label] of Object.entries({
     none: "无服务",
-    wifi: "Wi-Fi 通话",
+    wifi: "Wi-Fi Calling",
     mobile: "中国移动",
     unicom: "中国联通",
     telecom: "中国电信",
@@ -260,7 +260,7 @@ test("50 preview modules have unique identities, numbers and all five signal lab
   });
   for (const label of [
     "无服务",
-    "Wi-Fi 通话",
+    "Wi-Fi Calling",
     "中国移动",
     "中国联通",
     "中国电信",

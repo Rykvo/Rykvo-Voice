@@ -1,6 +1,7 @@
 dialog:has(.cellular-page) {
   --cellular-background: #f2f2f7;
   --cellular-surface: #fff;
+  --cellular-enabled: #248a3d;
   width: min(430px, calc(100% - 32px));
   padding: 68px 20px 28px;
   background: var(--cellular-background);
@@ -8,6 +9,7 @@ dialog:has(.cellular-page) {
 .theme-dark dialog:has(.cellular-page) {
   --cellular-background: #000;
   --cellular-surface: #1c1c1e;
+  --cellular-enabled: #30d158;
 }
 dialog:has(.cellular-page) h2 {
   position: absolute;
@@ -94,6 +96,9 @@ dialog:has(.cellular-page) .dialog-close {
   text-align: right;
   font-size: 15px;
   color: var(--muted);
+}
+.cellular-sim-meta[data-enabled="true"] {
+  color: var(--cellular-enabled);
 }
 .cellular-sim .chevron {
   font-size: 18px;
@@ -190,6 +195,20 @@ dialog:has(.cellular-page) .dialog-close {
 .cellular-page .form-field > label {
   flex: auto;
 }
+.cellular-apn select {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--cellular-surface);
+  color: inherit;
+  font: inherit;
+}
+.cellular-apn select:focus-visible {
+  outline: 2px solid var(--accent, #087df3);
+  outline-offset: 2px;
+}
 .cellular-settings + .cellular-settings {
   margin-top: 28px;
 }
@@ -232,6 +251,15 @@ dialog:has(.cellular-page) .dialog-close {
   color: var(--muted);
   cursor: default;
 }
+.apn-description {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.apn-section { margin-top: 24px; }
+.apn-note { margin-top: 16px; line-height: 1.6; }
+.cellular-apn .cellular-empty { color: var(--muted); font-size: 14px; }
 @media (max-width: 600px) {
   dialog:has(.cellular-page) {
     width: 100%;

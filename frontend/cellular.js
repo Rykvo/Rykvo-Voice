@@ -2,6 +2,7 @@ const Cellular = (() => {
   let module = null;
   let activeLine = -1, activeID = null, unsubscribe = null;
   let view = "overview", rendered = "", submitting = false;
+  let emergencyRequest = null;
   const dismissedJobs = new Set();
   const editable = (item) => !item.managed || (item.capabilities?.esim && !submitting);
   const wifiEditable = (item) => !submitting && (!item.managed || item.capabilities?.wifiCalling === true) && item.wifi?.state !== "stopping";
@@ -60,11 +61,7 @@ const Cellular = (() => {
       wifiCalling: sim.wifiCalling === true,
       roaming: sim.roaming === true,
       number: item.managed ? sim.number : index === 0 ? item.number : sim.number,
-      state: !sim.enabled
-        ? "已关闭"
-        : item.status === "online"
-          ? "已启用"
-          : "无服务",
+      state: sim.enabled ? "打开" : "关闭",
     }));
   }
   function back(toDetail = false) {
@@ -80,7 +77,7 @@ const Cellular = (() => {
         <button type="button" class="cellular-sim" data-cellular-sim="${index}">
           <span class="cellular-sim-icon">${simIcon}</span>
           <span class="cellular-sim-copy"><strong>${UI.escape(sim.label)}</strong>${sim.number || sim.iccid ? `<small>${UI.escape(ModuleData.identity(sim.number, sim.iccid).caption)}</small>` : ""}</span>
-          <span class="cellular-sim-meta">${UI.escape(sim.state)}</span>
+          <span class="cellular-sim-meta" data-enabled="${sim.enabled === true}">${UI.escape(sim.state)}</span>
           <span class="chevron" aria-hidden="true">›</span>
         </button>`).join("") : `<p class="cellular-empty">${UI.escape(cardIssue ? ModuleData.issueText(cardIssue) : item.cardReading ? "正在读取卡片" : "无 SIM 卡")}</p>`}</div>
       ${downloadable(item) ? `<button type="button" class="cellular-add" data-cellular-add ${editable(item) ? "" : "disabled"}>
@@ -98,7 +95,7 @@ const Cellular = (() => {
     unsubscribe = ModuleData.subscribe(refreshDialog);
   }
   function switchRow(key, label, checked, disabled = false, status = "") {
-    return `<label class="cellular-setting"><span>${label}</span>${status ? `<span class="cellular-setting-value">${UI.escape(status)}</span>` : ""}<span class="form-switch"><input type="checkbox" role="switch" data-cellular-setting="${key}" aria-label="${label}" ${checked ? "checked" : ""} ${disabled ? "disabled" : ""}><span aria-hidden="true"></span></span></label>`;
+    return `<div class="cellular-setting"><span>${label}</span>${status ? `<span class="cellular-setting-value">${UI.escape(status)}</span>` : ""}<span class="form-switch"><input type="checkbox" role="switch" data-cellular-setting="${key}" aria-label="${label}" ${checked ? "checked" : ""} ${disabled ? "disabled" : ""}><span aria-hidden="true"></span></span></div>`;
   }
   function valueRow(label, value, action = "", disabled = false) {
     const content = `<span>${label}</span><span class="cellular-setting-value">${UI.escape(value)}</span>${action ? '<span class="chevron" aria-hidden="true">›</span>' : ""}`;
@@ -134,7 +131,27 @@ const Cellular = (() => {
     const state = item.wifi?.state;
     const status = state === "connected" ? "已连接" : state === "connecting" || state === "waiting" ? "连接中" : state === "stopping" ? "关闭中" : "";
     const issue = item.wifi?.issue;
-    return `<section class="cellular-page">${back(true)}<div class="cellular-group cellular-settings">${switchRow("wifiCalling", "Wi-Fi 通话", sim?.wifiCalling === true, !sim?.enabled || !wifiEditable(item), status)}</div>${issue ? `<p class="cellular-empty" role="status">${UI.escape(ModuleData.issueText(issue))}</p>` : ""}</section>`;
+    return `<section class="cellular-page">${back(true)}<div class="cellular-group cellular-settings">${switchRow("wifiCalling", "Wi-Fi 通话", sim?.wifiCalling === true, !sim?.enabled || !wifiEditable(item), status)}</div><div class="cellular-group cellular-settings">${valueRow("更新紧急联系地址", "", "emergency-address", !sim?.enabled)}</div>${issue ? `<p class="cellular-empty" role="status">${UI.escape(ModuleData.issueText(issue))}</p>` : ""}</section>`;
+  }
+  async function emergencyAddress(button, sim) {
+    if (!sim?.enabled || emergencyRequest) return;
+    const item = module, lineID = sim.id, controller = new AbortController();
+    emergencyRequest = controller;
+    button.disabled = true;
+    try {
+      await Backend.emergencyAddress.start({
+        params: { moduleId: item.id, lineId: lineID },
+        signal: controller.signal,
+      });
+      if (module === item && active()?.id === lineID && !controller.signal.aborted)
+        UI.toast("紧急联系地址服务尚未接入");
+    } catch (error) {
+      if (module === item && active()?.id === lineID && !controller.signal.aborted)
+        UI.toast(error.code === "NOT_CONNECTED" ? "紧急联系地址服务尚未接入" : "请求未完成，请稍后重试");
+    } finally {
+      if (emergencyRequest === controller) emergencyRequest = null;
+      if (button.isConnected) button.disabled = !sim.enabled;
+    }
   }
   function showDetail() {
     active();
@@ -162,6 +179,11 @@ const Cellular = (() => {
     if (action) {
       active();
       const sim = lines(module)[activeLine];
+
+      if (action.dataset.cellularAction === "emergency-address") {
+        if (view === "wifi") emergencyAddress(action, sim);
+        return;
+      }
       if (module.managed && (action.dataset.cellularAction === "wifi" ? !wifiEditable(module) : !editable(module) || !sim?.esim || action.dataset.cellularAction !== "label")) return;
       if (!sim) return;
       if (action.dataset.cellularAction === "label") {
@@ -295,6 +317,7 @@ const Cellular = (() => {
     }
   });
   document.getElementById("dialog").addEventListener("close", () => {
+    emergencyRequest?.abort(); emergencyRequest = null;
     unsubscribe?.(); unsubscribe = null;
     module = null;
     activeLine = -1; activeID = null;

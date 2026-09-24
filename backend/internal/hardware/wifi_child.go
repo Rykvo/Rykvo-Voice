@@ -251,7 +251,22 @@ func (c *wifiChild) open(packet []byte) ([]byte, byte, error) {
 		c.replay |= uint64(1) << (c.receiveSeq - seq)
 	}
 	next := body[len(body)-1]
-	return body[:len(body)-pad-2], next, nil
+	plain := body[:len(body)-pad-2]
+	// RFC 4303 section 2.7: authenticated tunnel payload can have TFC padding.
+	// The encapsulated IP length, not the ESP plaintext length, delimits the packet.
+	if next == 4 && len(plain) >= 20 && plain[0]>>4 == 4 {
+		n := int(binary.BigEndian.Uint16(plain[2:4]))
+		if n >= 20 && n <= len(plain) {
+			plain = plain[:n]
+		}
+	}
+	if next == 41 && len(plain) >= 40 && plain[0]>>4 == 6 {
+		n := 40 + int(binary.BigEndian.Uint16(plain[4:6]))
+		if n <= len(plain) {
+			plain = plain[:n]
+		}
+	}
+	return plain, next, nil
 }
 func wifiChecksum(data []byte) uint16 {
 	var sum uint32
@@ -344,24 +359,28 @@ func wifiReadUDP(packet []byte, next byte, local, remote net.IP, port, peer uint
 }
 
 func (c *wifiChild) sendUDP(local, peer net.IP, port, target uint16, body []byte, protection *wifiChild) error {
-	proto, sp, dp := byte(17), port, target
+	ip, kind, err := wifiUDP(local, peer, port, target, body)
+	if err != nil {
+		return err
+	}
+	defer clear(ip)
+	return c.sendIP(local, peer, 17, port, target, ip, kind, protection)
+}
+func (c *wifiChild) sendIP(local, peer net.IP, inner byte, sp, dp uint16, ip []byte, kind byte, protection *wifiChild) error {
+	proto := inner
 	if protection != nil {
 		proto, sp, dp = 50, 0, 0
 	}
 	if !wifiTrafficAllowed(c.tsi, local, proto, sp) || !wifiTrafficAllowed(c.tsr, peer, proto, dp) {
 		return errors.New("WIFI_TRAFFIC_REJECTED")
 	}
-	ip, kind, err := wifiUDP(local, peer, port, target, body)
-	if err != nil {
-		return err
-	}
-	defer clear(ip)
+	var err error
 	if protection != nil {
 		_, _, _, udp, err := wifiParseIP(ip, kind)
 		if err != nil {
 			return err
 		}
-		esp, err := protection.seal(udp, 17)
+		esp, err := protection.seal(udp, inner)
 		if err != nil {
 			return err
 		}
@@ -419,7 +438,7 @@ func wifiCancelRead(ctx context.Context, conn *net.UDPConn) func() {
 		}
 	}
 }
-func (c *wifiChild) udpExchange(ctx context.Context, local, peer net.IP, port, target, replyPort uint16, body []byte, protection *wifiChild, match func([]byte) bool) ([]byte, error) {
+func (c *wifiChild) udpExchange(ctx context.Context, local, peer net.IP, port, target, replyPort uint16, body []byte, protection *wifiChild, match func([]byte) bool, readers ...func([]byte) ([]byte, error)) ([]byte, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
@@ -463,7 +482,12 @@ func (c *wifiChild) udpExchange(ctx context.Context, local, peer net.IP, port, t
 			if handled {
 				continue
 			}
-			data, err := c.receiveUDP(buf[:n], local, peer, replyPort, replySource, protection)
+			var data []byte
+			if len(readers) > 0 {
+				data, err = readers[0](buf[:n])
+			} else {
+				data, err = c.receiveUDP(buf[:n], local, peer, replyPort, replySource, protection)
+			}
 			if err == nil && match(data) {
 				return data, nil
 			}

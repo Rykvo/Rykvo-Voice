@@ -117,7 +117,7 @@ const Server = (() => {
     };
   }
   function render() {
-    return `<section class="form-page server-page">${Forms.header("云服务器", "cloud.svg")}<form id="server-form" class="settings-form" novalidate><div class="form-fields">${Forms.field({ prefix: "server", name: "domain", label: "域名", placeholder: "panel.example.com", maxLength: 253, required: true })}<div class="server-status-row"><span>状态</span><span id="server-status" class="server-status" role="status" aria-live="polite"><i aria-hidden="true"></i><span>未连接</span></span></div></div><p id="server-error" class="server-error" role="alert" hidden></p><div class="form-footer"><button id="server-button" class="primary" type="submit">连接</button><button id="server-reset" type="button" class="text-button" hidden>取消连接</button></div></form></section>`;
+    return `<section class="form-page server-page">${Forms.header("主机服务器", "cloud.svg")}<form id="server-form" class="settings-form" novalidate><div class="form-fields">${Forms.field({ prefix: "server", name: "domain", label: "域名", placeholder: "panel.example.com", maxLength: 253, required: true })}<div class="server-status-row"><span>状态</span><span id="server-status" class="server-status" role="status" aria-live="polite"><i aria-hidden="true"></i><span>未连接</span></span></div></div><p id="server-error" class="server-error" role="alert" hidden></p><div class="form-footer"><button id="server-button" class="primary" type="submit">连接</button><button id="server-reset" type="button" class="text-button" hidden>取消连接</button></div></form></section>`;
   }
   function update(message) {
     if (!form) return;

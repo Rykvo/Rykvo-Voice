@@ -92,14 +92,15 @@ class InstallerTests(unittest.TestCase):
 
     def test_rollback_restores_files_and_link(self):
         with tempfile.TemporaryDirectory() as directory:
-            self.run_shell('''BASE="$2/app"; BACKUP="$2/backup"; UNIT="$2/unit"; SITE="$2/site"; ENABLED="$2/enabled"; HARDWARE_RULE="$2/hardware-rule"; PCSC_RULE="$2/pcsc-rule"; QMI_SOCKET="$2/qmi-socket"; QMI_UNIT="$2/qmi-unit";
+            self.run_shell('''BASE="$2/app"; BACKUP="$2/backup"; UNIT="$2/unit"; SITE="$2/site"; ENABLED="$2/enabled"; HARDWARE_RULE="$2/hardware-rule"; PCSC_RULE="$2/pcsc-rule"; QMI_SOCKET="$2/qmi-socket"; QMI_UNIT="$2/qmi-unit"; WIFI_SOCKET="$2/wifi-socket"; WIFI_UNIT="$2/wifi-unit";
 mkdir -p "$BASE/releases/old" "$BASE/releases/new" "$BACKUP";
+printf old-wifi > "$BACKUP/wifi-unit"; printf new-wifi > "$WIFI_UNIT";
 printf old-unit > "$BACKUP/unit"; printf old-site > "$BACKUP/nginx";
 printf '%s' "$BASE/releases/old" > "$BACKUP/live-link";
 printf '%s' "$SITE" > "$BACKUP/enabled-link";
 printf new > "$UNIT"; printf new > "$SITE"; ln -s "$BASE/releases/new" "$BASE/live"; ln -s "$SITE" "$ENABLED";
 systemctl() { :; }; nginx() { :; }; udevadm() { :; }; WAS_ACTIVE=1; SWITCHING=1; rollback;
-[[ $(cat "$UNIT") == old-unit && $(cat "$SITE") == old-site ]];
+[[ $(cat "$UNIT") == old-unit && $(cat "$SITE") == old-site && $(cat "$WIFI_UNIT") == old-wifi ]];
 [[ $(readlink "$BASE/live") == "$BASE/releases/old" && $SWITCHING == 0 ]];''', directory)
 
     def test_health_checks_path_and_private_assets(self):
@@ -115,7 +116,7 @@ curl() {
     def test_uninstall_deletes_app_data_backups_and_manager(self):
         with tempfile.TemporaryDirectory() as directory:
             self.run_shell('''BASE="$2/app"; STATE="$2/state"; BACKUPS="$2/backups"; MANAGER="$2/manager";
-UNIT="$2/unit"; SITE="$2/site"; ENABLED="$2/enabled"; HARDWARE_RULE="$2/hardware-rule"; PCSC_RULE="$2/pcsc-rule"; QMI_SOCKET="$2/qmi-socket"; QMI_UNIT="$2/qmi-unit"; WRAPPER="$2/command";
+UNIT="$2/unit"; SITE="$2/site"; ENABLED="$2/enabled"; HARDWARE_RULE="$2/hardware-rule"; PCSC_RULE="$2/pcsc-rule"; QMI_SOCKET="$2/qmi-socket"; QMI_UNIT="$2/qmi-unit"; WIFI_SOCKET="$2/wifi-socket"; WIFI_UNIT="$2/wifi-unit"; WRAPPER="$2/command";
 mkdir -p "$BASE"; touch "$UNIT"; calls="$2/calls";
 preflight() { :; }; db_sql() { printf 1; }; app_sql() { printf f; };
 confirm_uninstall() { printf 'confirmed\\n' >> "$calls"; };

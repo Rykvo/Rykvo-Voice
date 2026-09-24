@@ -132,6 +132,7 @@ test("all feature groups expose callable frozen methods", async () => {
     [
       "moduleId",
       "lineId",
+      "apnId",
       "callId",
       "recordId",
       "conversationId",
@@ -308,4 +309,22 @@ test("event subscribers share one connection and dispose independently", () => {
   two();
   bad();
   assert.equal(stream.closed, true);
+});
+
+test("reserved integration scopes stay offline with existing production flags", async () => {
+  for (const mode of ["session", "tunnel", "none"]) {
+    const f = setup(mode);
+    await assert.rejects(f.api.sipServer.connect({body:{address:"sip.example.com",accessCode:"test"}}), {code:"NOT_CONNECTED"});
+    await assert.rejects(f.api.emergencyAddress.start({params:{moduleId:"module-03",lineId:"line-03"}}), {code:"NOT_CONNECTED"});
+    assert.equal(f.requests.length, 0);
+  }
+});
+test("reserved interface contracts retain line scope and credentials stay out of URL", async () => {
+  const f = setup();
+  await f.api.sipServer.connect({body:{address:"sip.example.com",accessCode:"secret-fixture"}});
+  await f.api.emergencyAddress.start({params:{moduleId:"module-03",lineId:"line/03"}});
+  assert.equal(f.requests[0].url, "/api/settings/sip-server/connect");
+  assert.equal(JSON.parse(f.requests[0].body).accessCode, "secret-fixture");
+  assert.equal(f.requests[1].url, "/api/modules/module-03/lines/line%2F03/emergency-address/session");
+  assert.equal(f.requests[1].method, "POST");
 });

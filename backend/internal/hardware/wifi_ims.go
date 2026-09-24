@@ -7,6 +7,7 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"crypto/sha1"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -98,6 +99,13 @@ func wifiToken() string {
 }
 
 type wifiIMS struct {
+	transport        string
+	tcp              *wifiTCP
+	replyConn        net.Conn
+	serverProtection *wifiChild
+	peerClientPort   uint16
+	sipObserved      bool
+
 	child                                               *wifiChild
 	sim                                                 *wifiSIM
 	local, peer                                         net.IP
@@ -110,6 +118,7 @@ type wifiIMS struct {
 	nc, cseq                                            uint32
 	registered                                          bool
 	renewAt                                             time.Time
+	retryAfter                                          time.Time
 }
 
 func wifiParameters(value string, separator byte) (map[string]string, error) {
@@ -215,10 +224,24 @@ func wifiRandomSPI(except uint32) uint32 {
 	}
 }
 func newWiFiIMS(c *wifiChild, sim *wifiSIM) (*wifiIMS, error) {
-	s := &wifiIMS{child: c, sim: sim, target: 5060, call: wifiToken(), tag: wifiToken()}
-	for _, p := range c.pcscf {
+	transport := sim.profile.Transport
+	if sim.preferredTransport != "" {
+		transport = sim.preferredTransport
+	}
+	if transport == "" {
+		transport = "tcp"
+	}
+	return newWiFiIMSAt(c, sim, transport, c.pcscf)
+}
+func newWiFiIMSAt(c *wifiChild, sim *wifiSIM, transport string, peers []net.IP) (*wifiIMS, error) {
+	s := &wifiIMS{transport: transport, child: c, sim: sim, target: 5060, call: wifiToken(), tag: wifiToken()}
+	proto := byte(17)
+	if transport == "tcp" {
+		proto = 6
+	}
+	for _, p := range peers {
 		for _, l := range c.local {
-			if (p.To4() == nil) == (l.To4() == nil) && wifiTrafficAllowed(c.tsi, l, 17, 49160) && wifiTrafficAllowed(c.tsr, p, 17, 5060) {
+			if (p.To4() == nil) == (l.To4() == nil) && wifiTrafficAllowed(c.tsi, l, proto, 49160) && wifiTrafficAllowed(c.tsr, p, proto, 5060) {
 				s.local, s.peer = l, p
 				break
 			}
@@ -236,11 +259,24 @@ func newWiFiIMS(c *wifiChild, sim *wifiSIM) (*wifiIMS, error) {
 	s.spiServer = wifiRandomSPI(s.spiClient)
 	s.offer = fmt.Sprintf("ipsec-3gpp;alg=hmac-sha-1-96;ealg=aes-cbc;spi-c=%d;spi-s=%d;port-c=49160;port-s=49162", s.spiClient, s.spiServer)
 	s.contact = "<sip:" + sim.id.IMSI + "@" + net.JoinHostPort(s.local.String(), "49162") + ">;+g.3gpp.smsip;+g.3gpp.icsi-ref=\"urn%3Aurn-7%3A3gpp-service.ims.icsi.mmtel\""
+	if sim.profile.Contact == "gsma" {
+		s.contact = "<sip:" + net.JoinHostPort(s.local.String(), "49162") + ">;+g.3gpp.icsi-ref=\"urn%3Aurn-7%3A3gpp-service.ims.icsi.mmtel\""
+	}
+	seed := sha256.Sum256([]byte("rykvo-voice-sip-instance:" + sim.id.IMSI))
+	seed[6] = (seed[6] & 15) | 0x50
+	seed[8] = (seed[8] & 63) | 0x80
+	instance := fmt.Sprintf("urn:uuid:%x-%x-%x-%x-%x", seed[:4], seed[4:6], seed[6:8], seed[8:10], seed[10:16])
+	s.contact += ";+sip.instance=\"<" + instance + ">\""
+	for _, tag := range sim.profile.Tags {
+		if !strings.Contains(s.contact, tag) {
+			s.contact += ";" + tag
+		}
+	}
 	return s, nil
 }
 func (s *wifiIMS) authorize(ctx context.Context, r wifiSIP) error {
-	if len(r.headers["www-authenticate"]) != 1 || len(r.headers["security-server"]) != 1 {
-		return errors.New("WIFI_IMS_AUTH_INVALID")
+	if len(r.headers["www-authenticate"]) != 1 || len(r.headers["security-server"]) < 1 {
+		return fmt.Errorf("WIFI_IMS_AUTH_HEADERS_%d_%d", len(r.headers["www-authenticate"]), len(r.headers["security-server"]))
 	}
 	raw := r.headers["www-authenticate"][0]
 	scheme, parameters, ok := strings.Cut(raw, " ")
@@ -249,7 +285,7 @@ func (s *wifiIMS) authorize(ctx context.Context, r wifiSIP) error {
 	}
 	auth, err := wifiParameters(parameters, ',')
 	if err != nil {
-		return err
+		return errors.New("WIFI_IMS_DIGEST_PARAMETERS_INVALID")
 	}
 	if !strings.EqualFold(auth["algorithm"], "AKAv1-MD5") || auth["realm"] == "" || auth["nonce"] == "" {
 		return errors.New("WIFI_IMS_AUTH_UNSUPPORTED")
@@ -269,20 +305,12 @@ func (s *wifiIMS) authorize(ctx context.Context, r wifiSIP) error {
 		nonce, err = base64.RawStdEncoding.DecodeString(auth["nonce"])
 	}
 	if err != nil || len(nonce) < 32 || len(nonce) > 256 {
-		return errors.New("WIFI_IMS_AUTH_INVALID")
+		return errors.New("WIFI_IMS_NONCE_INVALID")
 	}
 	defer clear(nonce)
-	raw = r.headers["security-server"][0]
-	scheme, parameters, ok = strings.Cut(raw, ";")
-	if !ok || !strings.EqualFold(strings.TrimSpace(scheme), "ipsec-3gpp") {
-		return errors.New("WIFI_IMS_SECURITY_UNSUPPORTED")
-	}
-	sec, err := wifiParameters(parameters, ';')
+	sec, raw, err := wifiSecuritySelection(r.headers["security-server"])
 	if err != nil {
 		return err
-	}
-	if sec["alg"] != "hmac-sha-1-96" || sec["ealg"] != "aes-cbc" || sec["prot"] != "" && sec["prot"] != "esp" || sec["mod"] != "" && sec["mod"] != "trans" {
-		return errors.New("WIFI_IMS_SECURITY_UNSUPPORTED")
 	}
 	spi, err := strconv.ParseUint(sec["spi-s"], 10, 32)
 	if err != nil || spi < 256 {
@@ -309,13 +337,23 @@ func (s *wifiIMS) authorize(ctx context.Context, r wifiSIP) error {
 		return errors.New("WIFI_IMS_AKA_RESYNC_REQUIRED")
 	}
 	if len(keys.RES) == 0 || len(keys.CK) != 16 || len(keys.IK) != 16 {
-		return errors.New("WIFI_IMS_AUTH_INVALID")
+		return errors.New("WIFI_IMS_AKA_RESULT_INVALID")
+	}
+	if s.tcp != nil {
+		s.tcp.close()
+		s.tcp = nil
+	}
+	if s.serverProtection != nil {
+		s.serverProtection.close()
+		s.serverProtection = nil
 	}
 	if s.protection != nil {
 		s.protection.close()
 	}
 	clear(s.res)
-	s.protection = &wifiChild{spiIn: s.spiServer, spiOut: uint32(spi), encIn: bytes.Clone(keys.CK), encOut: bytes.Clone(keys.CK), authIn: bytes.Clone(keys.IK), authOut: bytes.Clone(keys.IK), mac: sha1.New, macLen: 12}
+	s.protection = &wifiChild{spiIn: s.spiClient, spiOut: uint32(spi), encIn: bytes.Clone(keys.CK), encOut: bytes.Clone(keys.CK), authIn: bytes.Clone(keys.IK), authOut: bytes.Clone(keys.IK), mac: sha1.New, macLen: 12}
+	s.serverProtection = &wifiChild{spiIn: s.spiServer, spiOut: uint32(client), encIn: bytes.Clone(keys.CK), encOut: bytes.Clone(keys.CK), authIn: bytes.Clone(keys.IK), authOut: bytes.Clone(keys.IK), mac: sha1.New, macLen: 12}
+	s.peerClientPort = uint16(cp)
 	s.target = uint16(port)
 	s.verify = raw
 	s.credentials = auth
@@ -324,14 +362,13 @@ func (s *wifiIMS) authorize(ctx context.Context, r wifiSIP) error {
 	s.nc = 0
 	return nil
 }
-func (s *wifiIMS) exchange(ctx context.Context, expires int) (wifiSIP, error) {
-	s.cseq++
-	branch := "z9hG4bK" + wifiToken()
-	address := net.JoinHostPort(s.local.String(), "49160")
-	uri := "sip:" + s.domain
+func (s *wifiIMS) authorization(uri string) (string, uint32) {
 	auth := "Digest username=" + wifiQuoted(s.identity) + ", realm=" + wifiQuoted(s.domain) + ", nonce=\"\", uri=" + wifiQuoted(uri) + ", response=\"\", algorithm=AKAv1-MD5, integrity-protected=no"
 	var nc uint32
 	if s.protection != nil {
+		auth = strings.TrimSuffix(auth, "integrity-protected=no") + "integrity-protected=yes"
+	}
+	if s.protection != nil && s.credentials != nil {
 		s.nc++
 		nc = s.nc
 		a := s.credentials
@@ -344,8 +381,19 @@ func (s *wifiIMS) exchange(ctx context.Context, expires int) (wifiSIP, error) {
 			auth += ", opaque=" + wifiQuoted(a["opaque"])
 		}
 	}
+	return auth, nc
+}
+func (s *wifiIMS) exchange(ctx context.Context, expires int) (wifiSIP, error) {
+	if time.Now().Before(s.retryAfter) {
+		return wifiSIP{}, &wifiRegistrarDelay{s.retryAfter}
+	}
+	s.cseq++
+	branch := "z9hG4bK" + wifiToken()
+	address := net.JoinHostPort(s.local.String(), "49160")
+	uri := "sip:" + s.domain
+	auth, nc := s.authorization(uri)
 	sequence := fmt.Sprintf("%d REGISTER", s.cseq)
-	lines := []string{"REGISTER " + uri + " SIP/2.0", "Via: SIP/2.0/UDP " + address + ";branch=" + branch + ";rport", "Max-Forwards: 70", "Route: <sip:" + net.JoinHostPort(s.peer.String(), strconv.Itoa(int(s.target))) + ";transport=udp;lr>", "From: <sip:" + s.identity + ">;tag=" + s.tag, "To: <sip:" + s.identity + ">", "Call-ID: " + s.call, "CSeq: " + sequence, "Contact: " + s.contact, fmt.Sprintf("Expires: %d", expires), "Supported: path, gruu, sec-agree", "Require: sec-agree", "Proxy-Require: sec-agree", "Security-Client: " + s.offer, "Authorization: " + auth, "P-Access-Network-Info: IEEE-802.11;i-wlan-node-id=ffffffffffff", "User-Agent: Rykvo-Voice"}
+	lines := []string{"REGISTER " + uri + " SIP/2.0", "Via: SIP/2.0/" + strings.ToUpper(s.transport) + " " + address + ";branch=" + branch + ";rport", "Max-Forwards: 70", "Route: <sip:" + net.JoinHostPort(s.peer.String(), strconv.Itoa(int(s.target))) + ";transport=" + s.transport + ";lr>", "From: <sip:" + s.identity + ">;tag=" + s.tag, "To: <sip:" + s.identity + ">", "Call-ID: " + s.call, "CSeq: " + sequence, "Contact: " + s.contact, fmt.Sprintf("Expires: %d", expires), "Supported: path, gruu, sec-agree", "Require: sec-agree", "Proxy-Require: sec-agree", "Security-Client: " + s.offer, "Authorization: " + auth, "P-Access-Network-Info: " + s.pani(), "User-Agent: " + s.sim.profile.Agent}
 	if s.verify != "" {
 		lines = append(lines, "Security-Verify: "+s.verify)
 	}
@@ -356,14 +404,24 @@ func (s *wifiIMS) exchange(ctx context.Context, expires int) (wifiSIP, error) {
 	if s.protection != nil {
 		replyPort = 49162
 	}
-	data, err := s.child.udpExchange(ctx, s.local, s.peer, 49160, s.target, replyPort, body, s.protection, func(data []byte) bool {
+	match := func(data []byte) bool {
 		if s.protection != nil && !bytes.HasPrefix(data, []byte("SIP/2.0 ")) {
 			_ = s.request(data)
 			return false
 		}
 		r, e := parseWiFiSIP(data)
+		if e == nil && r.headers["call-id"][0] == s.call && r.headers["cseq"][0] == sequence && len(r.headers["via"]) == 1 && wifiViaBranch(r.headers["via"][0], branch) {
+			s.sipObserved = true
+		}
 		return e == nil && r.code >= 200 && r.headers["call-id"][0] == s.call && r.headers["cseq"][0] == sequence && len(r.headers["via"]) == 1 && wifiViaBranch(r.headers["via"][0], branch)
-	})
+	}
+	var data []byte
+	var err error
+	if s.transport == "tcp" {
+		data, err = s.tcpExchange(ctx, body, match)
+	} else {
+		data, err = s.child.udpExchange(ctx, s.local, s.peer, 49160, s.target, replyPort, body, s.protection, match, s.receiveDatagram)
+	}
 	if err != nil {
 		return wifiSIP{}, err
 	}
@@ -372,6 +430,11 @@ func (s *wifiIMS) exchange(ctx context.Context, expires int) (wifiSIP, error) {
 	if err != nil {
 		return r, err
 	}
+	if r.code == 503 {
+		s.retryAfter = time.Now().Add(wifiRetryAfter(r.headers["retry-after"]))
+		return r, &wifiRegistrarDelay{s.retryAfter}
+	}
+
 	if nc > 0 && r.code == 200 && len(r.headers["authentication-info"]) > 0 {
 		if len(r.headers["authentication-info"]) != 1 {
 			return r, errors.New("WIFI_IMS_PEER_AUTH_FAILED")
@@ -385,6 +448,13 @@ func (s *wifiIMS) exchange(ctx context.Context, expires int) (wifiSIP, error) {
 		if info["rspauth"] != "" && !hmac.Equal([]byte(strings.ToLower(info["rspauth"])), []byte(want)) {
 			return r, errors.New("WIFI_IMS_PEER_AUTH_FAILED")
 		}
+	}
+	// Without qop/nc, a second digest would replay the AKA response. Subsequent
+	// registrations retain the authenticated IPsec association, not that response.
+	if r.code == 200 && s.credentials != nil && s.credentials["qop"] == "" {
+		clear(s.res)
+		s.res = nil
+		s.credentials = nil
 	}
 	return r, nil
 }
@@ -406,25 +476,38 @@ func (s *wifiIMS) register(ctx context.Context) (wifiSIP, error) {
 	if r.code != 200 {
 		return r, fmt.Errorf("WIFI_IMS_STATUS_%d", r.code)
 	}
+	s.registered = true
 	if err = s.setExpiry(r); err != nil {
 		return r, err
 	}
-	s.registered = true
 	return r, nil
 }
 func (s *wifiIMS) close() error {
 	var err error
 	if s.registered {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		r, e := s.exchange(ctx, 0)
-		cancel()
-		err = e
-		if err == nil && r.code != 200 {
+		if time.Now().Before(s.retryAfter) {
 			err = errors.New("WIFI_IMS_DEREGISTER_UNCONFIRMED")
+		} else {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			r, e := s.authenticatedExchange(ctx, 0)
+			cancel()
+			err = e
+			if err == nil && r.code != 200 {
+				err = fmt.Errorf("WIFI_IMS_DEREGISTER_UNCONFIRMED_STATUS_%d", r.code)
+			}
 		}
+	}
+	if s.tcp != nil {
+		s.tcp.close()
+		s.tcp = nil
+	}
+	if s.serverProtection != nil {
+		s.serverProtection.close()
+		s.serverProtection = nil
 	}
 	if s.protection != nil {
 		s.protection.close()
+		s.protection = nil
 	}
 	clear(s.res)
 	s.credentials = nil
@@ -432,8 +515,17 @@ func (s *wifiIMS) close() error {
 	return err
 }
 
+// A new AKA challenge requires a fresh security agreement, not resetting replay
+// state on the existing SPIs. Let the caller establish a new session instead.
+func (s *wifiIMS) authenticatedExchange(ctx context.Context, expires int) (wifiSIP, error) {
+	r, e := s.exchange(ctx, expires)
+	if e != nil || r.code != 401 {
+		return r, e
+	}
+	return r, errors.New("WIFI_IMS_REAUTH_REQUIRED")
+}
 func (s *wifiIMS) renew(ctx context.Context) error {
-	r, err := s.exchange(ctx, 600)
+	r, err := s.authenticatedExchange(ctx, 600)
 	if err != nil {
 		return err
 	}
@@ -445,31 +537,56 @@ func (s *wifiIMS) renew(ctx context.Context) error {
 func (s *wifiIMS) setExpiry(r wifiSIP) error {
 	seconds := 600
 	for _, value := range r.headers["expires"] {
-		n, e := strconv.Atoi(value)
-		if e == nil && n >= 0 && n < seconds {
+		if n, e := strconv.Atoi(value); e == nil && n >= 0 && n <= 86400 {
 			seconds = n
 		}
 	}
-	for _, value := range r.headers["contact"] {
-		_, tail, ok := strings.Cut(value, ">")
-		if !ok {
-			continue
+	own := wifiContactURI(s.contact)
+	found := false
+	for _, header := range r.headers["contact"] {
+		values, e := wifiHeaderValues(header)
+		if e != nil {
+			return errors.New("WIFI_IMS_INVALID")
 		}
-		for _, part := range strings.Split(tail, ";") {
-			k, v, ok := strings.Cut(strings.TrimSpace(part), "=")
-			if ok && strings.EqualFold(k, "expires") {
-				n, e := strconv.Atoi(strings.Trim(v, "\""))
-				if e == nil && n >= 0 && n < seconds {
+		for _, value := range values {
+			_, tail, ok := strings.Cut(value, ">")
+			if !ok || wifiContactURI(value) != own {
+				continue
+			}
+			found = true
+			for _, part := range strings.Split(tail, ";") {
+				k, v, ok := strings.Cut(strings.TrimSpace(part), "=")
+				if ok && strings.EqualFold(k, "expires") {
+					n, e := strconv.Atoi(strings.Trim(v, "\""))
+					if e != nil || n < 0 || n > 86400 {
+						return errors.New("WIFI_IMS_INVALID")
+					}
 					seconds = n
 				}
 			}
 		}
+	}
+	if len(r.headers["contact"]) > 0 && !found {
+		return errors.New("WIFI_IMS_CONTACT_UNCONFIRMED")
 	}
 	if seconds < 10 {
 		return errors.New("WIFI_IMS_REGISTRATION_EXPIRED")
 	}
 	s.renewAt = time.Now().Add(time.Duration(seconds) * time.Second / 2)
 	return nil
+}
+
+func wifiContactURI(value string) string {
+	_, value, ok := strings.Cut(value, "<")
+	if !ok {
+		return ""
+	}
+	uri, _, ok := strings.Cut(value, ">")
+	if !ok {
+		return ""
+	}
+	uri, _, _ = strings.Cut(uri, ";")
+	return strings.ToLower(strings.TrimSpace(uri))
 }
 func (s *wifiIMS) request(data []byte) error {
 	cut := bytes.Index(data, []byte("\r\n"))
@@ -519,7 +636,7 @@ func (s *wifiIMS) request(data []byte) error {
 	lines = append(lines, "From: "+r.headers["from"][0], "To: "+to, "Call-ID: "+r.headers["call-id"][0], "CSeq: "+r.headers["cseq"][0], "Allow: REGISTER, OPTIONS, NOTIFY", "Content-Length: 0", "", "")
 	body := []byte(strings.Join(lines, "\r\n"))
 	defer clear(body)
-	if err := s.child.sendUDP(s.local, s.peer, 49160, s.target, body, s.protection); err != nil {
+	if err := s.sendResponse(body); err != nil {
 		return err
 	}
 	if terminated {
@@ -528,10 +645,31 @@ func (s *wifiIMS) request(data []byte) error {
 	return nil
 }
 
+func (s *wifiIMS) pani() string {
+	v := "IEEE-802.11"
+	if s.sim.profile.Country != "" {
+		v += ";country=" + s.sim.profile.Country
+	}
+	return v + ";i-wlan-node-id=ffffffffffff"
+}
+func (s *wifiIMS) sendResponse(body []byte) error {
+	if s.transport == "tcp" {
+		call, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		conn := s.replyConn
+		if conn == nil {
+			conn = s.tcp.client
+		}
+		return s.tcp.write(call, conn, body)
+	}
+	return s.child.sendUDP(s.local, s.peer, 49160, s.target, body, s.protection)
+}
+
 // One event loop owns the socket and SIM. No per-request goroutines or timers.
-func (s *wifiIMS) maintain(ctx context.Context, emit func(string), testUntil time.Time) error {
+func (s *wifiIMS) maintain(ctx context.Context, emit func(string), testUntil time.Time, stopAfterRenewal bool) error {
 	heartbeat := time.Now()
 	aliveAt := time.Now().Add(60 * time.Second)
+	natAt := time.Now().Add(15 * time.Second)
 	buf := make([]byte, 65536)
 	stop := wifiCancelRead(ctx, s.child.ike.conn)
 	defer stop()
@@ -542,6 +680,13 @@ func (s *wifiIMS) maintain(ctx context.Context, emit func(string), testUntil tim
 		now := time.Now()
 		if !testUntil.IsZero() && !now.Before(testUntil) {
 			return nil
+		}
+		if !now.Before(natAt) {
+			s.child.ike.conn.SetWriteDeadline(time.Now().Add(time.Second))
+			if _, e := s.child.ike.conn.Write([]byte{255}); e != nil {
+				return errors.New("WIFI_NETWORK_WRITE_FAILED")
+			}
+			natAt = time.Now().Add(15 * time.Second)
 		}
 		if !now.Before(heartbeat) {
 			call, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -567,6 +712,9 @@ func (s *wifiIMS) maintain(ctx context.Context, emit func(string), testUntil tim
 				return err
 			}
 			emit("renewed")
+			if stopAfterRenewal {
+				return nil
+			}
 		}
 		if !now.Before(aliveAt) {
 			call, cancel := context.WithTimeout(ctx, 20*time.Second)
@@ -578,13 +726,36 @@ func (s *wifiIMS) maintain(ctx context.Context, emit func(string), testUntil tim
 			aliveAt = time.Now().Add(60 * time.Second)
 		}
 		deadline := time.Now().Add(15 * time.Second)
-		for _, limit := range []time.Time{heartbeat, aliveAt, s.renewAt, testUntil} {
+		for _, limit := range []time.Time{heartbeat, aliveAt, natAt, s.renewAt, testUntil} {
 			if !limit.IsZero() && limit.Before(deadline) {
 				deadline = limit
 			}
 		}
 		if limit, ok := ctx.Deadline(); ok && limit.Before(deadline) {
 			deadline = limit
+		}
+		if s.transport == "tcp" {
+			select {
+			case f := <-s.tcp.frames:
+				if f.err != nil {
+					if f.conn == s.tcp.client {
+						return errors.New("WIFI_TCP_CLOSED")
+					}
+					continue
+				}
+				s.replyConn = f.conn
+				e := s.request(f.data)
+				s.replyConn = nil
+				clear(f.data)
+				if e != nil {
+					return e
+				}
+			default:
+				if e := s.tcp.pump(ctx, 100*time.Millisecond); e != nil {
+					return e
+				}
+			}
+			continue
 		}
 		s.child.ike.conn.SetDeadline(deadline)
 		n, err := s.child.ike.conn.Read(buf)
@@ -593,10 +764,6 @@ func (s *wifiIMS) maintain(ctx context.Context, emit func(string), testUntil tim
 				return ctx.Err()
 			}
 			if e, ok := err.(net.Error); ok && e.Timeout() {
-				s.child.ike.conn.SetWriteDeadline(time.Now().Add(time.Second))
-				if _, err = s.child.ike.conn.Write([]byte{255}); err != nil {
-					return errors.New("WIFI_NETWORK_WRITE_FAILED")
-				}
 				continue
 			}
 			return errors.New("WIFI_NETWORK_READ_FAILED")
@@ -608,7 +775,7 @@ func (s *wifiIMS) maintain(ctx context.Context, emit func(string), testUntil tim
 		if handled {
 			continue
 		}
-		data, err := s.child.receiveUDP(buf[:n], s.local, s.peer, 49162, 0, s.protection)
+		data, err := s.receiveDatagram(buf[:n])
 		if err != nil {
 			continue
 		}

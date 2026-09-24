@@ -233,3 +233,22 @@ Go 使用 `WEB_ROOT` 指定发布目录。`/` 按有效 Cookie 返回登录页�
 当前号码来源为模块 `AT+CNUM`。VoCat 参考项目另有 Own Numbers、EF_MSISDN 读取，以及 IMS 注册后由运营商返回关联号码的链路（[读取流程](https://github.com/MengMengCode/VoCat/blob/484cd236dd543e2ba142cf1da2c5808ee8e89a6e/internal/device/phone.go)、[IMS 关联号码](https://github.com/MengMengCode/VoCat/blob/484cd236dd543e2ba142cf1da2c5808ee8e89a6e/internal/vowifi/phone.go)）。这些链路尚未接入本项目；缺少本机号码不等于蜂窝注册失败，也不证明必须启用 Wi-Fi 通话。
 
 EC20 连续通信超时恢复期间 `issue=RECOVERING`，页面显示“正在恢复”。不增加浏览器计时器、重启接口或固定成功提示；恢复状态由原模块列表轮询更新。
+# APN 接入
+
+- `GET /modules/:moduleId/lines/:lineId/apns`：当前卡已保存配置与模块当前 PDP 上下文。读取忙碌以 `issue` 返回，不虚构“使用中”。
+- `PUT /modules/:moduleId/lines/:lineId/apns/:apnId`：按 ICCID 保存 `apn,protocol,auth,username,password`，可用 `preservePassword` 保留已有密码。列表只返回 `hasPassword`，不回传密码。
+- `DELETE /modules/:moduleId/lines/:lineId/apns/:apnId`：删除已保存配置，不删除模块上下文。
+- `POST /modules/:moduleId/lines/:lineId/apns/:apnId/apply`：明确应用已保存配置至数据 CID 1；需当前卡匹配、设备空闲、无活动数据连接。写后读回 APN 与协议；不发送附着、PDP 激活或重启命令，不修改 IMS/SOS。部分写入失败返回 `APN_APPLY_UNCONFIRMED`，需人工核实，禁止自动重试。
+
+蜂窝数据入口位于 SIM 详情的“数据漫游”下方。与 Wi-Fi 通话的 IMS APN 独立，不复用用户的数据 APN。
+
+## 预留：SIP 电话服务器与紧急联系地址（1.4.3）
+
+- 通用中的 `server` 仅改名为“主机服务器”，原 `/tunnel` 接口、配置和连接保持不变。
+- 新页面 `sipServer` 独立于原 SIP 账号列表；可见性键为 `sipServer`。
+- `Backend.sipServer.connect({body:{address,accessCode},signal})`：`POST /settings/sip-server/connect`。
+- `Backend.emergencyAddress.start({params:{moduleId,lineId},signal})`：`POST /modules/:moduleId/lines/:lineId/emergency-address/session`。
+- **以上两个接口是契约预留，服务器尚未实现；生产环境不启用这两个 scope。** 现有 `session-api`、`tunnel-api`、`modules-api` 均不启用它们。调用立即返回 `NOT_CONNECTED`，不发送网络请求、不拨号、不更新紧急地址。请勿为此开启全局 `backend-api`。
+- SIP 页面只收集本次表单输入；接入码为密码框，在提交结束及离开页面时清除，不写入 localStorage、日志或 URL。按钮显示明确的待接入结果，不假报连接成功。
+- 后续 SIP 接入应实现管理员鉴权、CSRF、幂等、凭据加密存储、地址校验、连接状态查询和断开流程；服务端返回经验证的连接状态后再接入 UI。
+- 紧急地址后续由服务端按当前 SIM/运营商创建专属更新流程，并验证模块/号码归属、运营商支持和更新结果。当前只保留入口与模块、号码参数，不收集或保存地址，不跳转任意链接，不将点击视为更新成功。接入成功流程时需补充运营商白名单、有效期及明确的成功回执。

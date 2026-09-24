@@ -36,6 +36,7 @@ function setup(hash = "#general", remembered = null) {
     Admin: page,
     Developer: page,
     Server: page,
+    SIPServer: page,
     SIP: page,
     ContextMenu: { close() {} },
     Visibility: { init() {}, apply() {} },
@@ -68,18 +69,18 @@ function setup(hash = "#general", remembered = null) {
   );
   return { context, dialogs, nodes, urls, storage };
 }
-test("general settings present the six requested entries in order", () => {
+test("general settings present the seven requested entries in order", () => {
   const { context } = setup();
   assert.deepEqual(
     Array.from(
       vm.runInContext("generalItems.map(item => item.title)", context),
     ),
-    ["管理员", "SIP 电话", "云服务器", "开发者", "自动清理", "软件更新"],
+    ["管理员", "SIP 电话", "主机服务器", "SIP 电话服务器", "开发者", "自动清理", "软件更新"],
   );
   const html = vm.runInContext("general()", context);
   assert.equal(
     (html.match(/class="setting-row general-entry"/g) || []).length,
-    6,
+    7,
   );
   assert.doesNotMatch(html, /data-action="sip" aria-haspopup="dialog"/);
   assert.match(html, /data-action="cleanup" aria-haspopup="dialog"/);
@@ -179,4 +180,11 @@ test("unavailable session storage does not block navigation", () => {
   );
   assert.equal(f.nodes.get("#app-window main").dataset.page, "modules");
   assert.equal(f.urls.at(-1), "/");
+});
+
+test("SIP server is separate from SIP accounts and follows host server", () => {
+  const { context, nodes } = setup();
+  vm.runInContext("actions.sipServer()", context);
+  assert.equal(nodes.get("#app-window main").dataset.page, "sipServer");
+  assert.equal(vm.runInContext("generalPages.has('sipServer')", context), true);
 });

@@ -7,7 +7,7 @@ const Modules = (() => {
   };
   const signals = {
     none: "无服务",
-    wifi: "Wi-Fi 通话",
+    wifi: "Wi-Fi Calling",
     mobile: "中国移动",
     unicom: "中国联通",
     telecom: "中国电信",
@@ -71,7 +71,7 @@ const Modules = (() => {
       if (item.status !== "online") return "—";
       if (item.kind === "reader") return "SIM 读卡器";
       if (item.hardware?.simState === "absent") return "无 SIM 卡";
-      if (item.wifi?.registered === true) return "Wi-Fi 通话";
+      if (item.wifi?.registered === true) return "Wi-Fi Calling";
       if (item.hardware?.registration === "denied") return "注册被拒绝";
       if (item.signal === "none") return "无服务";
       return [item.hardware?.operator || item.hardware?.plmn, item.hardware?.technology].filter(Boolean).join(" · ") || "无服务";

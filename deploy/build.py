@@ -19,6 +19,11 @@ def licenses(go, destination, cloudflared_version):
     destination.mkdir()
     goroot = subprocess.check_output([go, "env", "GOROOT"], text=True).strip()
     shutil.copyfile(Path(goroot) / "LICENSE", destination / "Go.txt")
+    for name in ("LICENSE", "SOURCE.json", "NOTICE"):
+        shutil.copyfile(ROOT / "backend/internal/carrierconfig" / name, destination / ("AOSP-APN-" + name))
+    reference = ROOT / "backend/internal/vocat"
+    for name in ("LICENSE", "SOURCE.json", "MODIFICATIONS.md"):
+        shutil.copyfile(reference / name, destination / ("VoCat-" + name))
     modules = subprocess.check_output([go, "list", "-m", "-json", "all"], cwd=ROOT / "backend", text=True)
     decoder = json.JSONDecoder()
     while modules.strip():
@@ -60,7 +65,7 @@ def build(go, output):
             licenses(go, bundle / "licenses", runtime["version"])
             web = publish(ROOT / "frontend", bundle / "web")
             (bundle / "manifest.json").write_text(json.dumps(web, indent=2))
-            for path in ("install.sh", "VERSION", "deploy/nginx.conf", "deploy/rykvo-auth.service", "deploy/release.py", "deploy/70-rykvo-voice.rules", "deploy/70-rykvo-voice-pcsc.rules", "deploy/qmi-read.py", "deploy/rykvo-qmi.socket", "deploy/rykvo-qmi@.service"):
+            for path in ("install.sh", "VERSION", "deploy/nginx.conf", "deploy/rykvo-auth.service", "deploy/release.py", "deploy/70-rykvo-voice.rules", "deploy/70-rykvo-voice-pcsc.rules", "deploy/qmi-read.py", "deploy/rykvo-qmi.socket", "deploy/rykvo-qmi@.service", "deploy/rykvo-wifi.socket", "deploy/rykvo-wifi@.service"):
                 shutil.copyfile(ROOT / path, bundle / path)
             (bundle / "install.sh").chmod(0o755)
             archive = output / f"rykvo-voice-linux-{arch}.tar.gz"

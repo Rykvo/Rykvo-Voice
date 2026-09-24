@@ -12,6 +12,22 @@ class Preview(SimpleHTTPRequestHandler):
     authenticated = False
     modules = False
     devices = []
+    apn_profiles = {}
+
+    def apn_path(self):
+        parts = urlsplit(self.path).path.strip("/").split("/")
+        return parts if self.authenticated and self.modules and len(parts) >= 6 and parts[:2] == ["api", "modules"] and parts[3] == "lines" and parts[5] == "apns" else None
+
+    def do_PUT(self):
+        parts = self.apn_path()
+        if not parts or len(parts) != 7:
+            return self.api(404, {"error": {"code": "PREVIEW_ONLY"}})
+        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
+        key = (parts[2], parts[4], parts[6])
+        profile = {k: body.get(k, "") for k in ("apn", "protocol", "auth", "username")}
+        profile.update(id=parts[6], hasPassword=bool(body.get("password")) or (body.get("preservePassword") and self.apn_profiles.get(key, {}).get("hasPassword", False)))
+        self.apn_profiles[key] = profile
+        return self.api(200, {"data": profile})
 
     def do_PATCH(self):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
@@ -35,12 +51,19 @@ class Preview(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         self.rfile.read(int(self.headers.get("Content-Length", "0")))
+        parts = self.apn_path()
+        if parts and len(parts) == 8 and parts[-1] == "apply":
+            return self.api(200, {"data": {"applied": True, "dataEnabled": False}})
         fixtures = {"/api/ui/activation": {"challenge": True}, "/api/settings/visibility/unlock": {"verified": True}}
         if self.authenticated and self.path in fixtures:
             return self.api(200, {"data": fixtures[self.path]})
         self.api(404, {"error": {"code": "PREVIEW_ONLY"}})
 
     def do_DELETE(self):
+        parts = self.apn_path()
+        if parts and len(parts) == 7:
+            self.apn_profiles.pop((parts[2], parts[4], parts[6]), None)
+            return self.api(200, {"data": None})
         if self.path == "/api/session":
             return self.api(200, {"data": None})
         self.api(404, {"error": {"code": "PREVIEW_ONLY"}})
@@ -50,6 +73,11 @@ class Preview(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        parts = self.apn_path()
+        if parts and len(parts) == 6:
+            profiles = [p for (module, line, _), p in self.apn_profiles.items() if (module, line) == (parts[2], parts[4])]
+            current = [{"cid": 1, "apn": "", "protocol": "IPV4V6"}, {"cid": 2, "apn": "ims", "protocol": "IPV4V6"}, {"cid": 3, "apn": "SOS", "protocol": "IPV4V6"}]
+            return self.api(200, {"data": {"profiles": profiles, "current": current, "issue": ""}})
         if self.authenticated and path == "/api/modules":
             return self.api(200, {"data": {"items": self.devices, "discoveryIssue": ""}})
         if path == "/api/session":

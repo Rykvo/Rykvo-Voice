@@ -160,7 +160,17 @@ func testRecoveryDatabase(t *testing.T, s *server, module int64) {
 	if err := s.db.QueryRow(ctx, "SELECT result FROM module_recoveries WHERE module_id=$1", module).Scan(&result); err != nil || result != "requested" {
 		t.Fatal(result, err)
 	}
-	m.verifyRecovery(ctx, module, hardware.Reading{Responsive: true, IMEI: "123456789012300"})
+	m.wifi[module] = &moduleWiFi{Enabled: true, ICCID: "89123456789012345678", State: "failed", Issue: "READ_TIMEOUT"}
+	m.verifyRecovery(ctx, module, hardware.Reading{Responsive: true, IMEI: "123456789012300", ICCID: "89123456789012345678", SIM: "READY"})
+	if m.wifi[module].State != "waiting" || !m.wifi[module].Enabled {
+		t.Fatal("confirmed recovery did not preserve and resume Wi-Fi intent")
+	}
+	m.wifi[module].State = "failed"
+	m.verifyRecovery(ctx, module, hardware.Reading{Responsive: true, IMEI: "123456789012300", ICCID: "89123456789012345678", SIM: "READY"})
+	if m.wifi[module].State != "failed" {
+		t.Fatal("replayed recovery")
+	}
+
 	if err := s.db.QueryRow(ctx, "SELECT result FROM module_recoveries WHERE module_id=$1", module).Scan(&result); err != nil || result != "recovered" {
 		t.Fatal(result, err)
 	}

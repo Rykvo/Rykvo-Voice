@@ -40,6 +40,9 @@ jobs:
       - name: Wi-Fi transport packet bounds
         working-directory: backend
         run: go test ./internal/hardware -run '^$' -fuzz '^FuzzWiFiPacketParsers$' -fuzztime=20s -parallel=2
+      - name: SIP TCP framing bounds
+        working-directory: backend
+        run: go test ./internal/hardware -run '^$' -fuzz '^FuzzWiFiSIPStream$' -fuzztime=20s -parallel=2
       - name: Build both release bundles
         run: python3 deploy/build.py --output dist
       - uses: actions/upload-artifact@v4

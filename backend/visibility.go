@@ -18,7 +18,7 @@ type queryer interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
-var featureNames = map[string]bool{"modules": true, "phone": true, "messages": true, "general": true, "administrator": true, "sip": true, "server": true, "developer": true, "cleanup": true, "updates": true}
+var featureNames = map[string]bool{"modules": true, "phone": true, "messages": true, "general": true, "administrator": true, "sip": true, "server": true, "sipServer": true, "developer": true, "cleanup": true, "updates": true}
 
 func (s *server) activate(key string, reset bool) bool {
 	s.mu.Lock()

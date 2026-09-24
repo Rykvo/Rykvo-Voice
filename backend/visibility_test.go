@@ -185,3 +185,11 @@ func TestVisibilityDatabase(t *testing.T) {
 	request("POST", "/api/session", map[string]string{"username": "tester", "password": "login-test-password"}, 401)
 	request("POST", "/api/session", map[string]string{"username": "renamed", "password": "new-login-test-password"}, 200)
 }
+
+func TestSIPServerVisibilityFeature(t *testing.T) {
+	for _, name := range []string{"server", "sip", "sipServer"} {
+		if !featureNames[name] {
+			t.Fatalf("missing independent visibility feature %s", name)
+		}
+	}
+}

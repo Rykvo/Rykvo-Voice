@@ -15,6 +15,8 @@ HARDWARE_RULE=/etc/udev/rules.d/70-rykvo-voice.rules
 PCSC_RULE=/etc/polkit-1/rules.d/70-rykvo-voice-pcsc.rules
 QMI_SOCKET=/etc/systemd/system/rykvo-qmi.socket
 QMI_UNIT=/etc/systemd/system/rykvo-qmi@.service
+WIFI_SOCKET=/etc/systemd/system/rykvo-wifi.socket
+WIFI_UNIT=/etc/systemd/system/rykvo-wifi@.service
 DB=rykvo_voice
 DB_URL='postgres:///rykvo_voice?host=/var/run/postgresql&user=rykvo_voice'
 TEMP=
@@ -82,7 +84,7 @@ packages() {
     say '安装运行环境'
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
-    apt-get install -y --no-install-recommends ca-certificates curl python3 nginx postgresql openssl tar gzip xz-utils udev libqmi-utils libpcsclite1 pcscd libccid polkitd
+    apt-get install -y --no-install-recommends ca-certificates curl python3 nginx postgresql openssl tar gzip xz-utils udev iproute2 libqmi-utils libpcsclite1 pcscd libccid polkitd
     systemctl enable --now postgresql
     local version
     version=$(db_sql 'SHOW server_version_num')
@@ -158,7 +160,7 @@ stage_release() {
 snapshot() {
     BACKUP="$BACKUPS/$(date -u +%Y%m%d-%H%M%S)-$(openssl rand -hex 3)"
     install -d -m 700 "$BACKUPS" "$BACKUP"
-    for pair in "unit:$UNIT" "nginx:$SITE" "hardware:$HARDWARE_RULE" "pcsc:$PCSC_RULE" "qmi-socket:$QMI_SOCKET" "qmi-unit:$QMI_UNIT"; do
+    for pair in "unit:$UNIT" "nginx:$SITE" "hardware:$HARDWARE_RULE" "pcsc:$PCSC_RULE" "qmi-socket:$QMI_SOCKET" "qmi-unit:$QMI_UNIT" "wifi-socket:$WIFI_SOCKET" "wifi-unit:$WIFI_UNIT"; do
         local name=${pair%%:*} path=${pair#*:}
         if exists "$path"; then cp -a "$path" "$BACKUP/$name"; fi
     done
@@ -168,8 +170,11 @@ snapshot() {
     printf '%s\n' "$WAS_ACTIVE" > "$BACKUP/was-active"
     if systemctl is-active --quiet rykvo-qmi.socket; then touch "$BACKUP/qmi-active"; fi
     if systemctl is-enabled --quiet rykvo-qmi.socket; then touch "$BACKUP/qmi-enabled"; fi
+    if systemctl is-active --quiet rykvo-wifi.socket; then touch "$BACKUP/wifi-active"; fi
+    if systemctl is-enabled --quiet rykvo-wifi.socket; then touch "$BACKUP/wifi-enabled"; fi
     SWITCHING=1
     systemctl stop rykvo-auth 2>/dev/null || [[ ! -f "$UNIT" ]]
+    wifi_stop
     qmi_stop
     if [[ "$(db_sql "SELECT 1 FROM pg_database WHERE datname='$DB'")" == 1 ]]; then
         runuser -u postgres -- pg_dump -Fc "$DB" > "$BACKUP/database.dump"
@@ -217,7 +222,7 @@ database() {
 health() {
     local attempt
     for ((attempt = 0; attempt < 30; attempt++)); do
-        if systemctl is-active --quiet rykvo-qmi.socket && systemctl is-active --quiet rykvo-auth && curl --noproxy '*' -fsS --max-time 2 http://127.0.0.1/ -o "$TEMP/health.html" && grep -q 'id="login-form"' "$TEMP/health.html"; then
+        if systemctl is-active --quiet rykvo-wifi.socket && systemctl is-active --quiet rykvo-qmi.socket && systemctl is-active --quiet rykvo-auth && curl --noproxy '*' -fsS --max-time 2 http://127.0.0.1/ -o "$TEMP/health.html" && grep -q 'id="login-form"' "$TEMP/health.html"; then
             [[ "$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' --max-time 3 -H 'Host: panel.example.com' http://127.0.0.1/)" == 404 ]] || return 1
             [[ "$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' --max-time 3 -H 'Host: panel.example.com' http://127.0.0.1/gly)" == 200 ]] || return 1
             [[ "$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1/app.js)" == 401 ]] || return 1
@@ -228,17 +233,23 @@ health() {
     return 1
 }
 
+wifi_stop() {
+    systemctl stop rykvo-wifi.socket 'rykvo-wifi@*.service' 2>/dev/null || true
+}
+
 qmi_stop() {
     systemctl stop rykvo-qmi.socket 'rykvo-qmi@*.service' 2>/dev/null || true
 }
 
 rollback() {
     systemctl stop rykvo-auth || true
+    wifi_stop
     qmi_stop
+    systemctl disable rykvo-wifi.socket 2>/dev/null || true
     systemctl disable rykvo-qmi.socket 2>/dev/null || true
     local name path
-    for name in unit nginx hardware pcsc qmi-socket qmi-unit; do
-        case "$name" in unit) path=$UNIT;; nginx) path=$SITE;; hardware) path=$HARDWARE_RULE;; pcsc) path=$PCSC_RULE;; qmi-socket) path=$QMI_SOCKET;; qmi-unit) path=$QMI_UNIT;; esac
+    for name in unit nginx hardware pcsc qmi-socket qmi-unit wifi-socket wifi-unit; do
+        case "$name" in unit) path=$UNIT;; nginx) path=$SITE;; hardware) path=$HARDWARE_RULE;; pcsc) path=$PCSC_RULE;; qmi-socket) path=$QMI_SOCKET;; qmi-unit) path=$QMI_UNIT;; wifi-socket) path=$WIFI_SOCKET;; wifi-unit) path=$WIFI_UNIT;; esac
         if exists "$BACKUP/$name"; then cp -a "$BACKUP/$name" "$path"; else rm -f -- "$path"; fi
     done
     rm -f -- "$ENABLED"
@@ -251,6 +262,8 @@ rollback() {
         mv -Tf "$BASE/.live-rollback" "$BASE/live"
     elif [[ -L "$BASE/live" ]]; then unlink "$BASE/live"; fi
     systemctl daemon-reload
+    if [[ -f "$BACKUP/wifi-enabled" ]]; then systemctl enable rykvo-wifi.socket; fi
+    if [[ -f "$BACKUP/wifi-active" ]]; then systemctl start rykvo-wifi.socket; fi
     if [[ -f "$BACKUP/qmi-enabled" ]]; then systemctl enable rykvo-qmi.socket; fi
     if [[ -f "$BACKUP/qmi-active" ]]; then systemctl start rykvo-qmi.socket; fi
     udevadm control --reload-rules || true
@@ -305,6 +318,8 @@ deploy() {
     install -m 644 "$SOURCE/deploy/rykvo-auth.service" "$UNIT"
     install -m 644 "$SOURCE/deploy/rykvo-qmi.socket" "$QMI_SOCKET"
     install -m 644 "$SOURCE/deploy/rykvo-qmi@.service" "$QMI_UNIT"
+    install -m 644 "$SOURCE/deploy/rykvo-wifi.socket" "$WIFI_SOCKET"
+    install -m 644 "$SOURCE/deploy/rykvo-wifi@.service" "$WIFI_UNIT"
     install -m 644 "$SOURCE/deploy/nginx.conf" "$SITE"
     if [[ -L /etc/nginx/sites-enabled/default ]]; then
         readlink /etc/nginx/sites-enabled/default > "$BASE/default-site-link"
@@ -313,7 +328,7 @@ deploy() {
     ln -sfn "$SITE" "$ENABLED"
     nginx -t
     systemctl daemon-reload
-    systemctl enable --now rykvo-qmi.socket
+    systemctl enable --now rykvo-wifi.socket rykvo-qmi.socket
     systemctl enable --now nginx rykvo-auth
     systemctl reload nginx
     health || die '健康检查未通过'
@@ -343,9 +358,11 @@ uninstall() {
     confirm_uninstall
     snapshot
     systemctl disable --now rykvo-auth 2>/dev/null || [[ ! -f "$UNIT" ]]
+    wifi_stop
     qmi_stop
+    systemctl disable rykvo-wifi.socket 2>/dev/null || true
     systemctl disable rykvo-qmi.socket 2>/dev/null || true
-    rm -f -- "$UNIT" "$ENABLED" "$SITE" "$HARDWARE_RULE" "$PCSC_RULE" "$QMI_SOCKET" "$QMI_UNIT"
+    rm -f -- "$UNIT" "$ENABLED" "$SITE" "$HARDWARE_RULE" "$PCSC_RULE" "$QMI_SOCKET" "$QMI_UNIT" "$WIFI_SOCKET" "$WIFI_UNIT"
     udevadm control --reload-rules || true
     if [[ -f "$BASE/default-site-link" && ! -e /etc/nginx/sites-enabled/default ]]; then
         ln -s "$(cat "$BASE/default-site-link")" /etc/nginx/sites-enabled/default

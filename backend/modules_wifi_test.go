@@ -79,6 +79,9 @@ func TestModuleWiFiGateIncludesCleanup(t *testing.T) {
 	if view["registered"] != false || view["issue"] != "WIFI_RADIO_RESTORE_UNCONFIRMED" {
 		t.Fatal("cleanup uncertainty hidden", view)
 	}
+	if !time.Now().Before(m.recoveryUntil[sample.Candidate.Key]) {
+		t.Fatal("uncertain worker cleanup was not quarantined")
+	}
 	select {
 	case gate <- struct{}{}:
 		<-gate
@@ -216,5 +219,22 @@ func TestModuleWiFiKeepsControlWhileConnecting(t *testing.T) {
 	m.wifi[1].running = false
 	if _, _, issue = m.state(v); issue != "STATE_STALE" {
 		t.Fatal("ordinary stale data accepted")
+	}
+}
+
+func TestModuleWiFiRefreshAfterVerifiedRadioRestore(t *testing.T) {
+	m := newModuleManager(nil, nil)
+	sample := wifiModuleFixture()
+	sample.Reading.UpdatedAt = time.Now().Add(-5 * time.Minute)
+	m.values[1], m.seen[sample.Candidate.Key], m.lastScan = sample, sample.Candidate, time.Now()
+	m.wifi[1] = &moduleWiFi{ICCID: sample.Reading.ICCID, State: "failed", refreshUntil: time.Now().Add(80 * time.Second)}
+	v := moduleRecord{ID: 1, Endpoint: sample.Candidate.Key}
+	r, _, issue := m.state(v)
+	if issue != "" || r.Registration != "unknown" || r.ICCID != sample.Reading.ICCID {
+		t.Fatal("verified cleanup hid controls or reused signal", issue)
+	}
+	m.wifi[1].refreshUntil = time.Now().Add(-time.Second)
+	if _, _, issue = m.state(v); issue != "STATE_STALE" {
+		t.Fatal("refresh grace never expired")
 	}
 }

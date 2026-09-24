@@ -15,6 +15,10 @@ const Backend = (() => {
       installESIM: ["POST", "/modules/:moduleId/esim"],
       removeLine: ["DELETE", "/modules/:moduleId/lines/:lineId"],
       notifyESIM: ["POST", "/modules/:moduleId/esim/notifications"],
+      apns: ["GET", "/modules/:moduleId/lines/:lineId/apns"],
+      saveAPN: ["PUT", "/modules/:moduleId/lines/:lineId/apns/:apnId"],
+      removeAPN: ["DELETE", "/modules/:moduleId/lines/:lineId/apns/:apnId"],
+      applyAPN: ["POST", "/modules/:moduleId/lines/:lineId/apns/:apnId/apply"],
     },
     calls: {
       list: ["GET", "/calls"],
@@ -55,6 +59,12 @@ const Backend = (() => {
       get: ["GET", "/sip/accounts/:accountId"],
       update: ["PATCH", "/sip/accounts/:accountId"],
       remove: ["DELETE", "/sip/accounts/:accountId"],
+    },
+    sipServer: {
+      connect: ["POST", "/settings/sip-server/connect"],
+    },
+    emergencyAddress: {
+      start: ["POST", "/modules/:moduleId/lines/:lineId/emergency-address/session"],
     },
     administrator: {
       get: ["GET", "/administrator"],

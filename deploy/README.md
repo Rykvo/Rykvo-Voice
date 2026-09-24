@@ -19,7 +19,7 @@
 
 `sudo rykvo uninstall` 会要求输入 `DELETE rykvo_voice`。确认后删除应用程序、数据库和角色、账号、运行配置、所有应用备份、缓存、应用日志、服务及管理命令，不再保留恢复数据。操作不可撤回。
 
-仍绑定 Cloudflare Tunnel 时，先在“云服务器”页面注销，脚本才继续卸载，避免遗留远端 DNS 或隧道。卸载不删除其他项目、共用的 PostgreSQL/Nginx 等系统软件包或系统审计日志。
+仍绑定 Cloudflare Tunnel 时，先在“主机服务器”页面注销，脚本才继续卸载，避免遗留远端 DNS 或隧道。卸载不删除其他项目、共用的 PostgreSQL/Nginx 等系统软件包或系统审计日志。
 
 更新前产生的备份仅保留到主动卸载之前；若需自行保留，请在执行卸载前手动移出应用备份目录。
 
@@ -48,7 +48,7 @@ gh release create v1.0.1 dist/rykvo-voice-linux-amd64.tar.gz dist/rykvo-voice-li
 | `deploy/` | 服务配置、运行时版本、校验和与发布工具 |
 | `tests/` | 部署工具测试 |
 
-已接通：登录、密码与显示设置、Cloudflare Tunnel、模块自动发现和 eSIM 管理。Wi-Fi 通话支持 EC20 飞行模式联动、IMS 注册和续期；当前已在 02 实卡核对注册链路，不代表所有运营商兼容。手动选网已移除。**实际呼叫/音频、IMS 短信、数据连接及漫游、任务队列和图片存储仍待实现**；不安装空转的 RabbitMQ / S3 服务。
+已接通：登录、密码与显示设置、Cloudflare Tunnel、模块自动发现和 eSIM 管理。Wi-Fi 通话支持 EC20 飞行模式联动、IMS 注册和续期；v1.3.0 使用独立受限工作服务接入参考核心，已在 02、03 实卡核对初始注册链路，不代表所有运营商兼容或长期续期验收完成。APN 支持按 SIM 保存及确认应用，保存不会开启流量。手动选网已移除。**实际呼叫/音频、IMS 短信、数据连接及漫游、任务队列和图片存储仍待实现**；不安装空转的 RabbitMQ / S3 服务。
 
 - [后端协议](frontend/BACKEND.md)
 - [云连接协议](frontend/TUNNEL.md)

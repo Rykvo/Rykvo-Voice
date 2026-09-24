@@ -1,0 +1,8 @@
+{
+  "source": "https://android.googlesource.com/device/sample/+/73f904fbeb872f5675cb5f18cd9dfb15856425a6/etc/apns-full-conf.xml",
+  "revision": "73f904fbeb872f5675cb5f18cd9dfb15856425a6",
+  "upstream_sha256": "9e44015793ec01d0773123103dca19b181fbc5fdd43cfc1b1d5cfacbda622726",
+  "entries": 2704,
+  "license": "Apache-2.0",
+  "changes": "Selected default/mms profiles and matching attributes; no user data."
+}

@@ -15,8 +15,9 @@ import (
 
 // Subscriber identities and AKA keys never enter the public status response.
 type wifiIdentity struct {
-	IMSI, ICCID string
-	MCC, MNC    string
+	IMSI, ICCID     string
+	MCC, MNC        string
+	SPN, GID1, GID2 string
 }
 
 func (v wifiIdentity) epdg() string {
@@ -36,9 +37,11 @@ func (v *akaResult) clear() {
 }
 
 type wifiSIM struct {
-	session *atSession
-	card    *cardChannel
-	id      wifiIdentity
+	session            *atSession
+	card               *cardChannel
+	profile            wifiCarrier
+	preferredTransport string
+	id                 wifiIdentity
 }
 
 // Caller owns the module gate for the whole session, including cleanup.
@@ -90,6 +93,28 @@ func inspectWiFiSIM(ctx context.Context, session *atSession, expectedICCID strin
 		return nil, err
 	}
 	s.id.ICCID = expectedICCID
+	// Optional selectors are read through the same exclusive logical channel.
+	if raw, e := s.readFile(ctx, 0x6f46, 17); e == nil {
+		s.id.SPN = wifiSPN(raw)
+		clear(raw)
+	}
+	if raw, e := s.readFile(ctx, 0x6f3e, 8); e == nil {
+		s.id.GID1 = strings.ToUpper(hex.EncodeToString(raw))
+		clear(raw)
+	}
+	if raw, e := s.readFile(ctx, 0x6f3f, 8); e == nil {
+		s.id.GID2 = strings.ToUpper(hex.EncodeToString(raw))
+		clear(raw)
+	}
+	carrierOnce.Do(loadWiFiCarriers)
+	if carrierError != nil {
+		return nil, carrierError
+	}
+	s.profile = resolveWiFiCarrier(s.id, carrierRules)
+	if s.profile.Unsupported != "" {
+		return nil, errors.New("WIFI_CARRIER_UNSUPPORTED")
+	}
+
 	// Catch a profile/card change during the read before publishing its identity.
 	if err = s.verifyCard(ctx); err != nil {
 		return nil, err
@@ -271,7 +296,7 @@ func wifiProbe(run bool) error {
 	}
 	limit := 25 * time.Second
 	if run {
-		if request.HoldSeconds < 0 || request.HoldSeconds > 600 {
+		if request.HoldSeconds < 0 || request.HoldSeconds > 3600 {
 			return errors.New("INVALID_REQUEST")
 		}
 		limit = time.Duration(120+request.HoldSeconds) * time.Second

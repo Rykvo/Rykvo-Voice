@@ -1,0 +1,25 @@
+[Unit]
+Description=Rykvo Voice isolated VoWiFi session
+
+[Service]
+User=rykvo_voice
+Group=rykvo_voice
+ExecStart=/opt/rykvo-voice/live/rykvo-auth -hardware-wifi-worker
+StandardInput=socket
+StandardOutput=socket
+StandardError=null
+TimeoutStopSec=85
+NoNewPrivileges=true
+CapabilityBoundingSet=CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_ADMIN
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+MemoryMax=256M
+TasksMax=64
+UMask=0077
