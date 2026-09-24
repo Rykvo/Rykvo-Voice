@@ -36,7 +36,7 @@ const ModuleData = (() => {
     DEVICE_CHANGED: "设备或卡片已变化，请刷新", PROFILE_NOT_FOUND: "配置已变化，请刷新",
     PROFILE_DELETE_BLOCKED: "请先停用此配置", PROFILE_POLICY: "运营商限制此操作",
     ESIM_CARD_REJECTED: "卡片未接受操作", ESIM_UNAVAILABLE: "eSIM 服务暂未就绪",
-    ESIM_OPERATION_FAILED: "eSIM 操作失败", ESIM_RESULT_UNKNOWN: "结果待核实，请刷新卡片状态",
+    ESIM_OPERATION_FAILED: "eSIM 操作失败", ESIM_RESULT_UNKNOWN: "等待卡片确认，请勿重复操作",
     ESIM_INTERRUPTED: "操作中断，请核实卡片状态", ESIM_NETWORK_FAILED: "运营商服务连接失败",
     ESIM_REMOTE_ADDRESS: "运营商服务地址无效", ESIM_NOTIFICATION_PENDING: "配置已处理，运营商通知待重试",
     CONFIRMATION_REQUIRED: "请输入运营商确认码", INVALID_ESIM_REQUEST: "请检查卡片和输入内容",
@@ -91,7 +91,7 @@ const ModuleData = (() => {
     } finally {
       if (controller === request) {
         controller = null;
-        if (started && !document.hidden) timer = setTimeout(refresh, 5000);
+        if (started && !document.hidden) timer = setTimeout(refresh, items.some(item => ["queued", "running"].includes(item.job?.state)) ? 1000 : 5000);
       }
     }
   }

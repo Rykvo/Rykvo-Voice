@@ -62,8 +62,9 @@ const Modules = (() => {
           order.compare(a.number || "", b.number || ""),
       );
   }
-  function badge(status) {
-    return `<span class="module-status" data-status="${UI.escape(status)}"><i aria-hidden="true"></i>${UI.escape(statuses[status] || "未知")}</span>`;
+  function badge(status, issue) {
+    const text = status === "error" && issue && issue !== "IDENTITY_CONFLICT" ? "读取异常" : statuses[status] || "未知";
+    return `<span class="module-status" data-status="${UI.escape(status)}" title="${UI.escape(ModuleData.issueText(issue))}"><i aria-hidden="true"></i>${UI.escape(text)}</span>`;
   }
   function signalLabel(value, item) {
     if (item?.managed) {
@@ -79,7 +80,7 @@ const Modules = (() => {
       ? records
           .map(
             (item) =>
-              `<tr data-module-row="${UI.escape(item.id)}"><th scope="row">${UI.escape(item.label || item.name)}</th><td class="module-number">${UI.escape(ModuleData.identity(item.number, item.hardware?.iccid).caption)}</td><td>${badge(item.status)}</td><td class="module-signal">${UI.escape(signalLabel(item.signal, item))}</td><td><button type="button" class="text-button module-detail" data-module-detail="${UI.escape(item.id)}" aria-label="查看${UI.escape(item.name)}详情">详情</button></td></tr>`,
+              `<tr data-module-row="${UI.escape(item.id)}"><th scope="row">${UI.escape(item.label || item.name)}</th><td class="module-number">${UI.escape(ModuleData.identity(item.number, item.hardware?.iccid).caption)}</td><td>${badge(item.status, item.issue)}</td><td class="module-signal">${UI.escape(signalLabel(item.signal, item))}</td><td><button type="button" class="text-button module-detail" data-module-detail="${UI.escape(item.id)}" aria-label="查看${UI.escape(item.name)}详情">详情</button></td></tr>`,
           )
           .join("")
       : `<tr><td colspan="5" class="data-empty">${ModuleData.issue ? "读取异常，正在重试" : ModuleData.connected() && !ModuleData.loaded ? "正在读取" : "暂无模块"}</td></tr>`;

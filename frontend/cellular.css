@@ -138,6 +138,51 @@ dialog:has(.cellular-page) .dialog-close {
   padding: 10px;
   text-align: center;
 }
+.cellular-job {
+  margin: 20px 16px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.cellular-job-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  gap: 8px;
+}
+.cellular-job-heading .text-button {
+  padding: 4px 8px;
+  color: var(--muted);
+  font-size: 20px;
+}
+.cellular-job-check {
+  margin-right: 6px;
+  color: #248a3d;
+}
+.theme-dark .cellular-job-check { color: #30d158; }
+.cellular-job small { display: block; margin-top: 4px; }
+.cellular-job progress {
+  display: block;
+  width: 100%;
+  height: 4px;
+  margin-top: 8px;
+  border: 0;
+  border-radius: 4px;
+  overflow: hidden;
+  appearance: none;
+  background: var(--border);
+}
+.cellular-job progress::-webkit-progress-bar { background: var(--border); }
+.cellular-job progress:indeterminate {
+  background: linear-gradient(var(--blue), var(--blue)) left / 35% 100% no-repeat var(--border);
+  animation: cellular-progress 1.6s ease-in-out infinite alternate;
+}
+.cellular-job progress:indeterminate::-webkit-progress-bar { background: transparent; }
+@keyframes cellular-progress { to { background-position: right; } }
+.reduce-motion .cellular-job progress { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .cellular-job progress { animation: none; }
+}
 .cellular-page .form-fields {
   padding: 0 14px;
   border-radius: 13px;

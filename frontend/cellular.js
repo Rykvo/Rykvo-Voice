@@ -2,6 +2,7 @@ const Cellular = (() => {
   let module = null;
   let activeLine = -1, activeID = null, unsubscribe = null;
   let view = "overview", rendered = "", submitting = false;
+  const dismissedJobs = new Set();
   const editable = (item) => !item.managed || (item.capabilities?.esim && !submitting);
   function active() {
     if (activeID) activeLine = module?.sims?.findIndex((sim) => sim.id === activeID) ?? -1;
@@ -9,24 +10,33 @@ const Cellular = (() => {
   }
   function jobNote(item) {
     const job = item.job;
-    if (!job?.id) return "";
-    const stage = { waiting: "等待设备", checking: "检查卡片", writing: "正在处理", authenticating: "正在验证", downloading: "正在下载", installing: "正在写入", verifying: "正在核实", notifying: "发送通知", done: "已完成" };
-    const text = ModuleData.issueText(job.issue || job.warning) || stage[job.stage] || "正在处理";
-    return `<p class="cellular-empty" role="status">${UI.escape(text)}</p>`;
+    if (!job?.id || dismissedJobs.has(job.id)) return "";
+    const busy = ["queued", "running"].includes(job.state);
+    const success = job.state === "succeeded";
+    const stage = { waiting: "等待设备", checking: "检查卡片", writing: job.action === "enable" ? "正在切换号码" : "正在处理", authenticating: "正在验证", downloading: "正在下载", installing: "正在写入", verifying: "正在确认卡片状态", notifying: "正在上报状态" };
+    const done = { enable: "号码已切换", disable: "号码已停用", download: "eSIM 已添加", delete: "eSIM 已删除", rename: "标签已更新", notifications: "状态已上报" };
+    const text = busy ? stage[job.stage] || "正在处理" : success ? done[job.action] || "已完成" : ModuleData.issueText(job.issue) || "操作未完成";
+    const warning = success && job.warning ? ModuleData.issueText(job.warning) : "";
+    return `<div class="cellular-job" data-state="${success ? "success" : busy ? "busy" : "attention"}"><div class="cellular-job-heading"><span role="status">${success ? '<span class="cellular-job-check" aria-hidden="true">✓</span>' : ""}${UI.escape(text)}</span>${busy ? "" : '<button type="button" class="text-button" data-cellular-dismiss aria-label="关闭操作提示">×</button>'}</div>${busy ? `<progress aria-label="${UI.escape(text)}"></progress>` : ""}${warning ? `<small>${UI.escape(warning)}</small>` : ""}</div>`;
   }
   function refreshDialog() {
     if (!module || !["overview", "detail"].includes(view)) return;
     active();
     if (view === "detail" && !active()) view = "overview";
-    const html = view === "detail" ? detail(module, activeLine) : overview(module);
-    if (html === rendered) return;
-    rendered = html;
+    const html = view === "detail" ? detail(module, activeLine, false) : overview(module, false);
     const content = document.getElementById("dialog-content"), dialog = document.getElementById("dialog");
+    if (html === rendered) {
+      const slot = content.querySelector("[data-cellular-job]");
+      const note = jobNote(module);
+      if (slot && slot.innerHTML !== note) slot.innerHTML = note;
+      return;
+    }
+    rendered = html;
     const scroll = dialog.scrollTop;
     const focus = document.activeElement;
     const setting = focus?.dataset?.cellularSetting, action = focus?.dataset?.cellularAction;
     const title = view === "detail" ? active().label : "蜂窝网络";
-    content.innerHTML = `<h2 id="dialog-title">${UI.escape(title)}</h2>${html}`;
+    content.innerHTML = `<h2 id="dialog-title">${UI.escape(title)}</h2>${view === "detail" ? detail(module, activeLine) : overview(module)}`;
     dialog.scrollTop = scroll;
     if (setting) content.querySelector(`[data-cellular-setting="${setting}"]`)?.focus({ preventScroll: true });
     else if (action) content.querySelector(`[data-cellular-action="${action}"]`)?.focus({ preventScroll: true });
@@ -62,7 +72,7 @@ const Cellular = (() => {
     const label = toDetail ? active()?.label || "蜂窝网络" : "蜂窝网络";
     return `<button type="button" class="text-button cellular-back" data-cellular-back="${toDetail ? "detail" : "overview"}">‹ ${UI.escape(label)}</button>`;
   }
-  function overview(item) {
+  function overview(item, showJob = true) {
     const cards = lines(item);
     return `<section class="cellular-page">
       <h3 class="cellular-section-title">${UI.escape(item.label || item.name)}</h3>
@@ -72,19 +82,19 @@ const Cellular = (() => {
           <span class="cellular-sim-copy"><strong>${UI.escape(sim.label)}</strong>${sim.number || sim.iccid ? `<small>${UI.escape(ModuleData.identity(sim.number, sim.iccid).caption)}</small>` : ""}</span>
           <span class="cellular-sim-meta">${UI.escape(sim.state)}</span>
           <span class="chevron" aria-hidden="true">›</span>
-        </button>`).join("") : '<p class="cellular-empty">无 SIM 卡</p>'}</div>
+        </button>`).join("") : `<p class="cellular-empty">${UI.escape(item.issue ? ModuleData.issueText(item.issue) : item.cardReading ? "正在读取卡片" : "无 SIM 卡")}</p>`}</div>
       <button type="button" class="cellular-add" data-cellular-add ${editable(item) ? "" : "disabled"}>
         <span aria-hidden="true">＋</span>添加 eSIM<span class="chevron" aria-hidden="true">›</span>
       </button>
-      ${item.hardware?.esim?.pending > 0 ? `<button type="button" class="text-button cellular-notify" data-cellular-notify ${editable(item) ? "" : "disabled"}>重试状态上报</button>` : ""}${jobNote(item)}
+      ${item.hardware?.esim?.pending > 0 ? `<button type="button" class="text-button cellular-notify" data-cellular-notify ${editable(item) ? "" : "disabled"}>重试状态上报</button>` : ""}<div data-cellular-job>${showJob ? jobNote(item) : ""}</div>
     </section>`;
   }
   function open(item) {
     unsubscribe?.();
     module = item;
     activeLine = -1; activeID = null; view = "overview";
-    rendered = overview(item);
-    UI.modal("蜂窝网络", rendered);
+    rendered = overview(item, false);
+    UI.modal("蜂窝网络", overview(item));
     unsubscribe = ModuleData.subscribe(refreshDialog);
   }
   function switchRow(key, label, checked, disabled = false, status = "") {
@@ -96,7 +106,7 @@ const Cellular = (() => {
       ? `<button type="button" class="cellular-setting" data-cellular-action="${action}" ${disabled ? "disabled" : ""}>${content}</button>`
       : `<div class="cellular-setting">${content}</div>`;
   }
-  function detail(item, index) {
+  function detail(item, index, showJob = true) {
     const sim = lines(item)[index];
     if (!sim) return "";
     const identity = ModuleData.identity(sim.number, sim.iccid);
@@ -117,13 +127,13 @@ const Cellular = (() => {
         ${valueRow(identity.label, identity.value)}
         ${valueRow("Wi-Fi 通话", pending || (sim.wifiCalling ? "开启" : "关闭"), "wifi", networkDisabled)}
         ${switchRow("roaming", "数据漫游", sim.roaming, networkDisabled, pending)}
-      </div>${remove}${jobNote(item)}</section>`;
+      </div>${remove}<div data-cellular-job>${showJob ? jobNote(item) : ""}</div></section>`;
   }
 
   function showDetail() {
     active();
     const sim = lines(module)[activeLine];
-    if (sim) { view = "detail"; rendered = detail(module, activeLine); UI.modal(sim.label, rendered); }
+    if (sim) { view = "detail"; rendered = detail(module, activeLine, false); UI.modal(sim.label, detail(module, activeLine)); }
   }
   const { validLabel } = ModuleData;
   function validActivation(value) {
@@ -131,6 +141,11 @@ const Cellular = (() => {
   }
   document.addEventListener("click", (event) => {
     if (!module || !event.target.closest("#dialog-content")) return;
+    if (event.target.closest("[data-cellular-dismiss]")) {
+      if (module.job?.id && !["queued", "running"].includes(module.job.state)) dismissedJobs.add(module.job.id);
+      refreshDialog();
+      return;
+    }
     const backButton = event.target.closest("[data-cellular-back]");
     if (backButton) {
       if (backButton.dataset.cellularBack === "detail") showDetail();

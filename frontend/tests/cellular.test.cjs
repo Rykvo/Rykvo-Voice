@@ -17,6 +17,7 @@ function setup() {
       getElementById: (id) =>
         (nodes[id] ||= {
           reset() {},
+          querySelector() { return null; },
           addEventListener: (name, fn) => (events[name] = fn),
         }),
     },
@@ -362,4 +363,40 @@ test("physical SIM without a number uses ICCID without changing its number field
   assert.match(cellular.detail(item, 0), /<span>ICCID<\/span>/);
   assert.equal(sim.number, "");
   assert.doesNotMatch(cellular.detail(item, 0), /data-cellular-delete|IMEI|EID/);
+});
+
+test("eSIM progress follows real stages without invented percentages", () => {
+  const { cellular } = setup();
+  const item = { ...fixture, job: { id: "job-progress", action: "download", state: "running", stage: "installing" } };
+  const html = cellular.overview(item);
+  assert.match(html, /正在写入/);
+  assert.match(html, /<progress aria-label="正在写入"><\/progress>/);
+  assert.doesNotMatch(html, /value=|\d+%|已完成|data-cellular-dismiss/);
+  item.job.action = "enable";
+  item.job.stage = "writing";
+  assert.match(cellular.overview(item), /正在切换号码/);
+  item.job.stage = "verifying";
+  assert.match(cellular.overview(item), /正在确认卡片状态/);
+});
+
+test("only confirmed jobs show success and notification warnings stay separate", () => {
+  const { cellular } = setup();
+  const item = { ...fixture, job: { id: "job-result", action: "enable", state: "uncertain", issue: "ESIM_RESULT_UNKNOWN" } };
+  assert.doesNotMatch(cellular.overview(item), /号码已切换|<progress/);
+  assert.match(cellular.overview(item), /请勿重复操作/);
+  item.job = { ...item.job, state: "succeeded", issue: "", warning: "ESIM_NOTIFICATION_PENDING" };
+  const html = cellular.overview(item);
+  assert.match(html, /号码已切换/);
+  assert.match(html, /运营商通知待重试/);
+  assert.match(html, /data-cellular-dismiss/);
+  assert.doesNotMatch(html, /<progress/);
+});
+
+test("read errors and pending inventory are not presented as an absent SIM", () => {
+  const { cellular } = setup();
+  const item = { name: "模块 03", managed: true, sims: [], issue: "READ_TIMEOUT" };
+  assert.match(cellular.overview(item), /设备读取超时/);
+  assert.doesNotMatch(cellular.overview(item), /无 SIM 卡/);
+  item.issue = ""; item.cardReading = true;
+  assert.match(cellular.overview(item), /正在读取卡片/);
 });
