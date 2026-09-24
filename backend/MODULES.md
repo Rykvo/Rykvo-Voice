@@ -75,6 +75,8 @@ Rykvo 已有线路开关页面和 PATCH 契约，但真实模块当前禁用该�
 
 接入第一阶段：`internal/hardware/wifi_sim.go` 复用现有 AT 会话与逻辑通道，增加当前 USIM 的 EF_IMSI / EF_AD 读取、明确 MNC 长度的 ePDG 推导和 AKA 响应解析。鉴权前后核对 ICCID，拒绝把同步失败当成成功，密钥只驻留内存。`-hardware-wifi-check` 为维护用只读入口，stdin 提供端点、设备世代、IMEI 哈希与当前 ICCID；输出不含 IMSI、ICCID 或鉴权密钥，不发起鉴权、不改射频/PDP/配置。此检查成功只说明 SIM 前置读取通过，不证明运营商开通、隧道建立或 IMS 注册。尚未接入开关联动、网络会话或真实 AKA 挑战。
 
+EAP-AKA 协议层复用同一个 SIM 鉴权入口，按 RFC 4187 实现全量身份鉴权、密钥派生、AT_MAC、身份校验摘要和受保护结果确认。重复请求复用响应，不重复调用卡片；报文、身份轮次和同步失败次数均设上限，取消/失败时清除会话密钥。收到有效 Challenge 不等于 EAP Success，EAP Success 也不等于 IKE 对端认证或 IMS 注册。当前不支持 AKA′、快速重鉴权或保存运营商假名；未接入网络收发或网页开关，不向真实卡片发送测试挑战。
+
 标签错误：`INVALID_LABEL`（400）、`LABEL_EXISTS`（409）、`LABEL_ALREADY_SET`（409）。读取失败与空列表分开表示；发现错误字段不带系统原始路径/错误正文。
 
 ## 运行环境
