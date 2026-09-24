@@ -94,21 +94,26 @@ func (m *moduleManager) gate(key string) chan struct{} {
 	return m.gates[key]
 }
 func (m *moduleManager) read(ctx context.Context, c hardware.Candidate) hardware.Reading {
-	m.mu.RLock()
-	busy := false
+	m.mu.Lock()
+	busy := time.Now().Before(m.recoveryUntil[c.Key])
 	for id, j := range m.jobs {
 		if j.active() && m.values[id].Candidate.Key == c.Key {
 			busy = true
 			break
 		}
 	}
-	m.mu.RUnlock()
+	if busy {
+		delete(m.recovery, c.Key)
+	}
+	m.mu.Unlock()
 	gate := m.gate(c.Key)
 	if !busy {
 		select {
 		case gate <- struct{}{}:
 			defer func() { <-gate }()
-			return m.source.Read(ctx, c)
+			r := m.source.Read(ctx, c)
+			m.recoverModule(ctx, c, r)
+			return r
 		default:
 		}
 	}
@@ -153,7 +158,7 @@ func (m *moduleManager) startJob(ctx context.Context, v moduleRecord, request ha
 	if !m.ready || m.ctx == nil || m.ctx.Err() != nil {
 		return moduleJob{}, errors.New("ESIM_UNAVAILABLE")
 	}
-	if m.jobs[v.ID].active() {
+	if m.jobs[v.ID].active() || time.Now().Before(m.recoveryUntil[v.Endpoint]) {
 		return moduleJob{}, errors.New("DEVICE_BUSY")
 	}
 	sample, ok := m.values[v.ID]

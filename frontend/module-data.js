@@ -32,7 +32,7 @@ const ModuleData = (() => {
     QMI_READ_FAILED: "QMI 状态读取失败", QMI_STATUS_FAILED: "网络状态读取失败",
     PCSC_UNAVAILABLE: "读卡器服务或驱动未就绪",
     CARD_READ_FAILED: "SIM 读取失败", CARD_UNSUPPORTED: "SIM 类型暂未识别",
-    IDENTITY_CONFLICT: "设备身份冲突", READING: "正在读取", STATE_STALE: "状态待更新",
+    IDENTITY_CONFLICT: "设备身份冲突", READING: "正在读取", RECOVERING: "正在恢复", STATE_STALE: "状态待更新",
     IDENTITY_PENDING: "正在确认设备身份",
     NO_EUICC: "当前卡片未识别为 eSIM", EUICC_CHANNEL_UNAVAILABLE: "卡片通道暂不可用",
     DEVICE_CHANGED: "设备或卡片已变化，请刷新", PROFILE_NOT_FOUND: "配置已变化，请刷新",

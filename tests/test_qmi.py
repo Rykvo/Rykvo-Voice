@@ -1,5 +1,6 @@
 import importlib.util
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -11,6 +12,42 @@ spec.loader.exec_module(qmi)
 
 
 class QMIReadTests(unittest.TestCase):
+    def test_restart_requires_matching_ec20_endpoint_and_generation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            usb = root / "devices/2-4"
+            interface = usb / "2-4:1.4"
+            interface.mkdir(parents=True)
+            driver = root / "drivers/qmi_wwan"
+            driver.mkdir(parents=True)
+            (interface / "driver").symlink_to(driver, target_is_directory=True)
+            node = root / "class/usbmisc/cdc-wdm3"
+            node.mkdir(parents=True)
+            (node / "device").symlink_to(interface, target_is_directory=True)
+            values = {"idVendor": "2c7c", "idProduct": "0125", "product": "EC20-CE", "busnum": "2", "devnum": "13"}
+            for key, value in values.items():
+                (usb / key).write_text(value)
+            request = {"device": "/dev/cdc-wdm3", "command": "--dms-set-operating-mode=reset", "endpoint": "usb:2-4", "generation": "2:13"}
+            def path(value):
+                return root / "class/usbmisc" if value == "/sys/class/usbmisc" else Path(value)
+            with patch.object(qmi, "Path", side_effect=path), patch.object(qmi, "valid_device", return_value=True), patch.object(qmi.subprocess, "run") as run:
+                run.return_value = subprocess.CompletedProcess([], 0, b"reset acknowledged")
+                self.assertIn("output", qmi.query(request))
+                self.assertEqual(run.call_count, 1)
+                self.assertEqual(run.call_args.args[0][-1], "--dms-set-operating-mode=reset")
+                run.reset_mock()
+                for changed in (
+                    request | {"generation": "2:14"}, request | {"endpoint": "usb:2-3"},
+                    request | {"endpoint": "usb:../../etc"}, request | {"extra": "value"},
+                    {"device": request["device"], "command": request["command"]},
+                ):
+                    self.assertEqual(qmi.query(changed), {"error": "INVALID_REQUEST"})
+                for field in values:
+                    (usb / field).write_text("other")
+                    self.assertEqual(qmi.query(request), {"error": "INVALID_REQUEST"})
+                    (usb / field).write_text(values[field])
+                run.assert_not_called()
+
     def test_rejects_writes_and_extra_fields_before_execution(self):
         for request in (
             {"device": "/dev/cdc-wdm2", "command": "--dms-set-operating-mode=offline"},

@@ -197,6 +197,7 @@ func testModuleDatabase(t *testing.T, s *server, cookie, csrf string) {
 	if _, err := s.db.Exec(ctx, "DELETE FROM module_jobs WHERE id=$1", job.ID); err != nil {
 		t.Fatal(err)
 	}
+	testRecoveryDatabase(t, s, records[0].ID)
 }
 
 func TestRetiredNetworkRequestsDoNotReachHardware(t *testing.T) {

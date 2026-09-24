@@ -1,6 +1,6 @@
-# Rykvo Voice: no modem writes or network access.
+# Rykvo Voice: fixed QMI queries and scoped modem recovery; no network access.
 [Unit]
-Description=Rykvo Voice QMI status query
+Description=Rykvo Voice QMI device helper
 
 [Service]
 ExecStart=/usr/bin/python3 -I /opt/rykvo-voice/live/qmi-read.py

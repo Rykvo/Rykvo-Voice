@@ -81,3 +81,12 @@ CREATE INDEX IF NOT EXISTS module_jobs_latest ON module_jobs(module_id,created_a
 ALTER TABLE module_jobs ADD COLUMN IF NOT EXISTS verification jsonb NOT NULL DEFAULT 'null';
 
 ALTER TABLE module_jobs ADD COLUMN IF NOT EXISTS networks jsonb NOT NULL DEFAULT 'null';
+
+CREATE TABLE IF NOT EXISTS module_recoveries (
+ id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+ module_id bigint NOT NULL REFERENCES modules(id),
+ attempted_at timestamptz NOT NULL DEFAULT now(),
+ result text NOT NULL DEFAULT 'unconfirmed'
+);
+CREATE INDEX IF NOT EXISTS module_recoveries_time ON module_recoveries(attempted_at);
+CREATE INDEX IF NOT EXISTS module_recoveries_module ON module_recoveries(module_id,attempted_at);

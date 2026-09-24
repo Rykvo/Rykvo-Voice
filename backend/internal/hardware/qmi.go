@@ -16,6 +16,10 @@ import (
 const qmiSocket = "/run/rykvo-voice-qmi.sock"
 
 func proxyQuery(ctx context.Context, socket, device, command string) (string, error) {
+	return proxyRequest(ctx, socket, map[string]string{"device": device, "command": command})
+}
+
+func proxyRequest(ctx context.Context, socket string, request map[string]string) (string, error) {
 	call, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 	conn, err := (&net.Dialer{}).DialContext(call, "unix", socket)
@@ -27,7 +31,7 @@ func proxyQuery(ctx context.Context, socket, device, command string) (string, er
 	conn.SetDeadline(deadline)
 	stop := context.AfterFunc(call, func() { conn.Close() })
 	defer stop()
-	if err = json.NewEncoder(conn).Encode(map[string]string{"device": device, "command": command}); err != nil {
+	if err = json.NewEncoder(conn).Encode(request); err != nil {
 		return "", err
 	}
 	var response struct {
@@ -36,6 +40,9 @@ func proxyQuery(ctx context.Context, socket, device, command string) (string, er
 	}
 	if err = json.NewDecoder(io.LimitReader(conn, 131073)).Decode(&response); err != nil {
 		return "", err
+	}
+	if response.Error == "READ_TIMEOUT" {
+		return "", errTimeout
 	}
 	if response.Error != "" || len(response.Output) > 65536 {
 		return "", errors.New("QMI_READ_FAILED")
@@ -71,6 +78,9 @@ func queryQMI(ctx context.Context, device, op string) (string, error) {
 	var out boundedOutput
 	cmd.Stdout = &out
 	if err := cmd.Run(); err != nil {
+		if call.Err() != nil {
+			return "", call.Err()
+		}
 		return "", err
 	}
 	return out.String(), nil
@@ -92,7 +102,11 @@ func readQMI(ctx context.Context, c Candidate) Reading {
 	query := func(op string) string {
 		output, err := queryQMI(ctx, c.Control, op)
 		if err != nil {
-			r.Warnings = append(r.Warnings, op+":READ_FAILED")
+			code := "READ_FAILED"
+			if errors.Is(err, errTimeout) || errors.Is(err, context.DeadlineExceeded) {
+				code = "READ_TIMEOUT"
+			}
+			r.Warnings = append(r.Warnings, op+":"+code)
 			if err.Error() == "QMI_UNAVAILABLE" {
 				r.Issue = "QMI_UNAVAILABLE"
 			}

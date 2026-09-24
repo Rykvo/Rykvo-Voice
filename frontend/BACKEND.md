@@ -213,7 +213,7 @@ Go 使用 `WEB_ROOT` 指定发布目录。`/` 按有效 Cookie 返回登录页�
 
 ## 模块接入（1.1.0）
 
-模块已接入自动发现、只读采集、稳定绑定和唯一标签；无需手动添加，不设数量配额。列表返回 `{data:{items:[],discoveryIssue:""}}`，详情返回 `{data:Module}`。Module 增加 `managed/labelCustom/kind/hardware/issue/capabilities`；signal 支持 cellular，运营商和信号数值使用 hardware。eSIM 卡内标签、启停、安装与删除已实现接口，待实机联调；网络搜索及自动、手动选网已接入；Wi-Fi 通话、数据连接及漫游控制、短信、电话和 SIP 尚未接通。
+模块已接入自动发现、只读采集、稳定绑定和唯一标签；无需手动添加，不设数量配额。列表返回 `{data:{items:[],discoveryIssue:""}}`，详情返回 `{data:Module}`。Module 增加 `managed/labelCustom/kind/hardware/issue/capabilities`；signal 支持 cellular，运营商和信号数值使用 hardware。eSIM 卡内标签、启停、安装与删除已实现接口，待实机联调；手动搜网和选网已移除；Wi-Fi 通话、数据连接及漫游控制、短信、电话和 SIP 尚未接通。
 
 标签 PATCH 仍使用 `{label}`，空值恢复可用默认标签；旧标签迁移可带 `ifUnmodified:true`。标签唯一性包含离线记录，不把同一模块原标签视为重复。浏览器共享一个单飞轮询，隐藏时取消请求；本阶段不启用预留的全业务 SSE。详见 [模块后端](../backend/MODULES.md)。
 
@@ -231,3 +231,5 @@ Go 使用 `WEB_ROOT` 指定发布目录。`/` 按有效 Cookie 返回登录页�
 普通 SIM 和每个 eSIM 配置分别返回 `iccid` 与 `number`。号码未知时保持 `number` 为空，页面改显示带 ICCID 标识的卡号；ICCID 不进入拨号、短信号码格式化或号码字段。未启用配置照常列出，不借用当前启用配置的号码。模块列表可按 ICCID 搜索。
 
 当前号码来源为模块 `AT+CNUM`。VoCat 参考项目另有 Own Numbers、EF_MSISDN 读取，以及 IMS 注册后由运营商返回关联号码的链路（[读取流程](https://github.com/MengMengCode/VoCat/blob/484cd236dd543e2ba142cf1da2c5808ee8e89a6e/internal/device/phone.go)、[IMS 关联号码](https://github.com/MengMengCode/VoCat/blob/484cd236dd543e2ba142cf1da2c5808ee8e89a6e/internal/vowifi/phone.go)）。这些链路尚未接入本项目；缺少本机号码不等于蜂窝注册失败，也不证明必须启用 Wi-Fi 通话。
+
+EC20 连续通信超时恢复期间 `issue=RECOVERING`，页面显示“正在恢复”。不增加浏览器计时器、重启接口或固定成功提示；恢复状态由原模块列表轮询更新。

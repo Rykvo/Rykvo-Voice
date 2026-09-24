@@ -14,24 +14,29 @@ type moduleSample struct {
 	Reading   hardware.Reading
 }
 type moduleManager struct {
-	mu             sync.RWMutex
-	source         hardware.Source
-	db             *pgxpool.Pool
-	seen           map[string]hardware.Candidate
-	values         map[int64]moduleSample
-	lastScan       time.Time
-	discoveryIssue string
-	done           chan struct{}
-	ctx            context.Context
-	gates          map[string]chan struct{}
-	operations     sync.WaitGroup
-	operationSlots chan struct{}
-	jobs           map[int64]moduleJob
-	ready          bool
+	mu              sync.RWMutex
+	source          hardware.Source
+	db              *pgxpool.Pool
+	seen            map[string]hardware.Candidate
+	values          map[int64]moduleSample
+	lastScan        time.Time
+	discoveryIssue  string
+	done            chan struct{}
+	ctx             context.Context
+	gates           map[string]chan struct{}
+	operations      sync.WaitGroup
+	operationSlots  chan struct{}
+	jobs            map[int64]moduleJob
+	recoveryProof   map[string]moduleSample
+	recoveryReady   bool
+	recoveryPending map[int64]bool
+	recovery        map[string]recoveryStreak
+	recoveryUntil   map[string]time.Time
+	ready           bool
 }
 
 func newModuleManager(pool *pgxpool.Pool, source hardware.Source) *moduleManager {
-	return &moduleManager{db: pool, source: source, seen: map[string]hardware.Candidate{}, values: map[int64]moduleSample{}, done: make(chan struct{}), gates: map[string]chan struct{}{}, jobs: map[int64]moduleJob{}, operationSlots: make(chan struct{}, 4)}
+	return &moduleManager{db: pool, source: source, seen: map[string]hardware.Candidate{}, values: map[int64]moduleSample{}, done: make(chan struct{}), gates: map[string]chan struct{}{}, jobs: map[int64]moduleJob{}, operationSlots: make(chan struct{}, 4), recoveryProof: map[string]moduleSample{}, recoveryPending: map[int64]bool{}, recovery: map[string]recoveryStreak{}, recoveryUntil: map[string]time.Time{}}
 }
 func (m *moduleManager) run(ctx context.Context) {
 	defer close(m.done)
@@ -39,6 +44,7 @@ func (m *moduleManager) run(ctx context.Context) {
 	m.ctx = ctx
 	m.mu.Unlock()
 	m.loadJobs(ctx)
+	m.loadRecovery(ctx)
 	defer m.operations.Wait()
 	jobs := make(chan hardware.Candidate, 4)
 	results := make(chan moduleSample, 4)
@@ -93,8 +99,15 @@ func (m *moduleManager) run(ctx context.Context) {
 			previous, exists := m.seen[c.Key]
 			if !exists || !sameEndpoint(previous, c) {
 				delete(due, c.Key)
+				delete(m.recoveryProof, c.Key)
 			}
 			next[c.Key] = c
+		}
+		for key := range m.recovery {
+			if _, present := next[key]; !present {
+				delete(m.recovery, key)
+				delete(m.recoveryProof, key)
+			}
 		}
 		m.seen = next
 		m.mu.Unlock()
@@ -188,7 +201,11 @@ func (m *moduleManager) accept(ctx context.Context, sample moduleSample) {
 		}
 		return
 	}
+	if sample.Reading.Responsive && len(sample.Reading.IMEI) >= 14 {
+		m.recoveryProof[c.Key] = sample
+	}
 	m.values[v.ID] = sample
+	m.verifyRecovery(call, v.ID, sample.Reading)
 	job := m.jobs[v.ID]
 	if job.State == "uncertain" && job.confirm(sample.Reading) {
 		if m.persistJob(call, job) == nil {
@@ -202,6 +219,9 @@ func (m *moduleManager) state(v moduleRecord) (hardware.Reading, bool, string) {
 	defer m.mu.RUnlock()
 	empty := hardware.Reading{Model: v.Model, SIM: "unknown", Registration: "unknown"}
 	current, present := m.seen[v.Endpoint]
+	if time.Now().Before(m.recoveryUntil[v.Endpoint]) {
+		return empty, present, "RECOVERING"
+	}
 	if !present {
 		return empty, false, ""
 	}

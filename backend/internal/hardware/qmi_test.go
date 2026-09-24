@@ -68,7 +68,7 @@ func TestQMIPrivateQuery(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Unix socket")
 	}
-	for _, value := range []string{`{"output":"IMEI: 'test'"}`, `{"error":"QMI_READ_FAILED"}`, `not json`, `{"output":"` + strings.Repeat("x", 65537) + `"}`} {
+	for _, value := range []string{`{"output":"IMEI: 'test'"}`, `{"error":"QMI_READ_FAILED"}`, `{"error":"READ_TIMEOUT"}`, `not json`, `{"output":"` + strings.Repeat("x", 65537) + `"}`} {
 		t.Run(value[:8], func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "qmi.sock")
 			listener, err := net.Listen("unix", path)
@@ -95,6 +95,10 @@ func TestQMIPrivateQuery(t *testing.T) {
 			if strings.Contains(value, "test") {
 				if err != nil || output != "IMEI: 'test'" {
 					t.Fatalf("%q %v", output, err)
+				}
+			} else if strings.Contains(value, "READ_TIMEOUT") {
+				if err != errTimeout {
+					t.Fatal("timeout category lost", err)
 				}
 			} else if err == nil {
 				t.Fatal("invalid helper response accepted")

@@ -63,7 +63,7 @@ const Modules = (() => {
       );
   }
   function badge(status, issue) {
-    const text = status === "error" && issue && issue !== "IDENTITY_CONFLICT" ? "读取异常" : statuses[status] || "未知";
+    const text = issue === "RECOVERING" ? "正在恢复" : status === "error" && issue && issue !== "IDENTITY_CONFLICT" ? "读取异常" : statuses[status] || "未知";
     return `<span class="module-status" data-status="${UI.escape(status)}" title="${UI.escape(ModuleData.issueText(issue))}"><i aria-hidden="true"></i>${UI.escape(text)}</span>`;
   }
   function signalLabel(value, item) {

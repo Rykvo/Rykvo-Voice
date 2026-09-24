@@ -105,6 +105,9 @@ test("network rejection is distinct from a failed modem read", () => {
   assert.match(modules.rows([item]), /注册被拒绝/);
   Object.assign(item, { status: "error", issue: "QMI_READ_FAILED" });
   assert.match(modules.rows([item]), /读取异常/);
+  item.issue = "RECOVERING";
+  assert.match(modules.rows([item]), /正在恢复/);
+  assert.doesNotMatch(modules.rows([item]), /读取异常/);
 });
 test("counts and filters derive from records without mutating them", () => {
   const { modules } = setup();

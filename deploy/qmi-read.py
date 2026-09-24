@@ -1,4 +1,4 @@
-"""Rykvo Voice: fixed read-only QMI queries over a private local socket."""
+"""Rykvo Voice: fixed QMI queries and scoped EC20 recovery on a private socket."""
 import json
 import os
 from pathlib import Path
@@ -29,11 +29,35 @@ def valid_device(device):
     return path.stat().st_rdev == os.makedev(major, minor)
 
 
+def valid_restart(request):
+    if set(request) != {"device", "command", "endpoint", "generation"}:
+        return False
+    endpoint, generation = request["endpoint"], request["generation"]
+    if not isinstance(endpoint, str) or not re.fullmatch(r"usb:\d+-\d+(\.\d+)*", endpoint):
+        return False
+    if not isinstance(generation, str) or not re.fullmatch(r"\d+:\d+", generation):
+        return False
+    node = Path("/sys/class/usbmisc") / Path(request["device"]).name
+    interface = (node / "device").resolve(strict=True)
+    usb = interface.parent
+    return (
+        (interface / "driver").resolve(strict=True).name == "qmi_wwan"
+        and "usb:" + usb.name == endpoint
+        and (usb / "idVendor").read_text().strip() == "2c7c"
+        and (usb / "idProduct").read_text().strip() == "0125"
+        and (usb / "product").read_text().strip().upper().startswith("EC20")
+        and (usb / "busnum").read_text().strip() + ":" + (usb / "devnum").read_text().strip() == generation
+    )
+
+
 def query(request):
-    if not isinstance(request, dict) or set(request) != {"device", "command"}:
+    if not isinstance(request, dict) or not {"device", "command"}.issubset(request):
         return {"error": "INVALID_REQUEST"}
     command = request["command"]
-    if not isinstance(command, str) or command not in QUERIES or not valid_device(request["device"]):
+    restart = command == "--dms-set-operating-mode=reset"
+    if not isinstance(command, str) or (not restart and (command not in QUERIES or set(request) != {"device", "command"})):
+        return {"error": "INVALID_REQUEST"}
+    if not valid_device(request["device"]) or (restart and not valid_restart(request)):
         return {"error": "INVALID_REQUEST"}
     try:
         result = subprocess.run(
