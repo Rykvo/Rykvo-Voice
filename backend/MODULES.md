@@ -61,7 +61,7 @@ Module 保留 `{id,name,label,number,status,signal,sims}`，增加 `managed`、`
 
 沿用线路 PATCH：`{requestId,wifiCalling:true|false}`，返回更新后的 Module；页面复用 SIM 详情中的 Wi-Fi 通话页。模块包含 `wifi:{enabled,registered,state,issue}`，能力通过 `capabilities.wifiCalling` 独立判断，不依赖是否为 eSIM。
 
-- 当前接入 EC20（2c7c:0125）的次 AT 口，避免与已占用主 AT 口的 ModemManager 争抢回复。启动前核对 USB 世代、IMEI 指纹和当前 ICCID；蜂窝数据仍启用时不切换射频。
+- 当前接入 EC20（2c7c:0125）的次 AT 口，避免与已占用主 AT 口的 ModemManager 争抢回复。启动前核对 USB 世代、IMEI 指纹和当前 ICCID；目标模块的主机网络接口已启用时不切换射频；普通 LTE 附着的数据上下文不再误拦截。先进入 CFUN=4，再检查并关闭剩余 PDP 上下文，关闭功能恢复射频，不修改 APN、主机网卡或路由。
 - 开启联动 CFUN=4，回读确认后进行 USIM AKA、IKEv2/ePDG 和受保护的 IMS REGISTER。开关表示用户配置，只有收到并验证 IMS 200 后才显示“已连接”。
 - UDP 注册请求和响应使用各自协商的 ESP 安全关联，接收端为 UE server 端口；校验 MAC、重放窗口、地址、端口、Call-ID、CSeq、Via branch，保留证书和对端认证。
 - 一个事件循环维护 NAT 心跳、IKE 存活检查、IMS 续期和当前卡校验。可重试网络故障有限退避，鉴权拒绝、未知清理结果不反复重试，也不触发模块重启。

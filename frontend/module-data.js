@@ -26,7 +26,7 @@ const ModuleData = (() => {
   const connected = () => typeof Backend !== "undefined" && Backend.enabled("modules");
   const issueText = (code) => ({
     WIFI_MODEM_UNSUPPORTED: "模块暂未支持 Wi-Fi 通话",
-    WIFI_DATA_ACTIVE: "请先关闭蜂窝数据", WIFI_DATA_STATE_UNKNOWN: "蜂窝数据状态待确认",
+    WIFI_DATA_ACTIVE: "请先断开该模块的主机数据连接", WIFI_DATA_STATE_UNKNOWN: "蜂窝数据状态待确认",
     WIFI_NETWORK_UNAVAILABLE: "网络暂不可用", WIFI_CONNECTION_FAILED: "连接失败",
     WIFI_IMS_REJECTED: "运营商未接受注册", WIFI_AUTH_REJECTED: "运营商鉴权未通过", AKA_REJECTED: "SIM 鉴权未通过",
     WIFI_CERTIFICATE_INVALID: "运营商证书验证失败", WIFI_PEER_AUTH_FAILED: "运营商身份验证失败",

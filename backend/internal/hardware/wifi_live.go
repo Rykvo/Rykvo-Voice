@@ -109,22 +109,11 @@ func runWiFi(ctx context.Context, c Candidate, session *atSession, iccid string,
 		return err
 	}
 	if before == 1 {
-		lines, e := session.exchange(ctx, "AT+CGACT?", 5*time.Second)
-		if e != nil {
-			return errors.New("WIFI_DATA_STATE_UNKNOWN")
-		}
-		for _, line := range lines {
-			if strings.HasPrefix(line, "+CGACT:") {
-				v := fields(line)
-				if len(v) != 2 {
-					return errors.New("WIFI_DATA_STATE_UNKNOWN")
-				}
-				if n := integer(v[1]); n == nil || *n != 0 {
-					return errors.New("WIFI_DATA_ACTIVE")
-				}
-			}
+		if err := wifiHostData(c.Network); err != nil {
+			return err
 		}
 	}
+
 	restore := before
 	if live {
 		restore = 1
@@ -159,14 +148,11 @@ func runWiFi(ctx context.Context, c Candidate, session *atSession, iccid string,
 	}
 	if before == 1 {
 		emit("flight")
-		if _, err = session.exchange(ctx, "AT+CFUN=4", 15*time.Second); err != nil {
-			return errors.New("WIFI_RADIO_UNCONFIRMED")
-		}
 	}
-	mode, err := wifiRadioMode(ctx, session)
-	if err != nil || mode != 4 {
-		return errors.New("WIFI_RADIO_UNCONFIRMED")
+	if err = wifiRFOff(ctx, session, before); err != nil {
+		return err
 	}
+
 	sim, err := inspectWiFiSIM(ctx, session, iccid)
 	if err != nil {
 		return err

@@ -240,8 +240,15 @@ func (m *moduleManager) state(v moduleRecord) (hardware.Reading, bool, string) {
 	if !ok || sample.Candidate.Key != v.Endpoint || !sameEndpoint(sample.Candidate, current) {
 		return empty, true, "READING"
 	}
-	if time.Since(m.lastScan) > 20*time.Second || (!m.jobs[v.ID].active() && time.Since(sample.Reading.UpdatedAt) > 90*time.Second) {
+	wifi := m.wifi[v.ID]
+	wifiActive := wifi != nil && wifi.running && wifi.ICCID == sample.Reading.ICCID
+	if time.Since(m.lastScan) > 20*time.Second || (!m.jobs[v.ID].active() && !wifiActive && time.Since(sample.Reading.UpdatedAt) > 90*time.Second) {
 		return empty, true, "STATE_STALE"
 	}
-	return sample.Reading, true, sample.Reading.Issue
+	reading := sample.Reading
+	if wifiActive {
+		reading.Registration, reading.Operator, reading.PLMN, reading.Technology = "unknown", "", "", ""
+		reading.RSSI, reading.RSRP, reading.RSRQ, reading.SINR = nil, nil, nil, nil
+	}
+	return reading, true, reading.Issue
 }

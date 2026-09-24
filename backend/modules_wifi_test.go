@@ -199,3 +199,22 @@ func testWiFiDatabase(t *testing.T, s *server, v moduleRecord, cookie, csrf stri
 		t.Fatal(e)
 	}
 }
+
+func TestModuleWiFiKeepsControlWhileConnecting(t *testing.T) {
+	m := newModuleManager(nil, nil)
+	sample := wifiModuleFixture()
+	sample.Reading.UpdatedAt = time.Now().Add(-3 * time.Minute)
+	sample.Reading.Registration, sample.Reading.Operator = "registered", "fixture"
+	m.values[1], m.seen[sample.Candidate.Key] = sample, sample.Candidate
+	m.lastScan = time.Now()
+	m.wifi[1] = &moduleWiFi{ICCID: sample.Reading.ICCID, Enabled: true, running: true, State: "connecting"}
+	v := moduleRecord{ID: 1, Endpoint: sample.Candidate.Key}
+	r, present, issue := m.state(v)
+	if !present || issue != "" || wifiLine(r) == "" || r.Operator != "" || r.Registration != "unknown" {
+		t.Fatal("connection hid controls or reused cellular state", issue)
+	}
+	m.wifi[1].running = false
+	if _, _, issue = m.state(v); issue != "STATE_STALE" {
+		t.Fatal("ordinary stale data accepted")
+	}
+}
