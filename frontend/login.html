@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#eff1f5" />
+    <title>Rykvo Voice</title>
+    <link rel="icon" href="assets/rykvo-voice.png" />
+    <link rel="stylesheet" href="base.css?v=20260924-85" />
+    <link rel="stylesheet" href="fields.css?v=20260924-85" />
+    <link rel="stylesheet" href="auth.css?v=20260924-85" />
+    <script src="http.js?v=20260924-85" defer></script>
+    <script src="password-input.js?v=20260924-85" defer></script>
+    <script src="login.js?v=20260924-85" defer></script>
+  </head>
+  <body>
+    <div class="desktop-glow" aria-hidden="true"></div>
+    <main
+      class="login-screen"
+      id="login-screen"
+      aria-labelledby="login-title"
+      hidden
+    >
+      <section class="login-card">
+        <img
+          class="login-logo"
+          src="assets/rykvo-voice.png"
+          width="64"
+          height="64"
+          alt=""
+        />
+        <h1 id="login-title">Rykvo Voice</h1>
+        <form id="login-form" novalidate>
+          <div class="login-fields">
+            <div class="form-field">
+              <label for="login-username">账号</label>
+              <div class="form-input">
+                <input
+                  id="login-username"
+                  name="username"
+                  autocomplete="username"
+                  placeholder="输入账号"
+                  required
+                  maxlength="128"
+                  autocapitalize="none"
+                  spellcheck="false"
+                />
+              </div>
+            </div>
+            <div class="form-field">
+              <label for="login-password">密码</label>
+              <div class="form-input">
+                <input
+                  id="login-password"
+                  name="password"
+                  type="password"
+                  autocomplete="current-password"
+                  placeholder="输入密码"
+                  required
+                  maxlength="128"
+                /><button
+                  type="button"
+                  class="password-toggle"
+                  data-secret-toggle="login-password"
+                  aria-label="显示密码"
+                  aria-pressed="false"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path
+                      d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"
+                    />
+                    <circle cx="12" cy="12" r="3" />
+                    <path class="eye-slash" d="m4 4 16 16" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <p
+            class="login-status"
+            id="login-status"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          ></p>
+          <button class="login-submit" id="login-submit" type="submit" disabled>
+            登录
+          </button>
+        </form>
+      </section>
+    </main>
+  </body>
+</html>

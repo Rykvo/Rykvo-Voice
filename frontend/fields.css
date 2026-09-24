@@ -1,0 +1,76 @@
+.form-field {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 72px;
+  padding: 12px 0;
+}
+.form-field + .form-field {
+  border-top: 1px solid var(--border);
+}
+.form-field > label {
+  flex: 0 0 98px;
+  font-size: 14px;
+}
+.form-input {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.form-input input {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font-size: 15px;
+  transition:
+    background 0.15s,
+    box-shadow 0.15s;
+}
+.form-input input::placeholder {
+  color: var(--muted);
+}
+.form-input input:focus-visible {
+  outline: none;
+  background: var(--page);
+  box-shadow: 0 0 0 2px #087df326;
+}
+.form-input input[aria-invalid="true"] {
+  box-shadow: 0 0 0 1px #ff453a;
+}
+.password-toggle {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  height: 40px;
+  padding: 10px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.password-toggle:hover {
+  background: var(--page);
+  color: inherit;
+}
+.password-toggle svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.password-toggle[aria-pressed="false"] .eye-slash {
+  display: none;
+}

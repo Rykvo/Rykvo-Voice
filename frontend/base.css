@@ -1,0 +1,79 @@
+:root {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI",
+    "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-synthesis: none;
+  color: #202125;
+  background: #e9ebf0;
+  --blue: #087df3;
+  --muted: #747b88;
+  --border: #e9e9ed;
+  --surface: #fff;
+  --page: #f8f9fb;
+  --spring: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+* {
+  box-sizing: border-box;
+}
+[hidden] {
+  display: none !important;
+}
+body {
+  -webkit-user-select: none;
+  user-select: none;
+  margin: 0;
+  padding: 18px;
+  height: 100dvh;
+  overflow: hidden;
+}
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+img {
+  -webkit-user-drag: none;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button {
+  color: inherit;
+  cursor: pointer;
+}
+button:disabled {
+  cursor: default;
+}
+button,
+input {
+  -webkit-tap-highlight-color: transparent;
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid #6aaaff;
+  outline-offset: 3px;
+}
+.desktop-glow {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(ellipse at 4% 8%, #f1ded5, transparent 48%),
+    radial-gradient(ellipse at 94% 88%, #c9d9ec, transparent 52%), #e9ebef;
+}
+.theme-dark {
+  --page: #24272e;
+  --surface: #2d313a;
+  --border: #3b404a;
+  --muted: #a2aab7;
+  color: #e3e7f0;
+}
+.theme-dark .desktop-glow {
+  background:
+    radial-gradient(ellipse at 90% 90%, #283344, transparent 65%), #1b1e24;
+}

@@ -1,0 +1,31 @@
+[Unit]
+Description=Rykvo Voice authentication
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Environment=WEB_ROOT=/opt/rykvo-voice/live/web
+Type=simple
+User=rykvo_voice
+Group=rykvo_voice
+Environment=DATABASE_URL=postgres:///rykvo_voice?host=/var/run/postgresql&user=rykvo_voice
+Environment=TUNNEL_DIR=/var/lib/rykvo-voice/tunnel
+Environment=TUNNEL_BIN=/opt/rykvo-voice/live/cloudflared
+StateDirectory=rykvo-voice
+StateDirectoryMode=0700
+ExecStart=/opt/rykvo-voice/live/rykvo-auth
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

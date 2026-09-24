@@ -1,0 +1,12 @@
+{
+  "go": {
+    "version": "1.27.1",
+    "amd64": "63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445",
+    "arm64": "3450b45a3f9ee8568792736a5c5e70a1f2e9b36c35a8f74958c03e51d7d92bec"
+  },
+  "cloudflared": {
+    "version": "2026.9.1",
+    "amd64": "03f1f25d1cc93b9ad6c60569d44060bc4f17ed97075760ed8cfca4b12dcd68cc",
+    "arm64": "3d97437c71848bd8df68041e12436b484a661d95073ea1937f01a845ce88faa3"
+  }
+}

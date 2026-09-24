@@ -1,0 +1,16 @@
+.env
+.env.*
+*.pem
+*.key
+*.log
+*.zip
+*.tar.gz
+*.dump
+__pycache__/
+*.pyc
+node_modules/
+.DS_Store
+Thumbs.db
+/dist/
+/backend/rykvo-auth
+/.source-revision

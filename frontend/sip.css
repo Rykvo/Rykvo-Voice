@@ -1,0 +1,344 @@
+#dialog:has(#sip-form[data-sip-editor="edit"]),
+#dialog:has(.sip-history-window) {
+  width: min(680px, calc(100% - 32px));
+  padding: clamp(20px, 4vw, 28px);
+}
+main[data-page="sip"] .main-scroll {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-block: 24px;
+}
+main[data-page="sip"] #page-content,
+main[data-page="sip"] .page-enter,
+.sip-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.sip-page > .form-back {
+  align-self: flex-start;
+  margin-bottom: 12px;
+}
+.sip-page > .page-head {
+  flex-shrink: 0;
+  margin-bottom: 22px;
+}
+.sip-page h1 {
+  font-size: 28px;
+}
+.sip-page .data-toolbar > .primary {
+  min-height: 36px;
+  flex-shrink: 0;
+}
+.sip-table {
+  min-width: 0;
+}
+.sip-col-ip {
+  width: 30%;
+}
+.sip-col-username {
+  width: 24%;
+}
+.sip-col-password {
+  width: 20%;
+}
+.sip-col-modules {
+  width: 14%;
+}
+.sip-col-actions {
+  width: 12%;
+}
+.sip-table td,
+.sip-table th {
+  padding-inline: 16px;
+}
+.sip-password {
+  white-space: nowrap;
+}
+.sip-table tbody tr {
+  height: 56px;
+}
+.sip-detail {
+  padding: 10px 0;
+  font-size: 14px;
+}
+.sip-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+.sip-form-actions > button {
+  flex: 1;
+  min-height: 42px;
+  margin-top: 0;
+  border-radius: 11px;
+  font-size: 14px;
+}
+.sip-form-actions > .text-button {
+  background: var(--page);
+}
+#sip-form .form-fields {
+  padding-inline: 16px;
+  border-radius: 14px;
+  box-shadow: none;
+}
+#sip-form .form-field {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-height: 62px;
+  padding-block: 10px;
+}
+#sip-form .form-field > label {
+  flex: 0 0 60px;
+}
+#sip-form .form-input {
+  width: auto;
+}
+#sip-port {
+  font-variant-numeric: tabular-nums;
+}
+/* 按内容区宽度排列，窄窗口也保留五列。 */
+.sip-page {
+  container: sip / inline-size;
+}
+.sip-table th:nth-child(4),
+.sip-table td:nth-child(4) {
+  text-align: center;
+}
+.sip-table th:first-child,
+.sip-table td:first-child {
+  font-variant-numeric: tabular-nums;
+}
+@container sip (max-width: 640px) {
+  .sip-col-ip {
+    width: 30%;
+  }
+  .sip-col-username {
+    width: 22%;
+  }
+  .sip-col-password {
+    width: 16%;
+  }
+  .sip-col-modules,
+  .sip-col-actions {
+    width: 16%;
+  }
+  .sip-table th,
+  .sip-table td {
+    padding-inline: 6px;
+    font-size: 12px;
+  }
+  .sip-table thead th {
+    font-size: 12px;
+  }
+  .sip-detail {
+    font-size: 12px;
+    padding: 10px 0;
+  }
+  .sip-table tbody tr {
+    height: 52px;
+  }
+}
+
+.sip-allocation {
+  margin-top: 20px;
+}
+.sip-allocation h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.sip-segment {
+  display: flex;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--page);
+}
+.sip-segment label {
+  flex: 1;
+  position: relative;
+  cursor: pointer;
+}
+.sip-segment input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+.sip-segment span {
+  display: block;
+  padding: 8px;
+  text-align: center;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.sip-segment input:checked + span {
+  background: var(--surface);
+  box-shadow: 0 1px 4px #00000018;
+}
+.sip-segment input:focus-visible + span {
+  outline: 2px solid var(--blue);
+}
+#sip-fixed-modules {
+  margin: 10px 0 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.sip-module-list {
+  max-height: clamp(144px, calc(100dvh - 665px), 280px);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--page);
+}
+.sip-module-list:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.sip-module-list label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.sip-module-list label + label {
+  border-top: 1px solid var(--border);
+}
+.sip-module-list input {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  accent-color: var(--blue);
+}
+.sip-module-list span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sip-module-list strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+.sip-module-list small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.sip-receive {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+  cursor: pointer;
+}
+.sip-history-button {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  margin-top: 0;
+  padding: 14px 0;
+  border: 0;
+  border-block: 1px solid var(--border);
+  background: none;
+  color: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.sip-history-button span:last-child {
+  color: var(--muted);
+}
+.sip-history-window {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px 8px;
+}
+.sip-history-window > .form-back {
+  justify-self: start;
+  margin: 0;
+}
+.sip-history-list {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--muted) 40%, transparent) transparent;
+  grid-column: 1 / -1;
+  height: clamp(180px, calc(100dvh - 266px), 460px);
+  border-radius: 13px;
+}
+.sip-history-total {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+  font-size: 13px;
+}
+.sip-history-total > span {
+  color: var(--muted);
+}
+.sip-history-total > strong {
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.sip-call-table th,
+.sip-call-table td {
+  padding: 12px 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.sip-call-table tbody tr {
+  height: 44px;
+}
+.sip-call-table thead th {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.sip-call-result {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  color: #d9342b;
+}
+.sip-call-result::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+.sip-call-result[data-connected="true"] {
+  color: #248a3d;
+}
+@media (max-width: 520px) {
+  .sip-call-table th,
+  .sip-call-table td {
+    padding-inline: 4px;
+  }
+}
+.sip-delete {
+  display: block;
+  margin: 12px auto 0;
+  color: #ff453a;
+}
+
+.theme-dark .sip-call-result {
+  color: #ff6961;
+}
+.theme-dark .sip-call-result[data-connected="true"] {
+  color: #30d158;
+}
