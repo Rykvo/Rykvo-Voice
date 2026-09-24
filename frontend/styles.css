@@ -594,7 +594,8 @@ dialog:has(.confirm-actions) h2 {
 .confirm-actions button:focus-visible {
   outline-offset: -4px;
 }
-.confirm-actions .danger-button {
+.confirm-actions .danger-button,
+.cellular-page .danger-button {
   color: #ff453a;
   font-weight: 400;
 }

@@ -7,6 +7,7 @@ function setup() {
   const events = {},
     dialogs = [],
     notices = [],
+    confirmations = [],
     controls = [{ disabled: false }, { disabled: false }, { disabled: false }],
     nodes = {};
   const context = vm.createContext({
@@ -15,6 +16,7 @@ function setup() {
       querySelectorAll: () => controls,
       getElementById: (id) =>
         (nodes[id] ||= {
+          reset() {},
           addEventListener: (name, fn) => (events[name] = fn),
         }),
     },
@@ -24,6 +26,7 @@ function setup() {
       modal: (...args) => dialogs.push(args),
       toast: (value) => notices.push(value),
     },
+    ContextMenu: { confirm: (...args) => confirmations.push(args) },
     Forms: { report: (_, error) => Boolean(error) },
     Countries: { format: (number) => number },
     fetch() {
@@ -45,6 +48,8 @@ function setup() {
   );
   return {
     cellular: vm.runInContext("Cellular", context),
+    data: vm.runInContext("ModuleData", context),
+    confirmations,
     events,
     dialogs,
     notices,
@@ -61,16 +66,17 @@ const fixture = {
     { label: "副号", type: "eSIM", number: "+8613900000002", enabled: false },
   ],
 };
-test("cellular overview shows each SIM, count and add eSIM entry", () => {
+test("cellular overview shows one module heading, SIMs and add eSIM entry", () => {
   const { cellular } = setup();
   const html = cellular.overview(fixture);
-  assert.match(html, /2 张/);
+  assert.match(html, /<h3 class="cellular-section-title">模块 01<\/h3>/);
+  assert.doesNotMatch(html, /2 张|<h3>SIM<\/h3>|<small><\/small>/);
   assert.equal((html.match(/data-cellular-sim=/g) || []).length, 2);
   assert.match(html, /添加 eSIM/);
   assert.match(html, /已启用/);
   assert.match(html, /已关闭/);
   assert.doesNotMatch(html, /<small>SIM<\/small>|<small>eSIM<\/small>/);
-  assert.match(cellular.overview({ name: "空模块", sims: [] }), /0 张/);
+  assert.match(cellular.overview({ name: "空模块", sims: [] }), /无 SIM 卡/);
 });
 test("line settings contain the six requested rows and no type row", () => {
   const { cellular } = setup();
@@ -85,7 +91,8 @@ test("line settings contain the six requested rows and no type row", () => {
   ])
     assert.match(html, new RegExp(label));
   assert.doesNotMatch(html, /类型/);
-  assert.equal((html.match(/role="switch"/g) || []).length, 3);
+  assert.equal((html.match(/role="switch"/g) || []).length, 2);
+  assert.match(html, /data-cellular-action="wifi"/);
   assert.match(
     cellular.detail(fixture, 1),
     /data-cellular-action="network" disabled/,
@@ -217,4 +224,111 @@ test("activation validation and submission never claim installation", () => {
     },
   });
   assert.deepEqual(notices, ["eSIM 服务尚未接入，未添加"]);
+});
+
+test("managed modules hide hardware diagnostics and retain real eSIM controls", () => {
+  const { cellular } = setup();
+  const item = { ...structuredClone(fixture), managed: true, capabilities: { esim: true }, hardware: { model: "EC20", imei: "123456789012345", esim: { eid: "89049032001001234500012345678901" } } };
+  item.sims[0] = { ...item.sims[0], id: "line-active", esim: true, iccid: "89123456789012345678", canDisable: true, canDelete: true };
+  for (const html of [cellular.overview(item), cellular.detail(item, 0)]) {
+    assert.doesNotMatch(html, /设备信息|IMEI|ICCID|EID|EC20|123456789012345|89123456789012345678/);
+  }
+  assert.match(cellular.overview(item), /data-cellular-add/);
+  assert.doesNotMatch(cellular.overview(item), /data-cellular-add disabled/);
+  const detail = cellular.detail(item, 0);
+  assert.match(detail, /号码标签/);
+  assert.match(detail, /启用此号码/);
+  for (const label of ["网络选择", "Wi-Fi 通话", "数据漫游", "删除 eSIM"])
+    assert.ok(detail.includes(label));
+  assert.equal((detail.match(/待接入/g) || []).length, 3);
+  assert.match(detail, /data-cellular-action="network" disabled/);
+  assert.match(detail, /data-cellular-action="wifi" disabled/);
+  assert.match(detail, /data-cellular-setting="roaming"[^>]*disabled/);
+  assert.match(detail, /data-cellular-delete disabled/);
+  assert.doesNotMatch(detail, /confirm-actions/);
+  item.capabilities.esim = false;
+  assert.match(cellular.overview(item), /data-cellular-add disabled/);
+});
+
+test("managed network settings never change device state locally", () => {
+  const f = setup();
+  const item = { ...structuredClone(fixture), managed: true, capabilities: { esim: true } };
+  item.sims[0].esim = true;
+  f.cellular.open(item);
+  clickLine(f.events, 0);
+  for (const key of ["wifiCalling", "roaming", "networkAutomatic"]) {
+    const before = item.sims[0][key];
+    const input = { dataset: { cellularSetting: key }, checked: true, closest: () => ({}) };
+    f.events.change({ target: input });
+    assert.equal(item.sims[0][key], before);
+    assert.equal(input.checked, Boolean(before));
+  }
+  f.events.click({ target: { closest: (selector) =>
+    selector === "#dialog-content" ? {} : selector === "[data-cellular-action]"
+      ? { dataset: { cellularAction: "network" } } : null } });
+  assert.notEqual(f.dialogs.at(-1)[0], "网络选择");
+});
+
+test("eSIM deletion confirms the stable profile and waits for device results", async () => {
+  const f = setup();
+  const item = { ...structuredClone(fixture), managed: true, capabilities: { esim: true } };
+  item.sims = [
+    { id: "profile-a", label: "主号", esim: true, enabled: true, canDelete: true },
+    { id: "profile-b", label: "备用", esim: true, enabled: false, canDelete: true },
+  ];
+  const calls = [];
+  f.data.control = async (...args) => { calls.push(args); };
+  const remove = () => f.events.click({ target: { closest: (selector) =>
+    ["#dialog-content", "[data-cellular-delete]"].includes(selector) ? {} : null } });
+  f.cellular.open(item);
+  clickLine(f.events, 0);
+  remove();
+  assert.equal(f.confirmations.length, 0);
+  clickLine(f.events, 1);
+  item.sims.reverse();
+  remove();
+  assert.equal(f.confirmations.length, 1);
+  assert.equal(f.confirmations[0][0], "删除“备用” eSIM？");
+  assert.equal(calls.length, 0);
+  f.events.close();
+  await f.confirmations[0][1]();
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], item);
+  assert.equal(calls[0][1], "removeLine");
+  assert.equal(calls[0][3], "profile-b");
+  assert.equal(item.sims.length, 2);
+});
+
+test("physical SIMs and protected eSIM profiles cannot be deleted", () => {
+  const f = setup();
+  const item = { ...structuredClone(fixture), managed: true, capabilities: { esim: true } };
+  assert.doesNotMatch(f.cellular.detail(item, 1), /data-cellular-delete/);
+  item.sims[1] = { id: "protected", label: "备用", esim: true, enabled: false, canDelete: false };
+  assert.match(f.cellular.detail(item, 1), /data-cellular-delete disabled/);
+  f.cellular.open(item);
+  clickLine(f.events, 1);
+  f.events.click({ target: { closest: (selector) =>
+    ["#dialog-content", "[data-cellular-delete]"].includes(selector) ? {} : null } });
+  assert.equal(f.confirmations.length, 0);
+});
+
+test("Wi-Fi calling uses a dedicated settings page and returns to the same line", () => {
+  const f = setup();
+  f.cellular.open(structuredClone(fixture));
+  clickLine(f.events, 0);
+  f.events.click({ target: { closest: (selector) =>
+    selector === "#dialog-content" ? {} : selector === "[data-cellular-action]"
+      ? { dataset: { cellularAction: "wifi" } } : null } });
+  assert.equal(f.dialogs.at(-1)[0], "Wi-Fi 通话");
+  assert.match(f.dialogs.at(-1)[1], /data-cellular-setting="wifiCalling"/);
+  assert.match(f.dialogs.at(-1)[1], /data-cellular-back="detail"/);
+});
+
+test("status reporting retry appears only for pending card notifications", () => {
+  const { cellular } = setup();
+  assert.doesNotMatch(cellular.overview(fixture), /data-cellular-notify/);
+  const item = { ...fixture, hardware: { esim: { pending: 1 } } };
+  assert.match(cellular.overview(item), /重试状态上报/);
+  item.hardware.esim.pending = 0;
+  assert.doesNotMatch(cellular.overview(item), /data-cellular-notify/);
 });

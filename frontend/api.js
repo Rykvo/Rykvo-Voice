@@ -14,6 +14,8 @@ const Backend = (() => {
       updateLine: ["PATCH", "/modules/:moduleId/lines/:lineId"],
       networks: ["GET", "/modules/:moduleId/lines/:lineId/networks"],
       installESIM: ["POST", "/modules/:moduleId/esim"],
+      removeLine: ["DELETE", "/modules/:moduleId/lines/:lineId"],
+      notifyESIM: ["POST", "/modules/:moduleId/esim/notifications"],
     },
     calls: {
       list: ["GET", "/calls"],
@@ -99,6 +101,8 @@ const Backend = (() => {
     (["session", "visibility", "ui", "administrator"].includes(scope) &&
       document.querySelector('meta[name="session-api"]')?.content ===
         "enabled") ||
+    (scope === "modules" &&
+      document.querySelector('meta[name="modules-api"]')?.content === "enabled") ||
     (scope === "tunnel" &&
       document.querySelector('meta[name="tunnel-api"]')?.content === "enabled");
   const failure = Http.failure;

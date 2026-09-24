@@ -11,6 +11,8 @@ UNIT=/etc/systemd/system/rykvo-auth.service
 SITE=/etc/nginx/sites-available/rykvo-voice
 ENABLED=/etc/nginx/sites-enabled/rykvo-voice
 WRAPPER=/usr/local/bin/rykvo
+HARDWARE_RULE=/etc/udev/rules.d/70-rykvo-voice.rules
+PCSC_RULE=/etc/polkit-1/rules.d/70-rykvo-voice-pcsc.rules
 DB=rykvo_voice
 DB_URL='postgres:///rykvo_voice?host=/var/run/postgresql&user=rykvo_voice'
 TEMP=
@@ -78,7 +80,7 @@ packages() {
     say '安装运行环境'
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
-    apt-get install -y --no-install-recommends ca-certificates curl python3 nginx postgresql openssl tar gzip xz-utils
+    apt-get install -y --no-install-recommends ca-certificates curl python3 nginx postgresql openssl tar gzip xz-utils udev libqmi-utils libpcsclite1 pcscd libccid polkitd
     systemctl enable --now postgresql
     local version
     version=$(db_sql 'SHOW server_version_num')
@@ -86,6 +88,11 @@ packages() {
 }
 
 preflight() {
+    for path in "$HARDWARE_RULE" "$PCSC_RULE"; do
+        if exists "$path" && { [[ -L "$path" ]] || ! grep -q 'Rykvo Voice:' "$path"; }; then
+            die '同名设备规则不属于本项目'
+        fi
+    done
     if [[ -f "$UNIT" ]] && ! grep -q 'ExecStart=/opt/rykvo-voice/' "$UNIT"; then
         die '同名服务不属于本项目'
     fi
@@ -148,7 +155,7 @@ stage_release() {
 snapshot() {
     BACKUP="$BACKUPS/$(date -u +%Y%m%d-%H%M%S)-$(openssl rand -hex 3)"
     install -d -m 700 "$BACKUPS" "$BACKUP"
-    for pair in "unit:$UNIT" "nginx:$SITE"; do
+    for pair in "unit:$UNIT" "nginx:$SITE" "hardware:$HARDWARE_RULE" "pcsc:$PCSC_RULE"; do
         local name=${pair%%:*} path=${pair#*:}
         if exists "$path"; then cp -a "$path" "$BACKUP/$name"; fi
     done
@@ -218,8 +225,8 @@ health() {
 rollback() {
     systemctl stop rykvo-auth || true
     local name path
-    for name in unit nginx; do
-        path=$UNIT; [[ "$name" != nginx ]] || path=$SITE
+    for name in unit nginx hardware pcsc; do
+        case "$name" in unit) path=$UNIT;; nginx) path=$SITE;; hardware) path=$HARDWARE_RULE;; pcsc) path=$PCSC_RULE;; esac
         if exists "$BACKUP/$name"; then cp -a "$BACKUP/$name" "$path"; else rm -f -- "$path"; fi
     done
     rm -f -- "$ENABLED"
@@ -232,6 +239,7 @@ rollback() {
         mv -Tf "$BASE/.live-rollback" "$BASE/live"
     elif [[ -L "$BASE/live" ]]; then unlink "$BASE/live"; fi
     systemctl daemon-reload
+    udevadm control --reload-rules || true
     nginx -t && systemctl reload nginx
     if (( WAS_ACTIVE )); then systemctl start rykvo-auth; fi
     SWITCHING=0
@@ -246,6 +254,27 @@ install_manager() {
     chmod 755 "$WRAPPER"
 }
 
+hardware_access() {
+    local node path vendor product supported
+    udevadm control --reload-rules
+    for node in /sys/class/tty/ttyUSB* /sys/class/tty/ttyACM* /sys/class/usbmisc/cdc-wdm* /sys/class/wwan/wwan*at* /sys/class/wwan/wwan*qmi*; do
+        [[ -e "$node" ]] || continue
+        supported=0
+        [[ "$node" != /sys/class/wwan/* ]] || supported=1
+        path=$(readlink -f "$node")
+        while [[ "$path" == /sys/* ]]; do
+            if [[ -r "$path/idVendor" ]]; then
+                vendor=$(cat "$path/idVendor"); product=$(cat "$path/idProduct")
+                case "$vendor:$product" in 2c7c:*|1199:*|1e0e:*|1bc7:*|2ca3:4006) supported=1;; esac
+                break
+            fi
+            path=${path%/*}
+        done
+        if (( supported )); then udevadm trigger --action=change "$node"; fi
+    done
+    udevadm settle --timeout=10
+}
+
 deploy() {
     preflight
     packages
@@ -253,6 +282,10 @@ deploy() {
     stage_release
     snapshot
     database
+    install -D -m 644 "$SOURCE/deploy/70-rykvo-voice.rules" "$HARDWARE_RULE"
+    install -D -m 644 "$SOURCE/deploy/70-rykvo-voice-pcsc.rules" "$PCSC_RULE"
+    hardware_access
+    systemctl enable --now pcscd.socket
     ln -s "$CANDIDATE" "$BASE/.live-$RELEASE"
     mv -Tf "$BASE/.live-$RELEASE" "$BASE/live"
     install -m 644 "$SOURCE/deploy/rykvo-auth.service" "$UNIT"
@@ -293,7 +326,8 @@ uninstall() {
     confirm_uninstall
     snapshot
     systemctl disable --now rykvo-auth 2>/dev/null || [[ ! -f "$UNIT" ]]
-    rm -f -- "$UNIT" "$ENABLED" "$SITE"
+    rm -f -- "$UNIT" "$ENABLED" "$SITE" "$HARDWARE_RULE" "$PCSC_RULE"
+    udevadm control --reload-rules || true
     if [[ -f "$BASE/default-site-link" && ! -e /etc/nginx/sites-enabled/default ]]; then
         ln -s "$(cat "$BASE/default-site-link")" /etc/nginx/sites-enabled/default
     fi

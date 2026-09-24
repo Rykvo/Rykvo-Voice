@@ -48,7 +48,7 @@ gh release create v1.0.1 dist/rykvo-voice-linux-amd64.tar.gz dist/rykvo-voice-li
 | `deploy/` | 服务配置、运行时版本、校验和与发布工具 |
 | `tests/` | 部署工具测试 |
 
-已接通：登录、管理员改密、独立密码、功能显示、Cloudflare Tunnel。**短信、SIP、模块通信、任务队列和图片存储仍待实现**；不安装空转的 RabbitMQ / S3 服务，也不把环境安装当作业务已完成。
+已接通：登录、管理员改密、独立密码、功能显示、Cloudflare Tunnel、模块自动发现与只读状态、唯一标签。**短信、SIP、模块控制、任务队列和图片存储仍待实现**；不安装空转的 RabbitMQ / S3 服务，也不把环境安装当作业务已完成。
 
 - [后端协议](frontend/BACKEND.md)
 - [云连接协议](frontend/TUNNEL.md)
@@ -64,3 +64,9 @@ cd backend && go test ./... && go vet ./...
 数据库集成测试需全新名称以 `_test` 结尾的数据库，设置 `TEST_DATABASE_URL`；不要指向生产数据库。CI 同时运行前端、Go、部署工具和数据库测试。
 
 依赖来源：[Go](https://go.dev/dl/)、[cloudflared](https://github.com/cloudflare/cloudflared/releases)、[PostgreSQL](https://www.postgresql.org/download/linux/ubuntu/)。素材说明见 `frontend/THIRD_PARTY_LICENSE.txt` 和前端文档。
+
+## 1.1.0 设备运行环境
+
+新增 libqmi-utils、libpcsclite1、pcscd、libccid、polkitd 和应用专用 udev/polkit 规则。服务仍以 rykvo_voice 运行，不关闭其他设备管理程序，不调整模块射频。规则随更新备份/回退，完整卸载时删除本应用规则；共用系统组件保留。
+
+模块能力与验证边界见 [模块读取](../backend/MODULES.md)。生产虚拟机是否透传 USB 需要单独检查，更新程序不会自动配置宿主机 USB 透传。

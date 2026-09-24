@@ -5,6 +5,7 @@ const Lines = (() => {
   const recorded = (id) =>
     id !== "random" && (valid(id) || /^module-\d+$/.test(id));
   const available = (item) =>
+    (!item.managed || item.capabilities?.calls === true) &&
     item.status === "online" && item.signal !== "none" && item.sims[0]?.enabled;
   function resolve(id) {
     if (id !== "random")

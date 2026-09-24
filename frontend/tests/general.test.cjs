@@ -30,6 +30,7 @@ function setup(hash = "#general", remembered = null) {
     Forms: { icon: (name) => `<img src="assets/${name}">` },
     Auth: { authenticated: true, start: (ready) => ready() },
     Modules: page,
+    ModuleData: { start() {} },
     Phone: page,
     Messages: page,
     Admin: page,

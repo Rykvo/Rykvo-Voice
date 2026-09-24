@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -56,7 +57,7 @@ func TestTunnelCredentials(t *testing.T) {
 		t.Fatal("certificate parsing", err)
 	}
 	info, _ := os.Stat(path)
-	if info.Mode().Perm()&0077 != 0 {
+	if runtime.GOOS != "windows" && info.Mode().Perm()&0077 != 0 {
 		t.Fatal("credentials readable by others")
 	}
 	if err = privateFile(path, []byte("invalid")); err != nil {

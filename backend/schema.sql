@@ -48,3 +48,33 @@ CREATE TABLE IF NOT EXISTS tunnel_settings (
  updated_at timestamptz NOT NULL DEFAULT now()
 );
 INSERT INTO tunnel_settings DEFAULT VALUES ON CONFLICT(singleton) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS modules (
+ id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+ hardware_key text NOT NULL UNIQUE,
+ endpoint text NOT NULL,
+ kind text NOT NULL,
+ model text NOT NULL DEFAULT '',
+ label text NOT NULL CHECK (length(label) BETWEEN 1 AND 20),
+ label_key text NOT NULL UNIQUE,
+ label_custom boolean NOT NULL DEFAULT false,
+ created_at timestamptz NOT NULL DEFAULT now(),
+ last_seen timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS modules_endpoint ON modules(endpoint);
+ALTER TABLE modules ADD COLUMN IF NOT EXISTS serial_key text NOT NULL DEFAULT '';
+ALTER TABLE modules ADD COLUMN IF NOT EXISTS endpoint_generation text NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS modules_serial_key ON modules(serial_key) WHERE serial_key<>'';
+
+CREATE TABLE IF NOT EXISTS module_jobs (
+ id text PRIMARY KEY,
+ module_id bigint NOT NULL REFERENCES modules(id),
+ action text NOT NULL,
+ state text NOT NULL,
+ stage text NOT NULL DEFAULT '',
+ issue text NOT NULL DEFAULT '',
+ warning text NOT NULL DEFAULT '',
+ created_at timestamptz NOT NULL DEFAULT now(),
+ updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS module_jobs_latest ON module_jobs(module_id,created_at DESC);

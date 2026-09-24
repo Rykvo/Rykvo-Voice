@@ -1,0 +1,9 @@
+# Rykvo Voice: local modem control nodes only.
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2c7c", GROUP="rykvo_voice", MODE="0660"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="2ca3", ATTRS{idProduct}=="4006", GROUP="rykvo_voice", MODE="0660"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1199", GROUP="rykvo_voice", MODE="0660"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1e0e", GROUP="rykvo_voice", MODE="0660"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1bc7", GROUP="rykvo_voice", MODE="0660"
+SUBSYSTEM=="usbmisc", KERNEL=="cdc-wdm*", DRIVERS=="qmi_wwan", GROUP="rykvo_voice", MODE="0660"
+SUBSYSTEM=="wwan", KERNEL=="wwan*at*", GROUP="rykvo_voice", MODE="0660"
+SUBSYSTEM=="wwan", KERNEL=="wwan*qmi*", GROUP="rykvo_voice", MODE="0660"

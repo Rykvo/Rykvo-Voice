@@ -39,6 +39,7 @@ type server struct {
 	slots    chan struct{}
 	gestures map[string]gesture
 	tunnels  *tunnelManager
+	modules  *moduleManager
 }
 type session struct {
 	User struct {
@@ -187,6 +188,10 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.URL.Path == "/api/administrator" {
 		s.administrator(ctx, w, r, current)
+		return
+	}
+	if r.URL.Path == "/api/modules" || strings.HasPrefix(r.URL.Path, "/api/modules/") {
+		s.modulesAPI(ctx, w, r)
 		return
 	}
 	if r.URL.Path == "/api/tunnel" || strings.HasPrefix(r.URL.Path, "/api/tunnel/") {

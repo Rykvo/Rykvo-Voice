@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -180,6 +181,9 @@ func TestCleanupRetriesTransportFailure(t *testing.T) {
 }
 
 func TestConnectorGracefulStop(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX process signals")
+	}
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "connector")
 	script := "#!/bin/sh\ntrap 'echo stopped > stopped; exit 0' TERM\necho ready > ready\nwhile :; do sleep 0.05; done\n"

@@ -48,7 +48,7 @@ class ReleaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "out"
             release.extract(self.archive(directory, "web/index.html"), output)
-            self.assertEqual((output / "web/index.html").read_text(), "ok")
+            self.assertEqual((output / "web/index.html").read_text(encoding="utf-8"), "ok")
 
     def test_redirect_strips_credentials(self):
         redirect = release.HTTPSRedirect()
@@ -63,21 +63,21 @@ class ReleaseTests(unittest.TestCase):
             release.download("http://example.com", "unused")
 
     def test_versions_and_checksums(self):
-        config = json.loads((ROOT / "deploy/runtime.json").read_text())
+        config = json.loads((ROOT / "deploy/runtime.json").read_text(encoding="utf-8"))
         for runtime in config.values():
             self.assertRegex(runtime["version"], r"^\d+\.\d+\.\d+$")
             for arch in ("amd64", "arm64"):
                 self.assertRegex(runtime[arch], r"^[0-9a-f]{64}$")
 
     def test_compiled_deployment_and_secret_handling(self):
-        installer = (ROOT / "install.sh").read_text()
-        wrapper = (ROOT / "deploy.ps1").read_text()
+        installer = (ROOT / "install.sh").read_text(encoding="utf-8")
+        wrapper = (ROOT / "deploy.ps1").read_text(encoding="utf-8")
         self.assertIn("unset token RYKVO_GITHUB_TOKEN", installer)
         self.assertNotIn("go build", installer)
         self.assertNotIn("git clone", installer)
         self.assertNotIn("StrictHostKeyChecking=no", wrapper)
         self.assertIn("Rykvo/Rykvo-Voice", wrapper)
-        self.assertIn("127.0.0.1:8080", (ROOT / "deploy/nginx.conf").read_text())
+        self.assertIn("127.0.0.1:8080", (ROOT / "deploy/nginx.conf").read_text(encoding="utf-8"))
 
 
 @unittest.skipUnless(Path("/bin/bash").exists(), "Linux Bash required")
@@ -92,13 +92,13 @@ class InstallerTests(unittest.TestCase):
 
     def test_rollback_restores_files_and_link(self):
         with tempfile.TemporaryDirectory() as directory:
-            self.run_shell('''BASE="$2/app"; BACKUP="$2/backup"; UNIT="$2/unit"; SITE="$2/site"; ENABLED="$2/enabled";
+            self.run_shell('''BASE="$2/app"; BACKUP="$2/backup"; UNIT="$2/unit"; SITE="$2/site"; ENABLED="$2/enabled"; HARDWARE_RULE="$2/hardware-rule"; PCSC_RULE="$2/pcsc-rule";
 mkdir -p "$BASE/releases/old" "$BASE/releases/new" "$BACKUP";
 printf old-unit > "$BACKUP/unit"; printf old-site > "$BACKUP/nginx";
 printf '%s' "$BASE/releases/old" > "$BACKUP/live-link";
 printf '%s' "$SITE" > "$BACKUP/enabled-link";
 printf new > "$UNIT"; printf new > "$SITE"; ln -s "$BASE/releases/new" "$BASE/live"; ln -s "$SITE" "$ENABLED";
-systemctl() { :; }; nginx() { :; }; WAS_ACTIVE=1; SWITCHING=1; rollback;
+systemctl() { :; }; nginx() { :; }; udevadm() { :; }; WAS_ACTIVE=1; SWITCHING=1; rollback;
 [[ $(cat "$UNIT") == old-unit && $(cat "$SITE") == old-site ]];
 [[ $(readlink "$BASE/live") == "$BASE/releases/old" && $SWITCHING == 0 ]];''', directory)
 
@@ -115,7 +115,7 @@ curl() {
     def test_uninstall_deletes_app_data_backups_and_manager(self):
         with tempfile.TemporaryDirectory() as directory:
             self.run_shell('''BASE="$2/app"; STATE="$2/state"; BACKUPS="$2/backups"; MANAGER="$2/manager";
-UNIT="$2/unit"; SITE="$2/site"; ENABLED="$2/enabled"; WRAPPER="$2/command";
+UNIT="$2/unit"; SITE="$2/site"; ENABLED="$2/enabled"; HARDWARE_RULE="$2/hardware-rule"; PCSC_RULE="$2/pcsc-rule"; WRAPPER="$2/command";
 mkdir -p "$BASE"; touch "$UNIT"; calls="$2/calls";
 preflight() { :; }; db_sql() { printf 1; }; app_sql() { printf f; };
 confirm_uninstall() { printf 'confirmed\\n' >> "$calls"; };

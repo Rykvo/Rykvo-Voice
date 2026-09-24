@@ -211,3 +211,20 @@ SSE 使用标准 message 事件，`id:` 为事件游标，`data:` 为 `{id,type,
 ## 页面访问隔离
 
 Go 使用 `WEB_ROOT` 指定发布目录。`/` 按有效 Cookie 返回登录页或主界面。登录仅引用公共基础样式、表单控件、请求工具与登录脚本；业务 JS/CSS 和图标必须带有效会话，未登录返回 401。两个 HTML 的直接地址跳回 `/`。禁止测试、文档、源码映射及目录列表；页面和资源使用 `private, no-store`。Nginx 全部转发 Go，不公开静态目录。已发送到浏览器的资源仍可被查看或保存，此隔离不等于代码加密。
+
+## 模块接入（1.1.0）
+
+模块已接入自动发现、只读采集、稳定绑定和唯一标签；无需手动添加，不设数量配额。列表返回 `{data:{items:[],discoveryIssue:""}}`，详情返回 `{data:Module}`。Module 增加 `managed/labelCustom/kind/hardware/issue/capabilities`；signal 支持 cellular，运营商和信号数值使用 hardware。线路修改、短信、电话、SIP 和 eSIM 安装仍未接通。
+
+标签 PATCH 仍使用 `{label}`，空值恢复可用默认标签；旧标签迁移可带 `ifUnmodified:true`。标签唯一性包含离线记录，不把同一模块原标签视为重复。浏览器共享一个单飞轮询，隐藏时取消请求；本阶段不启用预留的全业务 SSE。详见 [模块后端](../backend/MODULES.md)。
+
+### eSIM 实接接口
+
+- `POST /modules/:moduleId/esim`：`{requestId,eid,activation,confirmation?,imei?}`，下载并安装，不自动启用。模块可读取 IMEI 时使用真实读数；读卡器需提供目标设备 IMEI。
+- `PATCH /modules/:moduleId/lines/:lineId`：`{requestId,eid,label}` 或 `{requestId,eid,enabled}`，修改卡内昵称或启停配置。
+- `DELETE /modules/:moduleId/lines/:lineId`：`{requestId,eid}`，只删除停用且策略允许的配置。
+- `POST /modules/:moduleId/esim/notifications`：`{requestId,eid}`，重试运营商通知；成功送达后才移除卡内通知。
+
+写请求返回 202 和任务 `{id,action,state,stage,issue,warning}`，不是操作成功。沿用模块列表单一轮询读取 `Module.job`。同一 requestId 不重复写卡；重启后的未完成任务标记 uncertain，不自动重放。激活码和确认码不存数据库、浏览器存储或日志。
+
+`hardware.esim` 含 EID、配置、待发送通知数；识别成功才启用 `capabilities.esim`。配置的 `id` 由 EID + ICCID 生成，`canDisable/canDelete` 反映卡片策略。普通 SIM 不开放 eSIM 控制，短信/通话/射频设置仍未接入。UI 只在任务完成且重新读卡核实后显示真实状态。

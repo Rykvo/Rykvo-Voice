@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"rykvo.local/auth/internal/hardware"
 )
 
 //go:embed schema.sql
@@ -25,7 +26,27 @@ func main() {
 	migrate := flag.Bool("migrate", false, "Apply database schema without changing credentials")
 	initialize := flag.Bool("init", false, "Create tables and the initial admin; read password from stdin")
 	initializeVisibility := flag.Bool("init-visibility", false, "Initialize independent display password from stdin")
+	card := flag.String("hardware-card", "", "Internal isolated PC/SC reader")
+	esim := flag.Bool("hardware-esim", false, "Internal isolated eUICC session")
 	flag.Parse()
+	if *esim {
+		if hardware.ESIMHelper() != nil {
+			os.Exit(1)
+		}
+		return
+	}
+	helper := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "hardware-card" {
+			helper = true
+		}
+	})
+	if helper {
+		if err := hardware.CardHelper(*card); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	cfg, err := pgxpool.ParseConfig(os.Getenv("DATABASE_URL"))
@@ -88,6 +109,10 @@ func main() {
 		log.Fatal("HTTP address unavailable")
 	}
 	defer listener.Close()
+	moduleContext, stopModules := context.WithCancel(ctx)
+	api.modules = newModuleManager(pool, hardware.NewSystem())
+	go api.modules.run(moduleContext)
+	defer func() { stopModules(); <-api.modules.done }()
 	if dir := os.Getenv("TUNNEL_DIR"); dir != "" {
 		api.tunnels, err = newTunnelManager(ctx, pool, dir, os.Getenv("TUNNEL_BIN"))
 		if err != nil {

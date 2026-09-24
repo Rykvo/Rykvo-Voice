@@ -82,7 +82,7 @@ const actions = {
     modal(
       "软件更新",
       detailRows([
-        ["当前版本", "1.0.0"],
+        ["当前版本", "1.1.0"],
         ["更新服务", "未配置"],
       ]),
     ),
@@ -111,6 +111,7 @@ $("#dialog").addEventListener("click", (event) => {
 });
 applyPreferences();
 Auth.start(() => {
+  ModuleData.start();
   Visibility.init(generalItems, () => currentPage);
   Cleanup.start();
   render(initialPage());

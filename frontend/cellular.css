@@ -1,32 +1,54 @@
-.cellular-module {
-  margin: -4px 0 24px;
-  color: var(--muted);
+dialog:has(.cellular-page) {
+  --cellular-background: #f2f2f7;
+  --cellular-surface: #fff;
+  width: min(430px, calc(100% - 32px));
+  padding: 68px 20px 28px;
+  background: var(--cellular-background);
+}
+.theme-dark dialog:has(.cellular-page) {
+  --cellular-background: #000;
+  --cellular-surface: #1c1c1e;
+}
+dialog:has(.cellular-page) h2 {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 42%;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 17px;
+  font-weight: 600;
+}
+dialog:has(.cellular-page) .dialog-close {
+  top: 7px;
+  right: 8px;
+  width: 44px;
+  height: 44px;
+  background: transparent;
 }
 .cellular-section-title {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 0 10px 9px;
+  margin: 0 16px 9px;
   color: var(--muted);
-  font-size: 12px;
-}
-.cellular-section-title h3 {
-  margin: 0;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 400;
+  overflow-wrap: anywhere;
 }
 .cellular-group {
-  border: 1px solid var(--border);
-  background: var(--page);
-  border-radius: 13px;
-  padding: 0 14px;
+  border: 0;
+  background: var(--cellular-surface);
+  border-radius: 12px;
+  padding: 0 16px;
 }
 .cellular-sim {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 18px 0;
+  min-height: 56px;
+  padding: 12px 0;
   border: 0;
   background: none;
   color: inherit;
@@ -38,13 +60,13 @@
 .cellular-sim-icon {
   display: grid;
   place-items: center;
-  flex: 0 0 31px;
-  height: 36px;
+  flex: 0 0 28px;
+  height: 30px;
   color: var(--blue);
 }
 .cellular-sim-icon svg {
-  width: 25px;
-  height: 29px;
+  width: 22px;
+  height: 26px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.5;
@@ -56,20 +78,21 @@
   min-width: 0;
 }
 .cellular-sim-copy strong {
-  font-weight: 500;
-  font-size: 14px;
+  font-weight: 400;
+  font-size: 16px;
+  overflow-wrap: anywhere;
 }
 .cellular-sim-copy small {
   display: block;
-  margin-top: 5px;
-  font-size: 11px;
+  margin-top: 3px;
+  font-size: 13px;
   color: var(--muted);
   overflow-wrap: anywhere;
 }
 .cellular-sim-meta {
   flex-shrink: 0;
   text-align: right;
-  font-size: 12px;
+  font-size: 15px;
   color: var(--muted);
 }
 .cellular-sim .chevron {
@@ -80,22 +103,36 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  margin-top: 18px;
-  padding: 15px 16px;
-  border: 1px solid var(--border);
-  border-radius: 13px;
-  background: var(--page);
+  min-height: 50px;
+  margin-top: 28px;
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--cellular-surface);
   color: var(--blue);
-  font-size: 15px;
+  font-size: 16px;
   text-align: left;
 }
 .cellular-add > span:first-child {
   font-size: 21px;
 }
+.cellular-page .cellular-notify {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 13px;
+}
 .cellular-back {
+  position: absolute;
+  top: 7px;
+  left: 12px;
+  max-width: calc(50% - 70px);
+  min-height: 44px;
   padding: 6px 0;
-  margin-bottom: 18px;
-  font-size: 14px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
 }
 .cellular-empty {
   padding: 10px;
@@ -104,7 +141,7 @@
 .cellular-page .form-fields {
   padding: 0 14px;
   border-radius: 13px;
-  background: var(--page);
+  background: var(--cellular-surface);
 }
 .cellular-page .form-field {
   flex-direction: column;
@@ -115,26 +152,27 @@
   flex: auto;
 }
 .cellular-settings + .cellular-settings {
-  margin-top: 18px;
+  margin-top: 28px;
 }
 .cellular-setting {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 58px;
-  padding: 12px 0;
+  min-height: 50px;
+  padding: 10px 0;
   border: 0;
   background: none;
   color: inherit;
   text-align: left;
-  font-size: 14px;
+  font-size: 16px;
 }
 .cellular-setting + .cellular-setting {
   border-top: 1px solid var(--border);
 }
 .cellular-setting > span:first-child {
-  flex-shrink: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .cellular-setting-value {
   margin-left: auto;
@@ -142,27 +180,38 @@
   text-align: right;
   overflow-wrap: anywhere;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 15px;
+}
+.cellular-setting-value + .form-switch {
+  margin-left: 0;
 }
 .cellular-setting .chevron {
   margin-left: 0;
   font-size: 18px;
 }
 .cellular-setting:disabled {
-  opacity: 0.45;
+  color: var(--muted);
   cursor: default;
 }
-@media (max-width: 420px) {
-  .cellular-group {
-    padding: 0 10px;
+@media (max-width: 600px) {
+  dialog:has(.cellular-page) {
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    padding: calc(68px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  }
+  dialog:has(.cellular-page) h2 {
+    top: calc(20px + env(safe-area-inset-top));
+  }
+  dialog:has(.cellular-page) .dialog-close,
+  .cellular-back {
+    top: calc(7px + env(safe-area-inset-top));
   }
   .cellular-sim {
     gap: 7px;
-  }
-  .cellular-sim-icon {
-    flex-basis: 24px;
-  }
-  .cellular-sim-icon svg {
-    width: 22px;
   }
 }

@@ -1,6 +1,7 @@
 .env
 .env.*
 *.pem
+!/backend/internal/hardware/esim-roots.pem
 *.key
 *.log
 *.zip

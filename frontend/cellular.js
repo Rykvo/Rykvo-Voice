@@ -1,6 +1,47 @@
 const Cellular = (() => {
   let module = null;
-  let activeLine = -1;
+  let activeLine = -1, activeID = null, unsubscribe = null;
+  let view = "overview", rendered = "", submitting = false;
+  const editable = (item) => !item.managed || (item.capabilities?.esim && !submitting);
+  function active() {
+    if (activeID) activeLine = module?.sims?.findIndex((sim) => sim.id === activeID) ?? -1;
+    return module?.sims?.[activeLine];
+  }
+  function jobNote(item) {
+    const job = item.job;
+    if (!job?.id) return "";
+    const stage = { waiting: "等待设备", checking: "检查卡片", writing: "正在处理", authenticating: "正在验证", downloading: "正在下载", installing: "正在写入", verifying: "正在核实", notifying: "发送通知", done: "已完成" };
+    const text = ModuleData.issueText(job.issue || job.warning) || stage[job.stage] || "正在处理";
+    return `<p class="cellular-empty" role="status">${UI.escape(text)}</p>`;
+  }
+  function refreshDialog() {
+    if (!module || !["overview", "detail"].includes(view)) return;
+    active();
+    if (view === "detail" && !active()) view = "overview";
+    const html = view === "detail" ? detail(module, activeLine) : overview(module);
+    if (html === rendered) return;
+    rendered = html;
+    const content = document.getElementById("dialog-content"), dialog = document.getElementById("dialog");
+    const scroll = dialog.scrollTop;
+    const focus = document.activeElement;
+    const setting = focus?.dataset?.cellularSetting, action = focus?.dataset?.cellularAction;
+    const title = view === "detail" ? active().label : "蜂窝网络";
+    content.innerHTML = `<h2 id="dialog-title">${UI.escape(title)}</h2>${html}`;
+    dialog.scrollTop = scroll;
+    if (setting) content.querySelector(`[data-cellular-setting="${setting}"]`)?.focus({ preventScroll: true });
+    else if (action) content.querySelector(`[data-cellular-action="${action}"]`)?.focus({ preventScroll: true });
+  }
+  async function control(item, operation, body, lineId, requestId) {
+    if (!editable(item)) return false;
+    submitting = true;
+    try {
+      await ModuleData.control(item, operation, body, lineId, requestId);
+      return true;
+    } catch (error) {
+      UI.toast(ModuleData.issueText(error.code) || "请求失败，请核实操作状态");
+      return false;
+    } finally { submitting = false; refreshDialog(); }
+  }
   const simIcon =
     '<svg viewBox="0 0 28 32" aria-hidden="true"><path d="M6 2h12l6 6v21H4V4a2 2 0 0 1 2-2Z"/><rect x="8" y="13" width="12" height="11" rx="2"/><path d="M12 13v11m4-11v11M8 18.5h12"/></svg>';
   function lines(item) {
@@ -9,7 +50,7 @@ const Cellular = (() => {
       networkAutomatic: sim.networkAutomatic !== false,
       wifiCalling: sim.wifiCalling === true,
       roaming: sim.roaming === true,
-      number: index === 0 ? item.number : sim.number,
+      number: item.managed ? sim.number : index === 0 ? item.number : sim.number,
       state: !sim.enabled
         ? "已关闭"
         : item.status === "online"
@@ -18,20 +59,36 @@ const Cellular = (() => {
     }));
   }
   function back(toDetail = false) {
-    const label = toDetail ? lines(module)[activeLine].label : "蜂窝网络";
+    const label = toDetail ? active()?.label || "蜂窝网络" : "蜂窝网络";
     return `<button type="button" class="text-button cellular-back" data-cellular-back="${toDetail ? "detail" : "overview"}">‹ ${UI.escape(label)}</button>`;
   }
   function overview(item) {
     const cards = lines(item);
-    return `<section class="cellular-page"><p class="cellular-module">${UI.escape(item.label || item.name)}</p><div class="cellular-section-title"><h3>SIM</h3><span>${cards.length} 张</span></div><div class="cellular-group">${cards.length ? cards.map((sim, index) => `<button type="button" class="cellular-sim" data-cellular-sim="${index}"><span class="cellular-sim-icon">${simIcon}</span><span class="cellular-sim-copy"><strong>${UI.escape(sim.label)}</strong><small>${UI.escape(Countries.format(sim.number))}</small></span><span class="cellular-sim-meta">${UI.escape(sim.state)}</span><span class="chevron" aria-hidden="true">›</span></button>`).join("") : '<p class="cellular-empty">无 SIM 卡</p>'}</div><button type="button" class="cellular-add" data-cellular-add><span aria-hidden="true">＋</span>添加 eSIM<span class="chevron" aria-hidden="true">›</span></button></section>`;
+    return `<section class="cellular-page">
+      <h3 class="cellular-section-title">${UI.escape(item.label || item.name)}</h3>
+      <div class="cellular-group">${cards.length ? cards.map((sim, index) => `
+        <button type="button" class="cellular-sim" data-cellular-sim="${index}">
+          <span class="cellular-sim-icon">${simIcon}</span>
+          <span class="cellular-sim-copy"><strong>${UI.escape(sim.label)}</strong>${sim.number ? `<small>${UI.escape(Countries.format(sim.number))}</small>` : ""}</span>
+          <span class="cellular-sim-meta">${UI.escape(sim.state)}</span>
+          <span class="chevron" aria-hidden="true">›</span>
+        </button>`).join("") : '<p class="cellular-empty">无 SIM 卡</p>'}</div>
+      <button type="button" class="cellular-add" data-cellular-add ${editable(item) ? "" : "disabled"}>
+        <span aria-hidden="true">＋</span>添加 eSIM<span class="chevron" aria-hidden="true">›</span>
+      </button>
+      ${item.hardware?.esim?.pending > 0 ? `<button type="button" class="text-button cellular-notify" data-cellular-notify ${editable(item) ? "" : "disabled"}>重试状态上报</button>` : ""}${jobNote(item)}
+    </section>`;
   }
   function open(item) {
+    unsubscribe?.();
     module = item;
-    activeLine = -1;
-    UI.modal("蜂窝网络", overview(item));
+    activeLine = -1; activeID = null; view = "overview";
+    rendered = overview(item);
+    UI.modal("蜂窝网络", rendered);
+    unsubscribe = ModuleData.subscribe(refreshDialog);
   }
-  function switchRow(key, label, checked, disabled = false) {
-    return `<label class="cellular-setting"><span>${label}</span><span class="form-switch"><input type="checkbox" role="switch" data-cellular-setting="${key}" aria-label="${label}" ${checked ? "checked" : ""} ${disabled ? "disabled" : ""}><span aria-hidden="true"></span></span></label>`;
+  function switchRow(key, label, checked, disabled = false, status = "") {
+    return `<label class="cellular-setting"><span>${label}</span>${status ? `<span class="cellular-setting-value">${UI.escape(status)}</span>` : ""}<span class="form-switch"><input type="checkbox" role="switch" data-cellular-setting="${key}" aria-label="${label}" ${checked ? "checked" : ""} ${disabled ? "disabled" : ""}><span aria-hidden="true"></span></span></label>`;
   }
   function valueRow(label, value, action = "", disabled = false) {
     const content = `<span>${label}</span><span class="cellular-setting-value">${UI.escape(value)}</span>${action ? '<span class="chevron" aria-hidden="true">›</span>' : ""}`;
@@ -42,15 +99,34 @@ const Cellular = (() => {
   function detail(item, index) {
     const sim = lines(item)[index];
     if (!sim) return "";
-    return `<section class="cellular-page">${back()}<div class="cellular-group cellular-settings">${valueRow("号码标签", sim.label, "label")}${switchRow("enabled", "启用此号码", sim.enabled)}</div><div class="cellular-group cellular-settings">${valueRow("网络选择", sim.networkAutomatic ? "自动" : "手动", "network", !sim.enabled)}${valueRow("本机号码", Countries.format(sim.number))}${switchRow("wifiCalling", "Wi-Fi 通话", sim.wifiCalling, !sim.enabled)}${switchRow("roaming", "数据漫游", sim.roaming, !sim.enabled)}</div></section>`;
+    const realESIM = item.managed && sim.esim;
+    const disabled = item.managed && (!realESIM || !editable(item));
+    const networkDisabled = item.managed || !sim.enabled;
+    const pending = item.managed ? "待接入" : "";
+    const remove = realESIM
+      ? `<div class="cellular-group cellular-settings"><button type="button" class="cellular-setting danger-button" data-cellular-delete ${disabled || sim.enabled || !sim.canDelete ? "disabled" : ""}>删除 eSIM</button></div>`
+      : "";
+    return `<section class="cellular-page">${back()}
+      <div class="cellular-group cellular-settings">
+        ${valueRow("号码标签", sim.label, "label", disabled)}
+        ${switchRow("enabled", "启用此号码", sim.enabled, disabled || (realESIM && sim.enabled && !sim.canDisable))}
+      </div>
+      <div class="cellular-group cellular-settings">
+        ${valueRow("网络选择", pending || (sim.networkAutomatic ? "自动" : "手动"), "network", networkDisabled)}
+        ${valueRow("本机号码", sim.number ? Countries.format(sim.number) : "—")}
+        ${valueRow("Wi-Fi 通话", pending || (sim.wifiCalling ? "开启" : "关闭"), "wifi", networkDisabled)}
+        ${switchRow("roaming", "数据漫游", sim.roaming, networkDisabled, pending)}
+      </div>${remove}${jobNote(item)}</section>`;
   }
+
   function showDetail() {
+    active();
     const sim = lines(module)[activeLine];
-    if (sim) UI.modal(sim.label, detail(module, activeLine));
+    if (sim) { view = "detail"; rendered = detail(module, activeLine); UI.modal(sim.label, rendered); }
   }
   const { validLabel } = ModuleData;
   function validActivation(value) {
-    return /^LPA:1\$[a-z0-9.-]+\$[^\s$]+(?:\$[^\s$]*)?$/i.test(value.trim());
+    return /^LPA:1\$[a-z0-9.-]+\$[^\s$]+(?:\$[^\s$]*)?(?:\$1)?$/.test(value.trim());
   }
   document.addEventListener("click", (event) => {
     if (!module || !event.target.closest("#dialog-content")) return;
@@ -62,15 +138,25 @@ const Cellular = (() => {
     }
     const action = event.target.closest("[data-cellular-action]");
     if (action) {
+      active();
       const sim = lines(module)[activeLine];
+      if (module.managed && (!editable(module) || !sim?.esim || action.dataset.cellularAction !== "label")) return;
       if (!sim) return;
       if (action.dataset.cellularAction === "label") {
+        view = "form";
         UI.modal(
           "号码标签",
           `<section class="cellular-page">${back(true)}<form id="cellular-label-form" class="settings-form" novalidate><div class="form-fields">${Forms.field({ prefix: "cellular", name: "label", label: "标签", value: sim.label, placeholder: "主号 / 副号", maxLength: 20, required: true })}</div><div class="form-footer"><button type="submit" class="primary">完成</button></div></form></section>`,
         );
         document.getElementById("cellular-label").focus();
+      } else if (action.dataset.cellularAction === "wifi" && sim.enabled) {
+        view = "form";
+        UI.modal(
+          "Wi-Fi 通话",
+          `<section class="cellular-page">${back(true)}<div class="cellular-group cellular-settings">${switchRow("wifiCalling", "在此号码上使用 Wi-Fi 通话", sim.wifiCalling)}</div></section>`,
+        );
       } else if (action.dataset.cellularAction === "network" && sim.enabled) {
+        view = "form";
         UI.modal(
           "网络选择",
           `<section class="cellular-page">${back(true)}<div class="cellular-group cellular-settings">${switchRow("networkAutomatic", "自动", sim.networkAutomatic)}</div><p id="cellular-network-empty" class="cellular-empty" ${sim.networkAutomatic ? "hidden" : ""}>运营商服务尚未接入</p></section>`,
@@ -79,19 +165,29 @@ const Cellular = (() => {
       return;
     }
     if (event.target.closest("[data-cellular-add]")) {
+      if (!editable(module)) return;
+      view = "form";
       UI.modal(
         "添加 eSIM",
-        `<section class="cellular-page">${back()}<form id="esim-form" class="settings-form" novalidate><div class="form-fields">${Forms.field({ prefix: "esim", name: "activation", label: "激活码", type: "password", placeholder: "LPA:1$…", maxLength: 2048, required: true })}</div><div class="form-footer"><button type="submit" class="primary">添加 eSIM</button></div></form></section>`,
+        `<section class="cellular-page">${back()}<form id="esim-form" class="settings-form" novalidate><div class="form-fields">${Forms.field({ prefix: "esim", name: "activation", label: "激活码", type: "password", placeholder: "LPA:1$…", maxLength: 2048, required: true })}${Forms.field({ prefix: "esim", name: "confirmation", label: "确认码", type: "password", placeholder: "选填", maxLength: 128 })}${module.managed && !module.hardware?.imei ? Forms.field({ prefix: "esim", name: "imei", label: "设备 IMEI", inputmode: "numeric", maxLength: 15, required: true }) : ""}</div><div class="form-footer"><button type="submit" class="primary">添加 eSIM</button></div></form></section>`,
       );
       document.getElementById("esim-activation").focus();
       return;
     }
+    if (event.target.closest("[data-cellular-delete]")) {
+      const item = module, sim = active();
+      if (!sim?.esim || !editable(item) || sim.enabled || !sim.canDelete) return;
+      view = "confirm";
+      ContextMenu.confirm(`删除“${sim.label}” eSIM？`, () => control(item, "removeLine", {}, sim.id));
+      return;
+    }
+    if (event.target.closest("[data-cellular-notify]")) { control(module, "notifyESIM", {}); return; }
     const button = event.target.closest("[data-cellular-sim]");
     if (!button) return;
     const index = Number(button.dataset.cellularSim);
     const sim = lines(module)[index];
     if (!sim) return;
-    activeLine = index;
+    activeLine = index; activeID = sim.id || null;
     showDetail();
   });
   document.addEventListener("change", (event) => {
@@ -103,14 +199,22 @@ const Cellular = (() => {
       !["enabled", "wifiCalling", "roaming", "networkAutomatic"].includes(key)
     )
       return;
-    const sim = module.sims[activeLine];
+    const sim = active();
     if (!sim || (key !== "enabled" && !sim.enabled)) return;
+    if (module.managed) {
+      const enabled = input.checked;
+      input.checked = Boolean(sim[key]);
+      if (key !== "enabled" || !sim.esim || !editable(module) || (!enabled && !sim.canDisable)) return;
+      input.disabled = true;
+      control(module, "updateLine", { enabled }, sim.id);
+      return;
+    }
     // 仅更新本次页面的样本，设备配置由后端接入后执行。
     sim[key] = input.checked;
     if (key === "enabled") {
       document
         .querySelectorAll(
-          '[data-cellular-setting="wifiCalling"], [data-cellular-setting="roaming"], [data-cellular-action="network"]',
+          '[data-cellular-action="wifi"], [data-cellular-setting="roaming"], [data-cellular-action="network"]',
         )
         .forEach((control) => {
           control.disabled = !sim.enabled;
@@ -120,10 +224,11 @@ const Cellular = (() => {
         sim.networkAutomatic;
     }
   });
-  document.addEventListener("submit", (event) => {
+  document.addEventListener("submit", async (event) => {
     if (event.target.id === "cellular-label-form") {
       event.preventDefault();
-      if (!module || !module.sims[activeLine]) return;
+      if (!module || !active()) return;
+
       const label = event.target.elements.namedItem("label").value.trim();
       if (
         Forms.report(
@@ -134,6 +239,14 @@ const Cellular = (() => {
         )
       )
         return;
+      if (module.managed) {
+        if (!active().esim || !editable(module)) return;
+        const item = module, form = event.target, line = active().id;
+        form.querySelector('[type="submit"]').disabled = true;
+        const ok = await control(item, "updateLine", { label }, line, form.dataset.requestId ||= Http.id());
+        if (module === item && form.isConnected) { form.querySelector('[type="submit"]').disabled = false; if (ok) showDetail(); }
+        return;
+      }
       module.sims[activeLine].label = label;
       showDetail();
       return;
@@ -150,12 +263,25 @@ const Cellular = (() => {
       )
     )
       return;
-    // 安装由模块后端执行，激活码不缓存、不记录。
-    UI.toast("eSIM 服务尚未接入，未添加");
+    if (!module?.managed) { UI.toast("eSIM 服务尚未接入，未添加"); return; }
+    if (!editable(module)) return;
+    const item = module, form = event.target;
+    const button = form.querySelector('[type="submit"]');
+    button.disabled = true;
+    const ok = await control(item, "installESIM", {
+      activation: input.value.trim(),
+      confirmation: form.elements.namedItem("confirmation")?.value || "",
+      imei: form.elements.namedItem("imei")?.value.trim() || "",
+    }, undefined, form.dataset.requestId ||= Http.id());
+    if (module === item && form.isConnected) {
+      button.disabled = false;
+      if (ok) { form.reset(); open(item); }
+    }
   });
   document.getElementById("dialog").addEventListener("close", () => {
+    unsubscribe?.(); unsubscribe = null;
     module = null;
-    activeLine = -1;
+    activeLine = -1; activeID = null;
     const form = document.getElementById("esim-form");
     form?.reset();
   });

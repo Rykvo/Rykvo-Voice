@@ -10,6 +10,19 @@ ROOT = Path(__file__).resolve().parent.parent
 
 class Preview(SimpleHTTPRequestHandler):
     authenticated = False
+    modules = False
+    devices = []
+
+    def do_PATCH(self):
+        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
+        item = next((v for v in self.devices if self.path == "/api/modules/" + v["id"]), None)
+        if not self.modules or not item:
+            return self.api(404, {"error": {"code": "PREVIEW_ONLY"}})
+        label = body.get("label", "").strip() or item["name"]
+        if any(v["id"] != item["id"] and v["label"] == label for v in self.devices):
+            return self.api(409, {"error": {"code": "LABEL_EXISTS"}})
+        item["label"], item["labelCustom"] = label, True
+        return self.api(200, {"data": item})
 
     def api(self, status, value):
         body = json.dumps(value).encode()
@@ -28,13 +41,17 @@ class Preview(SimpleHTTPRequestHandler):
         self.api(404, {"error": {"code": "PREVIEW_ONLY"}})
 
     def do_DELETE(self):
-        self.api(200, {"data": None})
+        if self.path == "/api/session":
+            return self.api(200, {"data": None})
+        self.api(404, {"error": {"code": "PREVIEW_ONLY"}})
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if self.authenticated and path == "/api/modules":
+            return self.api(200, {"data": {"items": self.devices, "discoveryIssue": ""}})
         if path == "/api/session":
             if self.authenticated:
                 return self.api(200, {"data": {"user": {"id": "layout-preview"}, "csrfToken": "preview-only"}})
@@ -82,6 +99,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=5174)
     parser.add_argument("--authenticated", action="store_true", help="Isolated layout fixture, not real authentication")
+    parser.add_argument("--modules", action="store_true", help="Isolated EC20/eUICC layout fixture")
     args = parser.parse_args()
     Preview.authenticated = args.authenticated
+    Preview.modules = args.modules
+    if args.modules:
+        for n in range(1, 9):
+            esim = {"eid": "89049032001001234500012345678901", "pending": 1, "profiles": []}
+            Preview.devices.append({
+                "id": f"module-{n:02d}", "name": f"模块 {n:02d}", "label": f"模块 {n:02d}",
+                "labelCustom": False, "managed": True, "kind": "usb", "number": "", "signal": "cellular",
+                "status": "offline" if n == 8 else "online", "capabilities": {"esim": n != 8},
+                "hardware": {"model": "EC20", "imei": "123456789012345", "iccid": "89123456789012345678", "simState": "READY", "registration": "home", "operator": "测试运营商", "technology": "LTE", "rssi": -69, "esim": esim},
+                "sims": [{"id": "fixture-main", "iccid": "89123456789012345678", "label": "主号", "number": "", "enabled": True, "esim": True, "canDisable": True, "canDelete": True}, {"id": "fixture-spare", "iccid": "89123456789012345679", "label": "备用", "number": "", "enabled": False, "esim": True, "canDisable": True, "canDelete": True}],
+            })
     ThreadingHTTPServer(("127.0.0.1", args.port), Preview).serve_forever()

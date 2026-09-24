@@ -1,6 +1,6 @@
 # Rykvo Voice 后端
 
-Go + PostgreSQL。实现登录、会话恢复、退出、管理员修改、独立密码、功能显示配置与 Cloudflare Tunnel，未实现短信、SIP、模块业务接口。
+Go + PostgreSQL。实现登录、会话恢复、退出、管理员修改、独立密码、功能显示配置与 Cloudflare Tunnel，新增模块自动发现、只读状态与唯一标签，未实现短信、SIP 和模块控制接口。详见 [模块读取](MODULES.md)。
 
 ## 数据
 
@@ -54,7 +54,7 @@ export DATABASE_URL='postgres:///rykvo_voice?host=/var/run/postgresql&user=rykvo
 
 当前 HTTP 80 仅用于本地虚拟机。绑定域名通过 HTTPS 访问时使用 Secure Cookie，局域网入口不变。公开访问前通过管理员页面更换默认密码。
 
-## 已部署位置
+## 新安装器目标位置
 
 - 服务：`rykvo-auth.service`（非 root，开机启动）
 - 程序：`/opt/rykvo-voice/live/rykvo-auth`
