@@ -57,7 +57,19 @@ Module 保留 `{id,name,label,number,status,signal,sims}`，增加 `managed`、`
 
 数据连接及漫游控制仍待接入，需要管理 APN、数据上下文和漫游许可。
 
-已核对 VoCat `484cd236` 的 Wi-Fi 通话流程：记录射频状态，对当前模块设置 CFUN=4 并停止蜂窝数据，再执行 SIM AKA、ePDG / IKE / IPsec 和 IMS 注册。重试保持射频关闭；显式关闭时按原状态及飞行模式策略恢复。该流程不等同于单独设置飞行模式，且与同模块蜂窝数据并行使用存在冲突。
+### Wi-Fi 通话接入核对
+
+参考提交：VoCat `484cd236dd543e2ba142cf1da2c5808ee8e89a6e`，2026-09-25 核对远端 HEAD 一致。
+
+- `web/src/components/devices/deviceActions.ts` → `internal/server/device_api.go`：开关调用异步运行时，接受请求不表示注册成功；已开蜂窝数据时拒绝开启 VoWiFi。
+- `internal/vowifi/ec20_adapter.go`、`orchestrator.go`：核对设备、记录射频状态，设置并回读 CFUN=4、停止 PDP 数据；读取当前 SIM 身份和明确的 MNC 长度，通过 USIM/ISIM APDU 完成 AKA，不依赖蜂窝驻网。
+- `internal/vowifi/ike/`：发现 ePDG，执行 IKEv2/EAP-AKA、验证对端认证并建立 IPsec。NAT-T/代理路径使用用户态 ESP/TUN，其他适用路径使用 XFRM；不是给模块发送一条开启命令。
+- `internal/vowifi/ims/`：使用隧道提供的 P-CSCF 完成 SIP REGISTER、AKA 挑战及安全协商，再校验注册结果、维护续期。短信与语音还各有独立协议和媒体链路，注册成功不等于已验证通话。
+- `internal/vowifi/runtime/manager.go`：每设备串行处理开关和重连，重复请求合并，失败退避重试；eSIM 切换进入维护状态，先释放旧会话，再按新 ICCID 的策略恢复。号码仅接受 IMS 返回的关联号码，未返回时继续显示 ICCID。
+
+注意：底层 Restore 支持按快照/策略恢复，但该版本网页 API 在开启和关闭 VoWiFi 时均设飞行模式，并持久化 AirplaneEnabled=true、NetworkEnabled=false。因此实际网页关闭 VoWiFi 后仍保持射频关闭，需独立关闭飞行模式；不能仅按底层函数判断为自动恢复蜂窝。
+
+Rykvo 已有线路开关页面和 PATCH 契约，但真实模块当前禁用该入口，后台尚无 AKA、隧道及 IMS 运行时。接入时复用设备互斥、稳定线路 ID 和现有订阅；Wi-Fi 通话能力与 eSIM 管理能力分别判断，普通 SIM 同样可按运营商能力使用。新会话须绑定当前卡和设备世代，写卡/鉴权/射频变更与自动恢复互斥；运营商拒绝、无漫游或 IMS 失败不当成模块通信故障重启。只发布真实注册状态，不增加页面轮询，不让隧道路由接管服务器管理流量。关闭后的射频行为待用户确认。
 
 参考用于协议和流程分析，不复制其受限实现。Rykvo 当前尚未接入数据连接和 VoWiFi 链路；未启动真实服务前继续保持能力关闭，不宣称已注册或可通话。
 
