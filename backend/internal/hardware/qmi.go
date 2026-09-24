@@ -52,42 +52,59 @@ func (b *boundedOutput) Write(p []byte) (int, error) {
 	return b.Buffer.Write(p)
 }
 
+func queryQMI(ctx context.Context, device, op string) (string, error) {
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+	if _, err := os.Stat(qmiSocket); err == nil {
+		return proxyQuery(ctx, qmiSocket, device, op)
+	}
+	path, err := exec.LookPath("qmicli")
+	if err != nil {
+		return "", errors.New("QMI_UNAVAILABLE")
+	}
+	call, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(call, path, "--device="+device, "--device-open-proxy", op)
+	cmd.Env = []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL=C"}
+	cmd.WaitDelay = time.Second
+	var out boundedOutput
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return "", err
+	}
+	return out.String(), nil
+}
+
+func qmiOperatorName(status, plmn string) string {
+	if !decimal(plmn, 5, 6) || qmiValue(status, "MCC") != plmn[:3] {
+		return ""
+	}
+	mnc, expected := integer(qmiValue(status, "MNC")), integer(plmn[3:])
+	if mnc == nil || expected == nil || *mnc != *expected {
+		return ""
+	}
+	return qmiValue(status, "Description")
+}
+
 func readQMI(ctx context.Context, c Candidate) Reading {
 	r := Reading{Model: c.Model, SIM: "unknown", Registration: "unknown"}
-	_, socketErr := os.Stat(qmiSocket)
-	path, err := exec.LookPath("qmicli")
-	if err != nil && socketErr != nil {
-		r.Issue = "QMI_UNAVAILABLE"
-		return r
-	}
 	query := func(op string) string {
-		if ctx.Err() != nil {
-			return ""
-		}
-		if socketErr == nil {
-			output, err := proxyQuery(ctx, qmiSocket, c.Control, op)
-			if err != nil {
-				r.Warnings = append(r.Warnings, op+":READ_FAILED")
-			}
-			return output
-		}
-		call, cancel := context.WithTimeout(ctx, 3*time.Second)
-		defer cancel()
-		cmd := exec.CommandContext(call, path, "--device="+c.Control, "--device-open-proxy", op)
-		cmd.Env = []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL=C"}
-		cmd.WaitDelay = time.Second
-		var out boundedOutput
-		cmd.Stdout = &out
-		if cmd.Run() != nil {
+		output, err := queryQMI(ctx, c.Control, op)
+		if err != nil {
 			r.Warnings = append(r.Warnings, op+":READ_FAILED")
-			return ""
+			if err.Error() == "QMI_UNAVAILABLE" {
+				r.Issue = "QMI_UNAVAILABLE"
+			}
 		}
-		return out.String()
+		return output
 	}
 	ids := query("--dms-get-ids")
 	r.IMEI = qmiValue(ids, "IMEI")
 	if r.IMEI == "" {
-		r.Issue = "QMI_READ_FAILED"
+		if r.Issue == "" {
+			r.Issue = "QMI_READ_FAILED"
+		}
 		return r
 	}
 	r.Responsive = true

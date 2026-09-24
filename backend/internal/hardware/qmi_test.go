@@ -30,6 +30,40 @@ func TestQMIActiveSlotAndSIMState(t *testing.T) {
 	}
 }
 
+func TestQMIOperatorNameMatchesNumericCOPS(t *testing.T) {
+	for _, tc := range []struct{ mcc, mnc, plmn, want string }{
+		{"460", "0", "46000", "CMCC"},
+		{"460", "00", "46000", "CMCC"},
+		{"310", "260", "310260", "CMCC"},
+		{"460", "0", "46011", ""},
+		{"460", "0", "46100", ""},
+		{"460", "bad", "46000", ""},
+		{"460", "0", "460", ""},
+		{"460", "0", "", ""},
+	} {
+		status := "MCC: '" + tc.mcc + "'\nMNC: '" + tc.mnc + "'\nDescription: 'CMCC'\n"
+		if got := qmiOperatorName(status, tc.plmn); got != tc.want {
+			t.Fatalf("%s/%s %s: %q", tc.mcc, tc.mnc, tc.plmn, got)
+		}
+	}
+	if got := qmiOperatorName("MCC: '460'\nMNC: '0'", "46000"); got != "" {
+		t.Fatal("missing network name invented")
+	}
+}
+
+func TestPassiveOperatorReading(t *testing.T) {
+	r := Reading{}
+	readOperator([]string{`+COPS: 0,2,"46000",7`}, &r)
+	if r.Operator != "" || r.PLMN != "46000" || r.Technology != "LTE" || r.NetworkMode == nil || *r.NetworkMode != 0 {
+		t.Fatalf("numeric operator: %+v", r)
+	}
+	r = Reading{}
+	readOperator([]string{`+COPS: 0,0,"CMCC",7`}, &r)
+	if r.Operator != "CMCC" || r.PLMN != "" || r.Technology != "LTE" {
+		t.Fatalf("named operator: %+v", r)
+	}
+}
+
 func TestQMIPrivateQuery(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Unix socket")

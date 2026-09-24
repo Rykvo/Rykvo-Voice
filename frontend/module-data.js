@@ -25,9 +25,7 @@ const ModuleData = (() => {
   let issue = "", loaded = false;
   const connected = () => typeof Backend !== "undefined" && Backend.enabled("modules");
   const issueText = (code) => ({
-    NETWORK_FAILED: "网络操作失败", NETWORK_INTERRUPTED: "选网中断，请核实状态",
-    NETWORK_RESULT_UNKNOWN: "选网结果待确认", INVALID_NETWORK_REQUEST: "请选择有效网络",
-    NETWORK_UNAVAILABLE: "网络控制暂未就绪", COMMAND_UNSUPPORTED: "模块未支持此操作",
+    COMMAND_UNSUPPORTED: "模块未支持此操作",
     AT_PORT_MISSING: "未找到 AT 串口", PERMISSION_DENIED: "设备访问权限不足",
     DEVICE_BUSY: "设备正在被占用", DEVICE_UNAVAILABLE: "设备暂不可用",
     READ_TIMEOUT: "设备读取超时", QMI_UNAVAILABLE: "QMI 读取工具未就绪",
@@ -131,7 +129,7 @@ const ModuleData = (() => {
         idempotencyKey: requestId,
       });
       item.job = job;
-      if (item.capabilities) { item.capabilities.esim = false; item.capabilities.network = false; }
+      if (item.capabilities) item.capabilities.esim = false;
       notify();
       return job;
     } finally {

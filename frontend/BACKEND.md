@@ -85,8 +85,6 @@ controller.abort();
 | modules.get / update         | GET / PATCH          | /modules/:moduleId                        |
 | modules.lines                | GET                  | /modules/:moduleId/lines                  |
 | modules.updateLine           | PATCH                | /modules/:moduleId/lines/:lineId          |
-| modules.networks             | GET                  | /modules/:moduleId/lines/:lineId/networks |
-| modules.scanNetworks         | POST                 | /modules/:moduleId/lines/:lineId/networks |
 | modules.installESIM          | POST                 | /modules/:moduleId/esim                   |
 | calls.list / dial            | GET / POST           | /calls                                    |
 | calls.get                    | GET                  | /calls/:callId                            |
@@ -131,8 +129,8 @@ controller.abort();
 
 - 登录请求 `{username,password}`；会话响应 `{user:{id,username},csrfToken,expiresAt}`。注销撤销服务端会话。
 - 模块 `{id,name,label,number,status,signal,sims:[]}`。`status` 为 online/offline/error；`signal` 为 none/wifi/mobile/unicom/telecom。当前模块 ID 使用 `module-数字`；若换成任意 ID，同时调整 `Lines.recorded` 校验及迁移，不能静默换线。
-- SIM `{id,label,number,enabled,networkAutomatic,networkId,wifiCalling,roaming}`，操作绑定稳定 lineId，而不是页面数组下标。
-- 模块 PATCH `{label}`；线路 PATCH 仅包含修改字段。启用号码、自动选网、Wi-Fi 通话、漫游由设备确认后返回实际配置；选网 PATCH 使用 `{requestId,networkAutomatic,operator,accessTechnology}`。搜索 POST 返回任务，结果为任务的 `networks:[{name,plmn,technology,status}]`；原 GET 只读最近搜索任务。
+- SIM `{id,label,number,enabled,wifiCalling,roaming}`，操作绑定稳定 lineId，而不是页面数组下标。
+- 模块 PATCH `{label}`；线路 PATCH 仅包含修改字段。eSIM 启停、标签和删除等待设备确认。Wi-Fi 通话与漫游控制尚未接入。手动搜网与选网已移除，网络状态由后台只读采集。
 - eSIM 请求与任务格式见下方“eSIM 实接接口”；激活码不落浏览器存储，后端负责安装与进度。
 
 ### 电话、记录与统计
@@ -187,7 +185,7 @@ SSE 使用标准 message 事件，`id:` 为事件游标，`data:` 为 `{id,type,
 | 文件 / 位置                                            | 接入工作                                                             |
 | ------------------------------------------------------ | -------------------------------------------------------------------- |
 | `module-data.js` items；`modules.js` render/updateRows | 拉取模块，保存标签后合并返回数据；重新计算统计；不要保留空数组快照   |
-| `cellular.js` change / submit                          | 线路开关、网络选择和 eSIM 改为等待接口结果；失败回滚                 |
+| `cellular.js` change / submit                          | 线路开关和 eSIM 改为等待接口结果；失败回滚                 |
 | `phone.js` toggleCall / renderHistory                  | 替换 1300ms 模拟接通；由真实事件驱动状态；挂断记录以后端为准         |
 | `messages.js` send / showThread / removeThreads        | 拉会话和分页消息；接口确认后更新消息状态，失败保留草稿；复用增量插入 |
 | `sip.js` submit / delete / formValues                  | 账号列表与 CRUD 接口，处理 hasPassword，保存固定模块及接电话配置     |

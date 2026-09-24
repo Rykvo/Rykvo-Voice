@@ -97,6 +97,12 @@ func (s *System) Read(ctx context.Context, c Candidate) Reading {
 			r.Warnings = append(r.Warnings, "AT:"+atIssue)
 		}
 	}
+	if r.Responsive && r.Issue == "" && r.Operator == "" && r.PLMN != "" && c.Control != "" {
+		// Numeric COPS format persists after manual selection; do not change it to fetch a label.
+		if status, err := queryQMI(ctx, c.Control, "--nas-get-serving-system"); err == nil {
+			r.Operator = qmiOperatorName(status, r.PLMN)
+		}
+	}
 	if r.Responsive && r.SIM != "absent" && r.SIM != "SIM PIN" && r.SIM != "SIM PUK" && ctx.Err() == nil {
 		call, cancel := context.WithTimeout(ctx, 30*time.Second)
 		result := ESIMCall(call, ESIMRequest{Candidate: c, Action: "read", ExpectedIMEI: r.IMEI}, nil)

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"reflect"
 	"regexp"
 	"strings"
 	"time"
@@ -14,13 +13,7 @@ import (
 	"rykvo.local/auth/internal/hardware"
 )
 
-type moduleRequest struct {
-	hardware.ESIMRequest
-	Network *hardware.NetworkRequest
-}
-
 type moduleJob struct {
-	Networks     []hardware.Operator `json:"networks,omitempty"`
 	ID           string              `json:"id"`
 	Module       int64               `json:"-"`
 	Action       string              `json:"action"`
@@ -33,18 +26,14 @@ type moduleJob struct {
 
 // Retain only the identity and expected result, never activation credentials.
 type moduleVerification struct {
-	Network *hardware.NetworkRequest `json:"network,omitempty"`
-	EID     string                   `json:"eid"`
-	ICCID   string                   `json:"iccid"`
-	Label   string                   `json:"label,omitempty"`
-	IMEI    string                   `json:"imei,omitempty"`
+	EID   string `json:"eid"`
+	ICCID string `json:"iccid"`
+	Label string `json:"label,omitempty"`
+	IMEI  string `json:"imei,omitempty"`
 }
 
 func (j moduleJob) confirmed(reading hardware.Reading) bool {
 	v := j.Verification
-	if v != nil && v.Network != nil {
-		return j.Action == "network-select" && v.Network.Confirmed(reading)
-	}
 	if v == nil || v.EID == "" || !reading.Responsive || (v.IMEI != "" && reading.IMEI != v.IMEI) {
 		return false
 	}
@@ -56,34 +45,31 @@ func (j *moduleJob) confirm(reading hardware.Reading) bool {
 		return false
 	}
 	j.State, j.Stage, j.Issue, j.Warning = "succeeded", "done", "", ""
-	if reading.ESIM != nil && reading.ESIM.Pending > 0 && j.Action != "network-select" {
+	if reading.ESIM != nil && reading.ESIM.Pending > 0 {
 		j.Warning = "ESIM_NOTIFICATION_PENDING"
 	}
 	return true
 }
 
-const jobColumns = "id,module_id,action,state,stage,issue,warning,verification,networks"
+const jobColumns = "id,module_id,action,state,stage,issue,warning,verification"
 
 var jobIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{16,64}$`)
 
 func (j moduleJob) active() bool { return j.State == "queued" || j.State == "running" }
 func scanJob(row interface{ Scan(...any) error }) (moduleJob, error) {
 	var j moduleJob
-	var verification, networks []byte
-	err := row.Scan(&j.ID, &j.Module, &j.Action, &j.State, &j.Stage, &j.Issue, &j.Warning, &verification, &networks)
+	var verification []byte
+	err := row.Scan(&j.ID, &j.Module, &j.Action, &j.State, &j.Stage, &j.Issue, &j.Warning, &verification)
 	if err == nil {
 		err = json.Unmarshal(verification, &j.Verification)
-		if err == nil {
-			err = json.Unmarshal(networks, &j.Networks)
-		}
 	}
 	return j, err
 }
 func (m *moduleManager) loadJobs(ctx context.Context) {
-	if _, err := m.db.Exec(ctx, "UPDATE module_jobs SET state='uncertain',issue=CASE WHEN action LIKE 'network-%' THEN 'NETWORK_INTERRUPTED' ELSE 'ESIM_INTERRUPTED' END,updated_at=now() WHERE state IN ('queued','running')"); err != nil {
+	if _, err := m.db.Exec(ctx, "UPDATE module_jobs SET state='uncertain',issue=CASE WHEN action LIKE 'network-%' THEN 'OPERATION_RETIRED' ELSE 'ESIM_INTERRUPTED' END,updated_at=now() WHERE state IN ('queued','running')"); err != nil {
 		return
 	}
-	rows, err := m.db.Query(ctx, "SELECT DISTINCT ON(module_id) "+jobColumns+" FROM module_jobs ORDER BY module_id,created_at DESC")
+	rows, err := m.db.Query(ctx, "SELECT "+jobColumns+" FROM (SELECT DISTINCT ON(module_id) "+jobColumns+" FROM module_jobs ORDER BY module_id,created_at DESC) latest WHERE action NOT LIKE 'network-%'")
 	if err != nil {
 		return
 	}
@@ -147,15 +133,14 @@ func (m *moduleManager) persistJob(ctx context.Context, j moduleJob) error {
 	if err != nil {
 		return err
 	}
-	networks, _ := json.Marshal(j.Networks)
-	_, err = m.db.Exec(ctx, "UPDATE module_jobs SET state=$2,stage=$3,issue=$4,warning=$5,verification=$6,networks=$7,updated_at=now() WHERE id=$1", j.ID, j.State, j.Stage, j.Issue, j.Warning, verification, networks)
+	_, err = m.db.Exec(ctx, "UPDATE module_jobs SET state=$2,stage=$3,issue=$4,warning=$5,verification=$6,updated_at=now() WHERE id=$1", j.ID, j.State, j.Stage, j.Issue, j.Warning, verification)
 	return err
 }
-func (m *moduleManager) startJob(ctx context.Context, v moduleRecord, request moduleRequest, id string) (moduleJob, error) {
+func (m *moduleManager) startJob(ctx context.Context, v moduleRecord, request hardware.ESIMRequest, id string) (moduleJob, error) {
 	// Retrying the same HTTP action never repeats the card write.
 	old, err := scanJob(m.db.QueryRow(ctx, "SELECT "+jobColumns+" FROM module_jobs WHERE id=$1", id))
 	if err == nil {
-		if old.Module != v.ID || old.Action != request.Action || (request.Network != nil && (old.Verification == nil || !reflect.DeepEqual(old.Verification.Network, request.Network))) {
+		if old.Module != v.ID || old.Action != request.Action {
 			return old, errors.New("REQUEST_CONFLICT")
 		}
 		return old, nil
@@ -179,22 +164,16 @@ func (m *moduleManager) startJob(ctx context.Context, v moduleRecord, request mo
 	if time.Since(sample.Reading.UpdatedAt) > 90*time.Second {
 		return moduleJob{}, errors.New("DEVICE_CHANGED")
 	}
-	if request.Network != nil {
-		if !networkAvailable(sample.Reading) || sample.Reading.IMEI != request.Network.IMEI || sample.Reading.ICCID != request.Network.ICCID {
-			return moduleJob{}, errors.New("DEVICE_CHANGED")
-		}
-	} else {
-		info := sample.Reading.ESIM
-		if info == nil || info.EID != request.EID || info.Issue != "" {
-			return moduleJob{}, errors.New("DEVICE_CHANGED")
-		}
+	info := sample.Reading.ESIM
+	if info == nil || info.EID != request.EID || info.Issue != "" {
+		return moduleJob{}, errors.New("DEVICE_CHANGED")
 	}
 	select {
 	case m.operationSlots <- struct{}{}:
 	default:
 		return moduleJob{}, errors.New("DEVICE_BUSY")
 	}
-	j := moduleJob{ID: id, Module: v.ID, Action: request.Action, State: "queued", Stage: "waiting", Verification: &moduleVerification{EID: request.EID, ICCID: request.ICCID, Label: request.Label, IMEI: sample.Reading.IMEI, Network: request.Network}}
+	j := moduleJob{ID: id, Module: v.ID, Action: request.Action, State: "queued", Stage: "waiting", Verification: &moduleVerification{EID: request.EID, ICCID: request.ICCID, Label: request.Label, IMEI: sample.Reading.IMEI}}
 	verification, _ := json.Marshal(j.Verification)
 	_, err = m.db.Exec(ctx, "INSERT INTO module_jobs(id,module_id,action,state,stage,verification) VALUES($1,$2,$3,$4,$5,$6)", j.ID, j.Module, j.Action, j.State, j.Stage, verification)
 	if err != nil {
@@ -208,7 +187,7 @@ func (m *moduleManager) startJob(ctx context.Context, v moduleRecord, request mo
 	go m.runJob(j, request)
 	return j, nil
 }
-func (m *moduleManager) runJob(j moduleJob, r moduleRequest) {
+func (m *moduleManager) runJob(j moduleJob, r hardware.ESIMRequest) {
 	defer m.operations.Done()
 	defer func() { <-m.operationSlots }()
 	ctx, cancel := context.WithTimeout(m.ctx, 15*time.Minute)
@@ -240,11 +219,7 @@ func (m *moduleManager) runJob(j moduleJob, r moduleRequest) {
 		m.saveJob(j)
 		return
 	}
-	if r.Network != nil {
-		m.runNetworkJob(ctx, j, r)
-		return
-	}
-	result := hardware.ESIMCall(ctx, r.ESIMRequest, func(stage string) {
+	result := hardware.ESIMCall(ctx, r, func(stage string) {
 		switch stage {
 		case "writing", "authenticating", "downloading", "installing", "verifying", "notifying":
 			j.Stage = stage
@@ -319,20 +294,17 @@ func (s *server) moduleControl(ctx context.Context, w http.ResponseWriter, r *ht
 	case len(parts) == 3 && parts[1] == "lines" && r.Method == http.MethodDelete:
 		action = "delete"
 	default:
-		fail(w, 503, "NOT_CONNECTED")
+		fail(w, 404, "NOT_FOUND")
 		return
 	}
 	var input struct {
-		NetworkAutomatic *bool   `json:"networkAutomatic,omitempty"`
-		Operator         string  `json:"operator,omitempty"`
-		AccessTechnology *int    `json:"accessTechnology,omitempty"`
-		RequestID        string  `json:"requestId"`
-		EID              string  `json:"eid"`
-		Label            *string `json:"label,omitempty"`
-		Enabled          *bool   `json:"enabled,omitempty"`
-		Activation       string  `json:"activation,omitempty"`
-		Confirmation     string  `json:"confirmation,omitempty"`
-		IMEI             string  `json:"imei,omitempty"`
+		RequestID    string  `json:"requestId"`
+		EID          string  `json:"eid"`
+		Label        *string `json:"label,omitempty"`
+		Enabled      *bool   `json:"enabled,omitempty"`
+		Activation   string  `json:"activation,omitempty"`
+		Confirmation string  `json:"confirmation,omitempty"`
+		IMEI         string  `json:"imei,omitempty"`
 	}
 	if !decodeBody(w, r, &input) {
 		return
@@ -342,18 +314,6 @@ func (s *server) moduleControl(ctx context.Context, w http.ResponseWriter, r *ht
 		return
 	}
 	reading, _, _ := s.modules.state(v)
-	if input.NetworkAutomatic != nil {
-		if action != "line" || input.Enabled != nil || input.Label != nil || input.Activation != "" || input.Confirmation != "" {
-			fail(w, 400, "INVALID_NETWORK_REQUEST")
-			return
-		}
-		s.networkControl(ctx, w, r, v, parts[2], input.RequestID, &hardware.NetworkRequest{IMEI: reading.IMEI, ICCID: reading.ICCID, Automatic: *input.NetworkAutomatic, PLMN: input.Operator, Technology: input.AccessTechnology})
-		return
-	}
-	if input.Operator != "" || input.AccessTechnology != nil {
-		fail(w, 400, "INVALID_NETWORK_REQUEST")
-		return
-	}
 	request := hardware.ESIMRequest{Action: action, EID: input.EID, Activation: strings.TrimSpace(input.Activation), Confirmation: input.Confirmation, IMEI: reading.IMEI}
 	if request.IMEI == "" {
 		request.IMEI = input.IMEI
@@ -386,7 +346,7 @@ func (s *server) moduleControl(ctx context.Context, w http.ResponseWriter, r *ht
 		fail(w, 400, "INVALID_ESIM_REQUEST")
 		return
 	}
-	j, err := s.modules.startJob(ctx, v, moduleRequest{ESIMRequest: request}, input.RequestID)
+	j, err := s.modules.startJob(ctx, v, request, input.RequestID)
 	if err != nil {
 		status := 409
 		if err.Error() == "DATABASE_UNAVAILABLE" || err.Error() == "ESIM_UNAVAILABLE" {

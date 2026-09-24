@@ -82,6 +82,14 @@ test("public mount prefixes API and event stream while LAN keeps root", async ()
   }
 });
 
+test("module API omits retired search and selection endpoints", () => {
+  const { api } = setup();
+  assert.equal(api.modules.networks, undefined);
+  assert.equal(api.modules.scanNetworks, undefined);
+  assert.equal(typeof api.modules.updateLine, "function");
+  assert.equal(typeof api.modules.installESIM, "function");
+});
+
 test("static mode never sends requests or opens event streams", async () => {
   const f = setup("off");
   assert.equal(f.api.enabled(), false);

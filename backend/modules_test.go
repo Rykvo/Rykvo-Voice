@@ -171,6 +171,21 @@ func testModuleDatabase(t *testing.T, s *server, cookie, csrf string) {
 	if strings.Contains(string(serialized), job.Verification.EID) {
 		t.Fatal("verification exposed in job API")
 	}
+	if _, err := s.db.Exec(ctx, "INSERT INTO module_jobs(id,module_id,action,state) VALUES('retired-network-test',$1,'network-select','uncertain')", job.Module); err != nil {
+		t.Fatal(err)
+	}
+	m = newModuleManager(s.db, nil)
+	m.loadJobs(ctx)
+	if m.job(job.Module).ID != "" {
+		t.Fatal("retired network task restored into the UI")
+	}
+	var history int
+	if err := s.db.QueryRow(ctx, "SELECT count(*) FROM module_jobs WHERE id='retired-network-test'").Scan(&history); err != nil || history != 1 {
+		t.Fatal("retired task history lost")
+	}
+	if _, err := s.db.Exec(ctx, "DELETE FROM module_jobs WHERE id='retired-network-test'"); err != nil {
+		t.Fatal(err)
+	}
 	m.loadJobs(ctx)
 	c := hardware.Candidate{Key: "usb:moved", Kind: "usb"}
 	m.seen[c.Key], m.lastScan = c, time.Now()
@@ -181,6 +196,27 @@ func testModuleDatabase(t *testing.T, s *server, cookie, csrf string) {
 	}
 	if _, err := s.db.Exec(ctx, "DELETE FROM module_jobs WHERE id=$1", job.ID); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRetiredNetworkRequestsDoNotReachHardware(t *testing.T) {
+	s := &server{modules: newModuleManager(nil, nil)}
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		r := httptest.NewRequest(method, "/api/modules/module-01/lines/line-test/networks", nil)
+		w := httptest.NewRecorder()
+		s.moduleControl(context.Background(), w, r, moduleRecord{}, []string{"module-01", "lines", "line-test", "networks"})
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("retired route: %d %s", w.Code, w.Body.String())
+		}
+	}
+	for _, body := range []string{`{"requestId":"retired-network-test","networkAutomatic":true}`, `{"requestId":"retired-network-test","operator":"46000","accessTechnology":7}`} {
+		r := httptest.NewRequest(http.MethodPatch, "/api/modules/module-01/lines/line-test", strings.NewReader(body))
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		s.moduleControl(context.Background(), w, r, moduleRecord{}, []string{"module-01", "lines", "line-test"})
+		if w.Code != http.StatusBadRequest {
+			t.Fatalf("retired selection: %d %s", w.Code, w.Body.String())
+		}
 	}
 }
 
@@ -232,31 +268,5 @@ func TestModuleViewReturnsEveryESIMProfile(t *testing.T) {
 				}
 			}
 		})
-	}
-}
-
-func TestModuleNetworkLineAndVerification(t *testing.T) {
-	mode := 0
-	reading := hardware.Reading{Responsive: true, SIM: "READY", IMEI: "123456789012345", ICCID: "89123456789012345678", NetworkMode: &mode}
-	line := "line-" + hardware.Digest(reading.ICCID)[:24]
-	if !currentNetworkLine(reading, line) || currentNetworkLine(reading, "another-line") {
-		t.Fatal("physical line identity")
-	}
-	reading.ESIM = &hardware.ESIMInfo{EID: "89049032001001234500012345678901", Profiles: []hardware.ESIMProfile{{ICCID: reading.ICCID, Enabled: true}, {ICCID: "89123456789012345679", Enabled: false}}}
-	if !currentNetworkLine(reading, hardware.ProfileID(reading.ESIM.EID, reading.ICCID)) || currentNetworkLine(reading, hardware.ProfileID(reading.ESIM.EID, "89123456789012345679")) {
-		t.Fatal("inactive eSIM line")
-	}
-	job := moduleJob{Action: "network-select", State: "uncertain", Verification: &moduleVerification{Network: &hardware.NetworkRequest{IMEI: reading.IMEI, ICCID: reading.ICCID, Automatic: true}}}
-	if !job.confirm(reading) || job.State != "succeeded" {
-		t.Fatal("network confirmation")
-	}
-	job.Action = "network-scan"
-	if job.confirm(reading) {
-		t.Fatal("scan inferred from selection")
-	}
-	job.Action = "network-select"
-	reading.ICCID = "89123456789012345679"
-	if job.confirm(reading) {
-		t.Fatal("replacement card")
 	}
 }

@@ -43,7 +43,7 @@
 - `PATCH /modules/:moduleId`，正文 `{label}` → 更新后的 Module。
 - 旧标签迁移可额外传 `{ifUnmodified:true}`；服务器已有自定义标签时返回 409。
 - `GET /modules/:moduleId/lines` → `{data:SIM[]}`。
-- eSIM 下载、线路启停、卡内昵称和删除沿用预留接口；详情见前端 BACKEND.md。网络选择复用线路接口，见下文。
+- eSIM 下载、线路启停、卡内昵称和删除沿用预留接口；详情见前端 BACKEND.md。
 
 Module 保留 `{id,name,label,number,status,signal,sims}`，增加 `managed`、`labelCustom`、`kind`、`hardware`、`issue` 和 `capabilities`。`status` 仍为 online/offline/error；控制通道可响应不代表驻网成功。`signal` 增加 cellular，真实运营商/制式/信号指标放在 hardware 中。未知 RSSI 等指标为 null。
 
@@ -51,15 +51,9 @@ Module 保留 `{id,name,label,number,status,signal,sims}`，增加 `managed`、`
 
 `capabilities.esimDownload` 表示已确认 eUICC 管理能力，与任务忙闲分开：普通 SIM、离线或未识别卡不显示下载入口；支持卡在任务执行期间保留入口但禁用。最终下载仍取决于卡内空间、激活码和运营商校验。
 
-## 网络选择
+## 网络状态
 
-已有 AT 模式读数且 SIM 就绪时开放当前线路选网；不把 UI 开关当作设备状态。普通 SIM 与当前启用的 eSIM 使用同一流程，未启用配置及纯读卡器不开放选网。
-
-- `GET /modules/:moduleId/lines/:lineId/networks`：读取最近搜索任务。
-- `POST` 同一路径，正文 `{requestId}`：异步搜索。
-- `PATCH /modules/:moduleId/lines/:lineId`：`{requestId,networkAutomatic:true}` 恢复自动选网；手动选择传 `{requestId,networkAutomatic:false,operator,accessTechnology}`。
-
-关闭自动开关先搜索，点击运营商才提交手动选择，不先注销网络。搜索与选网共用原任务表、设备锁、并发限制及前端轮询；AT+COPS 操作最多等待 180 秒，HTTP 立即返回任务。不设置 CFUN、不切换 USB、不修改主机默认路由。执行前后核对 IMEI / ICCID；相同请求不重放，超时只读回确认，不自动重试写入。选网模式确认与运营商驻网状态分别显示。
+模块自行自动搜网与注册，页面只读取运营商、注册状态和信号。手动搜网、选网接口及执行代码已移除；旧选网任务保留数据库记录，不恢复到页面。移除功能不会自动改写设备原有模式。卡片通道读取失败显示实际错误，不持续显示读取中。
 
 数据连接及漫游控制仍待接入，需要管理 APN、数据上下文和漫游许可。
 

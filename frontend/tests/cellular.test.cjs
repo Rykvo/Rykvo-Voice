@@ -79,24 +79,23 @@ test("cellular overview shows one module heading, SIMs and add eSIM entry", () =
   assert.doesNotMatch(html, /<small>SIM<\/small>|<small>eSIM<\/small>/);
   assert.match(cellular.overview({ name: "空模块", sims: [] }), /无 SIM 卡/);
 });
-test("line settings contain the six requested rows and no type row", () => {
+test("line settings omit manual network selection and retain SIM controls", () => {
   const { cellular } = setup();
   const html = cellular.detail(fixture, 0);
   for (const label of [
     "号码标签",
     "启用此号码",
-    "网络选择",
     "本机号码",
     "Wi-Fi 通话",
     "数据漫游",
   ])
     assert.match(html, new RegExp(label));
-  assert.doesNotMatch(html, /类型/);
+  assert.doesNotMatch(html, /类型|网络选择|data-network/);
   assert.equal((html.match(/role="switch"/g) || []).length, 2);
   assert.match(html, /data-cellular-action="wifi"/);
   assert.match(
     cellular.detail(fixture, 1),
-    /data-cellular-action="network" disabled/,
+    /data-cellular-action="wifi" disabled/,
   );
 });
 function clickLine(events, index) {
@@ -158,33 +157,6 @@ test("label editing trims, validates and stays scoped to the selected line", () 
   assert.equal(f.cellular.validLabel("a".repeat(21)), false);
   assert.equal(f.cellular.validLabel("a\nb"), false);
 });
-test("manual network selection shows unavailable service without fabricating carriers", () => {
-  const f = setup(),
-    item = structuredClone(fixture);
-  f.cellular.open(item);
-  clickLine(f.events, 0);
-  f.events.click({
-    target: {
-      closest: (selector) =>
-        selector === "#dialog-content"
-          ? {}
-          : selector === "[data-cellular-action]"
-            ? { dataset: { cellularAction: "network" } }
-            : null,
-    },
-  });
-  assert.equal(f.dialogs.at(-1)[0], "网络选择");
-  assert.match(f.dialogs.at(-1)[1], /运营商服务尚未接入/);
-  f.events.change({
-    target: {
-      dataset: { cellularSetting: "networkAutomatic" },
-      checked: false,
-      closest: () => ({}),
-    },
-  });
-  assert.equal(f.nodes["cellular-network-empty"].hidden, false);
-  assert.equal(item.sims[0].networkAutomatic, false);
-});
 test("SIM state reflects module service and disabled lines; details are scoped", () => {
   const { cellular, events, dialogs } = setup();
   assert.equal(
@@ -239,10 +211,10 @@ test("managed modules hide hardware diagnostics and retain real eSIM controls", 
   const detail = cellular.detail(item, 0);
   assert.match(detail, /号码标签/);
   assert.match(detail, /启用此号码/);
-  for (const label of ["网络选择", "Wi-Fi 通话", "数据漫游", "删除 eSIM"])
+  for (const label of ["Wi-Fi 通话", "数据漫游", "删除 eSIM"])
     assert.ok(detail.includes(label));
-  assert.equal((detail.match(/待接入/g) || []).length, 3);
-  assert.match(detail, /data-cellular-action="network" disabled/);
+  assert.equal((detail.match(/待接入/g) || []).length, 2);
+  assert.doesNotMatch(detail, /网络选择|data-cellular-action="network"/);
   assert.match(detail, /data-cellular-action="wifi" disabled/);
   assert.match(detail, /data-cellular-setting="roaming"[^>]*disabled/);
   assert.match(detail, /data-cellular-delete disabled/);
@@ -257,7 +229,7 @@ test("managed network settings never change device state locally", () => {
   item.sims[0].esim = true;
   f.cellular.open(item);
   clickLine(f.events, 0);
-  for (const key of ["wifiCalling", "roaming", "networkAutomatic"]) {
+  for (const key of ["wifiCalling", "roaming"]) {
     const before = item.sims[0][key];
     const input = { dataset: { cellularSetting: key }, checked: true, closest: () => ({}) };
     f.events.change({ target: input });
@@ -414,45 +386,24 @@ test("add eSIM is visible only for detected download-capable cards", () => {
   assert.match(f.cellular.overview(item), /data-cellular-add disabled/);
 });
 
-test("physical SIM network selection reuses async controls without changing local state", async () => {
-  const f = setup();
-  const item = { managed: true, capabilities: { network: true }, sims: [{ id: "physical", label: "SIM", enabled: true, networkAvailable: true, networkAutomatic: true }] };
-  const calls = [];
-  f.data.control = async (...args) => calls.push(args);
+test("retired network controls do not issue requests", () => {
+  const f = setup(), item = structuredClone(fixture);
+  f.data.control = () => { throw Error("retired network control called"); };
   f.cellular.open(item); clickLine(f.events, 0);
-  f.events.click({ target: { closest: s => s === "#dialog-content" ? {} : s === "[data-cellular-action]" ? { dataset: { cellularAction: "network" } } : null } });
-  assert.equal(f.dialogs.at(-1)[0], "网络选择");
-  assert.doesNotMatch(f.dialogs.at(-1)[1], /尚未接入|待接入/);
   f.events.change({ target: { dataset: { cellularSetting: "networkAutomatic" }, checked: false, closest: () => ({}) } });
-  await new Promise(setImmediate);
-  assert.equal(calls[0][1], "scanNetworks");
-  assert.equal(calls[0][3], "physical");
-  assert.equal(item.sims[0].networkAutomatic, true);
-  item.job = { action: "network-scan", state: "succeeded", networks: [{name: "Test", plmn: "00101", technology: 7, status: 1}] };
-  f.events.click({target:{closest:s => s === "#dialog-content" ? {} : s === "[data-network-index]" ? {dataset:{networkIndex:"0"}} : null}});
-  await new Promise(setImmediate);
-  assert.equal(calls[1][1], "updateLine");
-  assert.equal(calls[1][2].operator, "00101");
-  assert.equal(calls[1][2].networkAutomatic, false);
-  item.job.networks[0].status = 3;
-  f.events.click({target:{closest:s => s === "#dialog-content" ? {} : s === "[data-network-index]" ? {dataset:{networkIndex:"0"}} : null}});
-  assert.equal(calls.length, 2);
+  for (const selector of ["[data-network-scan]", "[data-network-index]"]) {
+    f.events.click({ target: { closest: s => s === "#dialog-content" ? {} : s === selector ? { dataset: { networkIndex: "0" } } : null } });
+  }
+  assert.equal(item.sims[0].networkAutomatic, undefined);
+  assert.doesNotMatch(f.dialogs.at(-1)[1], /网络选择|搜索网络|data-network/);
 });
 
-test("search navigation stays open while busy and restores results without another scan", () => {
-  const f = setup();
-  const item = { managed: true, capabilities: { network: false }, sims: [{ id: "physical", label: "SIM", enabled: true, networkAvailable: true, networkAutomatic: true }], job: { id: "network-running", action: "network-scan", state: "running", stage: "scanning" } };
-  f.data.control = () => { throw Error("Navigation must not search again"); };
-  const enter = () => f.events.click({target:{closest:s => s === "#dialog-content" ? {} : s === "[data-cellular-action]" ? {dataset:{cellularAction:"network"}} : null}});
-  f.cellular.open(item); clickLine(f.events, 0);
-  assert.doesNotMatch(f.cellular.detail(item, 0), /data-cellular-action="network" disabled/);
-  enter();
-  assert.equal(f.dialogs.at(-1)[0], "网络选择");
-  assert.match(f.dialogs.at(-1)[1], /正在搜索网络/);
-  assert.match(f.dialogs.at(-1)[1], /data-network-scan disabled/);
-  item.job = {...item.job, state: "succeeded", networks: [{name:"Test Mobile",plmn:"00101",status:2,technology:7}]};
-  item.capabilities.network = true;
-  f.cellular.open(item); clickLine(f.events, 0); enter();
-  assert.match(f.dialogs.at(-1)[1], /Test Mobile/);
-  assert.doesNotMatch(f.dialogs.at(-1)[1], /正在搜索网络|data-network-scan disabled/);
+test("card transport errors replace the pending inventory message", () => {
+  const { cellular } = setup();
+  const item = { managed: true, name: "模块 04", sims: [], cardReading: true, hardware: { esim: { issue: "READ_TIMEOUT" } } };
+  const html = cellular.overview(item);
+  assert.match(html, /设备读取超时/);
+  assert.doesNotMatch(html, /正在读取卡片|无 SIM 卡|添加 eSIM|<progress/);
+  item.hardware.esim.issue = "DEVICE_BUSY";
+  assert.match(cellular.overview(item), /设备正在被占用/);
 });

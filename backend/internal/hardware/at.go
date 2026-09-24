@@ -264,3 +264,26 @@ func openATSession(ctx context.Context, c Candidate, expectedIMEI string) (*atSe
 	}
 	return nil, last
 }
+
+func readOperator(lines []string, r *Reading) {
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "+COPS:") {
+			continue
+		}
+		v := fields(line)
+		if len(v) > 0 {
+			r.NetworkMode = integer(v[0])
+		}
+		if len(v) > 2 {
+			if v[1] == "2" {
+				r.PLMN = v[2]
+			} else {
+				r.Operator = v[2]
+			}
+		}
+		if len(v) > 3 {
+			r.AccessTechnology = integer(v[3])
+			r.Technology = map[string]string{"0": "GSM", "2": "UMTS", "7": "LTE", "9": "NB-IoT", "11": "5G", "12": "5G"}[v[3]]
+		}
+	}
+}
