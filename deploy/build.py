@@ -15,6 +15,24 @@ from release import download, publish
 ROOT = Path(__file__).resolve().parent.parent
 
 
+def licenses(go, destination, cloudflared_version):
+    destination.mkdir()
+    goroot = subprocess.check_output([go, "env", "GOROOT"], text=True).strip()
+    shutil.copyfile(Path(goroot) / "LICENSE", destination / "Go.txt")
+    modules = subprocess.check_output([go, "list", "-m", "-json", "all"], cwd=ROOT / "backend", text=True)
+    decoder = json.JSONDecoder()
+    while modules.strip():
+        module, offset = decoder.raw_decode(modules.lstrip())
+        modules = modules.lstrip()[offset:]
+        if module.get("Main") or not module.get("Dir"):
+            continue
+        for name in ("LICENSE", "LICENSE.txt", "COPYING", "NOTICE"):
+            path = Path(module["Dir"]) / name
+            if path.is_file():
+                shutil.copyfile(path, destination / (module["Path"].replace("/", "_") + "_" + name + ".txt"))
+    download(f"https://raw.githubusercontent.com/cloudflare/cloudflared/{cloudflared_version}/LICENSE", destination / "cloudflared.txt")
+
+
 def build(go, output):
     version = (ROOT / "VERSION").read_text().strip()
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
@@ -39,6 +57,7 @@ def build(go, output):
             download(f"https://github.com/cloudflare/cloudflared/releases/download/{runtime['version']}/cloudflared-linux-{arch}", bundle / "bin/cloudflared", runtime[arch])
             for path in ("bin/rykvo-auth", "bin/cloudflared"):
                 (bundle / path).chmod(0o755)
+            licenses(go, bundle / "licenses", runtime["version"])
             web = publish(ROOT / "frontend", bundle / "web")
             (bundle / "manifest.json").write_text(json.dumps(web, indent=2))
             for path in ("install.sh", "VERSION", "deploy/nginx.conf", "deploy/rykvo-auth.service", "deploy/release.py"):

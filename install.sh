@@ -131,6 +131,7 @@ stage_release() {
     mkdir -p "$CANDIDATE"
     printf 'rykvo-release\n' > "$CANDIDATE/.managed"
     cp -a "$SOURCE/web" "$CANDIDATE/web"
+    cp -a "$SOURCE/licenses" "$CANDIDATE/licenses"
     install -m 755 "$SOURCE/bin/rykvo-auth" "$CANDIDATE/rykvo-auth"
     install -m 755 "$SOURCE/bin/cloudflared" "$CANDIDATE/cloudflared"
     cp "$SOURCE/VERSION" "$SOURCE/manifest.json" "$CANDIDATE/"
