@@ -1,46 +1,37 @@
 # Rykvo Voice
 
-原生静态前端 + Go API + PostgreSQL。支持本机 IP 根地址和域名 `/gly`，Cloudflare Tunnel 在页面内配置。
+私有仓库。支持 Ubuntu 24.04 / 26.04、Debian 13，amd64 / arm64。
 
-## 私有仓库部署
+## 一键部署
 
-目前只使用本私有仓库：完整源码、部署工具和私有 Releases 编译包均需要仓库读取权限。未创建公开仓库。以后需要给别人免仓库权限安装时，再单独安排发布渠道；源码仓库仍保持私有。
-
-SSH 登录服务器，在 SSH 终端登录 GitHub，然后安装：
+SSH 登录服务器后执行，按提示登录有本仓库权限的 GitHub 账号：
 
 ```bash
-sudo apt-get update && sudo apt-get install -y gh git
-# 选择 GitHub.com / HTTPS，并完成终端提示的登录授权
-gh auth login
-gh repo clone Rykvo/Rykvo-Voice
-cd Rykvo-Voice
-sudo bash install.sh
+sudo apt-get update && sudo apt-get install -y gh git && gh auth login && gh repo clone Rykvo/Rykvo-Voice && sudo bash Rykvo-Voice/install.sh install
 ```
 
-菜单：**安装 / 更新 / 卸载 / 状态**。安装脚本读取当前用户的 GitHub CLI 登录凭据（支持 sudo 原用户），下载私有编译包，不额外保存令牌。没有 CLI 登录时，会提示隐藏输入仅具本仓库 Contents: Read 权限的令牌。
+自动安装运行环境，首次设置管理员密码和独立密码。已有安装使用下面的更新命令。
 
-已有编译包也可解压后直接运行 `sudo bash install.sh`，无需再次访问仓库。
-
-Windows 本机也可运行 `deploy.ps1` 或双击 `Deploy.cmd`。需要 OpenSSH 和已登录的 GitHub CLI；脚本下载私有编译包、校验后通过 SSH 上传，不把 GitHub 令牌传到服务器。支持 `-User`、`-Port`，默认 root/22，不保存 SSH 密码，不关闭主机指纹校验。
-
-```powershell
-.\deploy.ps1 -Server HOST -Action install
-.\deploy.ps1 -Server HOST -Action update
-.\deploy.ps1 -Server HOST -Action uninstall
-```
-
-安装后：
+## 一键更新
 
 ```bash
-sudo rykvo
 sudo rykvo update
-sudo rykvo uninstall
-sudo rykvo status
 ```
 
-更新使用已有 GitHub CLI 登录或临时只读令牌；已有账号、数据库和配置不重置。SSH 密钥可减少本机工具的重复认证。
+更新前自动备份，保留账号、数据库和配置；健康检查失败回退程序。
 
-支持 **Ubuntu 24.04 / 26.04、Debian 13，amd64 / arm64，systemd**。建议独立服务器，至少 2 GB 内存、4 GB 空闲磁盘。80 和 8080 不应被其他业务占用。
+## 一键卸载
+
+```bash
+sudo rykvo uninstall
+```
+
+确认后卸载程序，保留数据库、配置与备份。
+
+局域网：`http://服务器IP/` · 域名：`https://域名/gly`
+
+<details>
+<summary>环境、备份与维护说明</summary>
 
 ## 自动完成
 
@@ -110,3 +101,5 @@ cd backend && go test ./... && go vet ./...
 数据库集成测试需全新名称以 `_test` 结尾的数据库，设置 `TEST_DATABASE_URL`；不要指向生产数据库。CI 同时运行前端、Go、部署工具和数据库测试。
 
 依赖来源：[Go](https://go.dev/dl/)、[cloudflared](https://github.com/cloudflare/cloudflared/releases)、[PostgreSQL](https://www.postgresql.org/download/linux/ubuntu/)。素材说明见 `frontend/THIRD_PARTY_LICENSE.txt` 和前端文档。
+
+</details>
