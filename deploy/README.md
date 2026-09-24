@@ -48,7 +48,7 @@ gh release create v1.0.1 dist/rykvo-voice-linux-amd64.tar.gz dist/rykvo-voice-li
 | `deploy/` | 服务配置、运行时版本、校验和与发布工具 |
 | `tests/` | 部署工具测试 |
 
-已接通：登录、管理员改密、独立密码、功能显示和 Cloudflare Tunnel。新增模块自动发现、状态读取、唯一标签及 eSIM 配置管理代码，待实机联调。**网络选择、Wi-Fi 通话、数据漫游、短信、SIP、任务队列和图片存储仍待实现**；不安装空转的 RabbitMQ / S3 服务，也不把环境安装当作业务已完成。
+已接通：登录、管理员改密、独立密码、功能显示和 Cloudflare Tunnel。新增模块自动发现、状态读取、唯一标签及 eSIM 配置管理代码，待实机联调。网络搜索及自动、手动选网已接入，EC20 实机搜索通过，实际切换待验证。**Wi-Fi 通话、数据连接及漫游控制、短信、SIP、任务队列和图片存储仍待实现**；不安装空转的 RabbitMQ / S3 服务，也不把环境安装当作业务已完成。
 
 - [后端协议](frontend/BACKEND.md)
 - [云连接协议](frontend/TUNNEL.md)
