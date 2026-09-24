@@ -13,6 +13,7 @@ QUERIES = frozenset((
     "--dms-get-ids", "--dms-get-model", "--dms-get-revision",
     "--dms-uim-get-iccid", "--nas-get-serving-system",
     "--nas-get-signal-info", "--dms-get-msisdn",
+    "--uim-get-slot-status", "--uim-get-card-status",
 ))
 
 

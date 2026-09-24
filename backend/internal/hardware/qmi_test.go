@@ -11,6 +11,25 @@ import (
 	"time"
 )
 
+func TestQMIActiveSlotAndSIMState(t *testing.T) {
+	slots := "Physical slot 1:\nCard status: present\nSlot status: inactive\nICCID: 89123456789012345670\nPhysical slot 2:\nCard status: present\nSlot status: active\nLogical slot: 1\nICCID: 89123456789012345678\n"
+	if got := qmiSlotICCID(slots); got != "89123456789012345678" {
+		t.Fatal(got)
+	}
+	if got := qmiSlotICCID(strings.ReplaceAll(slots, "active", "inactive")); got != "" {
+		t.Fatal(got)
+	}
+	for state, want := range map[string]string{"ready": "READY", "pin1-or-upin-pin-required": "SIM PIN", "puk1-or-upin-puk-required": "SIM PUK", "detected": "unknown"} {
+		text := "Slot [1]:\nCard state: 'present'\nApplication state: '" + state + "'\nSlot [2]:\nApplication state: 'ready'\n"
+		if got := qmiSIMState(text); got != want {
+			t.Fatalf("%s: %s", state, got)
+		}
+	}
+	if got := qmiSIMState("Slot [1]:\nCard state: 'absent'\n"); got != "absent" {
+		t.Fatal(got)
+	}
+}
+
 func TestQMIPrivateQuery(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Unix socket")

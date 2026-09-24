@@ -96,9 +96,10 @@ func readQMI(ctx context.Context, c Candidate) Reading {
 	}
 	r.Firmware = qmiValue(query("--dms-get-revision"), "Revision")
 	r.ICCID = qmiValue(query("--dms-uim-get-iccid"), "ICCID")
-	if r.ICCID != "" {
-		r.SIM = "READY"
+	if r.ICCID == "" {
+		r.ICCID = qmiSlotICCID(query("--uim-get-slot-status"))
 	}
+	r.SIM = qmiSIMState(query("--uim-get-card-status"))
 	status := query("--nas-get-serving-system")
 	r.Registration = qmiValue(status, "Registration state")
 	if r.Registration == "registration-denied" {
@@ -128,6 +129,38 @@ func readQMI(ctx context.Context, c Candidate) Reading {
 	}
 	return r
 }
+
+func qmiSlotICCID(text string) string {
+	for _, slot := range strings.Split(text, "Physical slot ") {
+		if qmiValue(slot, "Slot status") == "active" && qmiValue(slot, "Logical slot") == "1" && qmiValue(slot, "Card status") == "present" {
+			if v := qmiValue(slot, "ICCID"); decimal(v, 18, 22) {
+				return v
+			}
+		}
+	}
+	return ""
+}
+
+func qmiSIMState(text string) string {
+	for _, slot := range strings.Split(text, "Slot [") {
+		if !strings.HasPrefix(slot, "1]:") {
+			continue
+		}
+		if qmiValue(slot, "Card state") == "absent" {
+			return "absent"
+		}
+		switch qmiValue(slot, "Application state") {
+		case "ready":
+			return "READY"
+		case "pin1-or-upin-pin-required":
+			return "SIM PIN"
+		case "puk1-or-upin-puk-required":
+			return "SIM PUK"
+		}
+	}
+	return "unknown"
+}
+
 func qmiValue(text, key string) string {
 	for _, line := range strings.Split(text, "\n") {
 		k, v, ok := strings.Cut(strings.TrimSpace(line), ":")
