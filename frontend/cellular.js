@@ -5,7 +5,8 @@ const Cellular = (() => {
   const dismissedJobs = new Set();
   const editable = (item) => !item.managed || (item.capabilities?.esim && !submitting);
   const downloadable = (item) => !item.managed || item.capabilities?.esimDownload === true;
-  const networkEditable = (item, sim = active()) => item.capabilities?.network && sim?.enabled && sim.networkAvailable && !submitting;
+  const networkReadable = sim => sim?.enabled && sim.networkAvailable;
+  const networkEditable = (item, sim = active()) => item.capabilities?.network && networkReadable(sim) && !submitting;
   function active() {
     if (activeID) activeLine = module?.sims?.findIndex((sim) => sim.id === activeID) ?? -1;
     return module?.sims?.[activeLine];
@@ -124,7 +125,7 @@ const Cellular = (() => {
         ${switchRow("enabled", "启用此号码", sim.enabled, disabled || (realESIM && sim.enabled && !sim.canDisable))}
       </div>
       <div class="cellular-group cellular-settings">
-        ${valueRow("网络选择", item.managed && !sim.networkAvailable ? "待接入" : sim.networkAutomatic ? "自动" : "手动", "network", item.managed ? !networkEditable(item, sim) : networkDisabled)}
+        ${valueRow("网络选择", item.managed && !sim.networkAvailable ? "待接入" : sim.networkAutomatic ? "自动" : "手动", "network", item.managed ? !networkReadable(sim) : networkDisabled)}
         ${valueRow(identity.label, identity.value)}
         ${valueRow("Wi-Fi 通话", pending || (sim.wifiCalling ? "开启" : "关闭"), "wifi", networkDisabled)}
         ${switchRow("roaming", "数据漫游", sim.roaming, networkDisabled, pending)}
@@ -177,7 +178,7 @@ const Cellular = (() => {
       active();
       const sim = lines(module)[activeLine];
       if (module.managed && action.dataset.cellularAction === "network") {
-        if (networkEditable(module, sim)) { manualNetwork = false; showNetwork(); }
+        if (networkReadable(sim)) { manualNetwork = module.job?.action === "network-scan"; showNetwork(); }
         return;
       }
       if (module.managed && (!editable(module) || !sim?.esim || action.dataset.cellularAction !== "label")) return;

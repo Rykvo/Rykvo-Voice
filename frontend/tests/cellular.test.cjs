@@ -438,3 +438,21 @@ test("physical SIM network selection reuses async controls without changing loca
   f.events.click({target:{closest:s => s === "#dialog-content" ? {} : s === "[data-network-index]" ? {dataset:{networkIndex:"0"}} : null}});
   assert.equal(calls.length, 2);
 });
+
+test("search navigation stays open while busy and restores results without another scan", () => {
+  const f = setup();
+  const item = { managed: true, capabilities: { network: false }, sims: [{ id: "physical", label: "SIM", enabled: true, networkAvailable: true, networkAutomatic: true }], job: { id: "network-running", action: "network-scan", state: "running", stage: "scanning" } };
+  f.data.control = () => { throw Error("Navigation must not search again"); };
+  const enter = () => f.events.click({target:{closest:s => s === "#dialog-content" ? {} : s === "[data-cellular-action]" ? {dataset:{cellularAction:"network"}} : null}});
+  f.cellular.open(item); clickLine(f.events, 0);
+  assert.doesNotMatch(f.cellular.detail(item, 0), /data-cellular-action="network" disabled/);
+  enter();
+  assert.equal(f.dialogs.at(-1)[0], "网络选择");
+  assert.match(f.dialogs.at(-1)[1], /正在搜索网络/);
+  assert.match(f.dialogs.at(-1)[1], /data-network-scan disabled/);
+  item.job = {...item.job, state: "succeeded", networks: [{name:"Test Mobile",plmn:"00101",status:2,technology:7}]};
+  item.capabilities.network = true;
+  f.cellular.open(item); clickLine(f.events, 0); enter();
+  assert.match(f.dialogs.at(-1)[1], /Test Mobile/);
+  assert.doesNotMatch(f.dialogs.at(-1)[1], /正在搜索网络|data-network-scan disabled/);
+});
