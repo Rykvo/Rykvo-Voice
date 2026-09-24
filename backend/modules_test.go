@@ -33,6 +33,10 @@ func TestModuleStateAndStaleSIM(t *testing.T) {
 	if s.moduleView(v)["status"] != "online" {
 		t.Fatal("not online")
 	}
+	line := s.moduleView(v)["sims"].([]any)[0].(map[string]any)
+	if line["iccid"] != "89123456789012345678" || line["number"] != "12345" {
+		t.Fatal("physical SIM identity missing or used as number")
+	}
 	delete(m.seen, c.Key)
 	view := s.moduleView(v)
 	if view["status"] != "offline" || view["number"] != "" || len(view["sims"].([]any)) != 0 {
@@ -124,6 +128,9 @@ func TestModuleViewReturnsEveryESIMProfile(t *testing.T) {
 					t.Fatal("duplicate profile identity")
 				}
 				ids[id] = true
+				if sim["iccid"] != info.Profiles[i].ICCID {
+					t.Fatal("profile ICCID missing")
+				}
 				if sim["esim"] != true || sim["enabled"] != (i == 0) {
 					t.Fatal("profile state lost")
 				}

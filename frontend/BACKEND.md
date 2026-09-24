@@ -228,3 +228,7 @@ Go 使用 `WEB_ROOT` 指定发布目录。`/` 按有效 Cookie 返回登录页�
 写请求返回 202 和任务 `{id,action,state,stage,issue,warning}`，不是操作成功。沿用模块列表单一轮询读取 `Module.job`。同一 requestId 不重复写卡；重启后的未完成任务标记 uncertain，不自动重放。激活码和确认码不存数据库、浏览器存储或日志。
 
 `hardware.esim` 含 EID、配置、待发送通知数；识别成功才启用 `capabilities.esim`。配置的 `id` 由 EID + ICCID 生成，`canDisable/canDelete` 反映卡片策略。普通 SIM 不开放 eSIM 控制，短信/通话/射频设置仍未接入。UI 只在任务完成且重新读卡核实后显示真实状态。
+
+普通 SIM 和每个 eSIM 配置分别返回 `iccid` 与 `number`。号码未知时保持 `number` 为空，页面改显示带 ICCID 标识的卡号；ICCID 不进入拨号、短信号码格式化或号码字段。未启用配置照常列出，不借用当前启用配置的号码。模块列表可按 ICCID 搜索。
+
+当前号码来源为模块 `AT+CNUM`。VoCat 参考项目另有 Own Numbers、EF_MSISDN 读取，以及 IMS 注册后由运营商返回关联号码的链路（[读取流程](https://github.com/MengMengCode/VoCat/blob/484cd236dd543e2ba142cf1da2c5808ee8e89a6e/internal/device/phone.go)、[IMS 关联号码](https://github.com/MengMengCode/VoCat/blob/484cd236dd543e2ba142cf1da2c5808ee8e89a6e/internal/vowifi/phone.go)）。这些链路尚未接入本项目；缺少本机号码不等于蜂窝注册失败，也不证明必须启用 Wi-Fi 通话。

@@ -281,7 +281,7 @@ func (s *server) moduleView(v moduleRecord) map[string]any {
 			sims = append(sims, map[string]any{"id": hardware.ProfileID(reading.ESIM.EID, p.ICCID), "iccid": p.ICCID, "label": p.Label, "number": number, "enabled": p.Enabled, "esim": true, "readOnly": false, "canDisable": p.CanDisable, "canDelete": p.CanDelete, "provider": p.Provider})
 		}
 	} else if present && reading.ICCID != "" {
-		sims = append(sims, map[string]any{"id": "line-" + hardware.Digest(reading.ICCID)[:24], "label": "SIM", "number": reading.Number, "enabled": reading.SIM == "READY", "readOnly": true})
+		sims = append(sims, map[string]any{"id": "line-" + hardware.Digest(reading.ICCID)[:24], "iccid": reading.ICCID, "label": "SIM", "number": reading.Number, "enabled": reading.SIM == "READY", "readOnly": true})
 	}
 	signal := "none"
 	if reading.Registration == "home" || reading.Registration == "roaming" || reading.Registration == "registered" {

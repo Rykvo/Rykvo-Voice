@@ -229,7 +229,7 @@ test("activation validation and submission never claim installation", () => {
 test("managed modules hide hardware diagnostics and retain real eSIM controls", () => {
   const { cellular } = setup();
   const item = { ...structuredClone(fixture), managed: true, capabilities: { esim: true }, hardware: { model: "EC20", imei: "123456789012345", esim: { eid: "89049032001001234500012345678901" } } };
-  item.sims[0] = { ...item.sims[0], id: "line-active", esim: true, iccid: "89123456789012345678", canDisable: true, canDelete: true };
+  item.sims[0] = { ...item.sims[0], number: item.number, id: "line-active", esim: true, iccid: "89123456789012345678", canDisable: true, canDelete: true };
   for (const html of [cellular.overview(item), cellular.detail(item, 0)]) {
     assert.doesNotMatch(html, /设备信息|IMEI|ICCID|EID|EC20|123456789012345|89123456789012345678/);
   }
@@ -331,4 +331,35 @@ test("status reporting retry appears only for pending card notifications", () =>
   assert.match(cellular.overview(item), /重试状态上报/);
   item.hardware.esim.pending = 0;
   assert.doesNotMatch(cellular.overview(item), /data-cellular-notify/);
+});
+
+test("every inactive eSIM profile displays its own ICCID until a number is known", () => {
+  const { cellular } = setup();
+  const item = { managed: true, name: "模块 02", number: "+12025550101", status: "online",
+    sims: Array.from({ length: 37 }, (_, i) => ({ id: `profile-${i}`, label: `卡 ${i + 1}`, esim: true,
+      iccid: `8901000000000000${String(i).padStart(4, "0")}`, number: i === 0 ? "+12025550101" : "", enabled: i === 0 })) };
+  const html = cellular.overview(item);
+  assert.equal((html.match(/data-cellular-sim=/g) || []).length, 37);
+  assert.equal((html.match(/ICCID /g) || []).length, 36);
+  for (let i = 1; i < item.sims.length; i++) {
+    assert.ok(html.includes(item.sims[i].iccid));
+    const detail = cellular.detail(item, i);
+    assert.match(detail, /<span>ICCID<\/span>/);
+    assert.ok(detail.includes(item.sims[i].iccid));
+    assert.doesNotMatch(detail, /12025550101/);
+  }
+  item.sims[1].number = "+447700900123";
+  const detail = cellular.detail(item, 1);
+  assert.match(detail, /本机号码|447700900123/);
+  assert.ok(!detail.includes(item.sims[1].iccid));
+});
+
+test("physical SIM without a number uses ICCID without changing its number field", () => {
+  const { cellular } = setup();
+  const sim = { id: "physical", label: "SIM", enabled: true, number: "", iccid: "89440000000000000001", readOnly: true };
+  const item = { managed: true, name: "模块 03", status: "online", sims: [sim] };
+  assert.match(cellular.overview(item), /ICCID 89440000000000000001/);
+  assert.match(cellular.detail(item, 0), /<span>ICCID<\/span>/);
+  assert.equal(sim.number, "");
+  assert.doesNotMatch(cellular.detail(item, 0), /data-cellular-delete|IMEI|EID/);
 });

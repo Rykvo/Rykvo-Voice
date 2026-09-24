@@ -118,6 +118,8 @@ main[data-page="modules"] .page-enter,
 }
 .module-number {
   font-variant-numeric: tabular-nums;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .module-signal {
   font-size: 13px;

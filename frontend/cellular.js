@@ -69,7 +69,7 @@ const Cellular = (() => {
       <div class="cellular-group">${cards.length ? cards.map((sim, index) => `
         <button type="button" class="cellular-sim" data-cellular-sim="${index}">
           <span class="cellular-sim-icon">${simIcon}</span>
-          <span class="cellular-sim-copy"><strong>${UI.escape(sim.label)}</strong>${sim.number ? `<small>${UI.escape(Countries.format(sim.number))}</small>` : ""}</span>
+          <span class="cellular-sim-copy"><strong>${UI.escape(sim.label)}</strong>${sim.number || sim.iccid ? `<small>${UI.escape(ModuleData.identity(sim.number, sim.iccid).caption)}</small>` : ""}</span>
           <span class="cellular-sim-meta">${UI.escape(sim.state)}</span>
           <span class="chevron" aria-hidden="true">›</span>
         </button>`).join("") : '<p class="cellular-empty">无 SIM 卡</p>'}</div>
@@ -99,6 +99,7 @@ const Cellular = (() => {
   function detail(item, index) {
     const sim = lines(item)[index];
     if (!sim) return "";
+    const identity = ModuleData.identity(sim.number, sim.iccid);
     const realESIM = item.managed && sim.esim;
     const disabled = item.managed && (!realESIM || !editable(item));
     const networkDisabled = item.managed || !sim.enabled;
@@ -113,7 +114,7 @@ const Cellular = (() => {
       </div>
       <div class="cellular-group cellular-settings">
         ${valueRow("网络选择", pending || (sim.networkAutomatic ? "自动" : "手动"), "network", networkDisabled)}
-        ${valueRow("本机号码", sim.number ? Countries.format(sim.number) : "—")}
+        ${valueRow(identity.label, identity.value)}
         ${valueRow("Wi-Fi 通话", pending || (sim.wifiCalling ? "开启" : "关闭"), "wifi", networkDisabled)}
         ${switchRow("roaming", "数据漫游", sim.roaming, networkDisabled, pending)}
       </div>${remove}${jobNote(item)}</section>`;

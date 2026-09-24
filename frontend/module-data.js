@@ -1,4 +1,10 @@
 const ModuleData = (() => {
+  function identity(number, iccid) {
+    const phone = String(number || "").trim(), card = String(iccid || "").trim();
+    const label = phone || !card ? "本机号码" : "ICCID";
+    const value = phone ? Countries.format(phone) : card || "—";
+    return { label, value, caption: label === "ICCID" ? `ICCID ${value}` : value };
+  }
   function validLabel(value) {
     const label = value.trim();
     return (
@@ -129,7 +135,7 @@ const ModuleData = (() => {
     }
   }
   return {
-    items, labels, labelKey, validLabel, duplicate, connected, merge, start, saveLabel, control, issueText,
+    items, labels, labelKey, validLabel, identity, duplicate, connected, merge, start, saveLabel, control, issueText,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     get issue() { return issue; },
     get loaded() { return loaded; },

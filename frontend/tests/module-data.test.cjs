@@ -34,3 +34,21 @@ test("empty pickers retain random but never resolve a fabricated outgoing module
   assert.equal(Lines.valid("module-01"), false);
   assert.equal(Lines.recorded("module-01"), true);
 });
+
+test("ICCID is a display fallback and search key, never a dialable phone number", () => {
+  const { ModuleData, Modules, Lines } = setup();
+  const card = "89440000000000000001";
+  const item = { id: "module-03", name: "模块 03", label: "英国", managed: true, number: "", status: "online",
+    hardware: { iccid: card }, sims: [{ number: "", iccid: card, enabled: true }, { iccid: "89010000000000000002", enabled: false }] };
+  ModuleData.merge([item]);
+  assert.match(Modules.render(), /ICCID 89440000000000000001/);
+  assert.equal(Modules.select([item], "all", "000000000001").length, 1);
+  assert.equal(Modules.select([item], "all", "89010000000000000002").length, 1);
+  assert.equal(Lines.options()[1].number, "");
+  assert.equal(item.number, "");
+  item.number = "+447700900123";
+  assert.match(Modules.render(), /447700900123/);
+  assert.doesNotMatch(Modules.render(), /ICCID 8944/);
+  assert.equal(ModuleData.identity("", "").value, "—");
+  assert.equal(ModuleData.identity("  ", card).label, "ICCID");
+});

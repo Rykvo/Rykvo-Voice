@@ -42,7 +42,8 @@ const Modules = (() => {
         }
         const numbers = [
           item.number,
-          ...(item.sims || []).map((sim) => sim.number),
+          item.hardware?.iccid,
+          ...(item.sims || []).flatMap((sim) => [sim.number, sim.iccid]),
         ].filter(Boolean);
         return (
           item.name.toLowerCase().includes(text) ||
@@ -77,7 +78,7 @@ const Modules = (() => {
       ? records
           .map(
             (item) =>
-              `<tr data-module-row="${UI.escape(item.id)}"><th scope="row">${UI.escape(item.label || item.name)}</th><td class="module-number">${UI.escape(Countries.format(item.number) || "—")}</td><td>${badge(item.status)}</td><td class="module-signal">${UI.escape(signalLabel(item.signal, item))}</td><td><button type="button" class="text-button module-detail" data-module-detail="${UI.escape(item.id)}" aria-label="查看${UI.escape(item.name)}详情">详情</button></td></tr>`,
+              `<tr data-module-row="${UI.escape(item.id)}"><th scope="row">${UI.escape(item.label || item.name)}</th><td class="module-number">${UI.escape(ModuleData.identity(item.number, item.hardware?.iccid).caption)}</td><td>${badge(item.status)}</td><td class="module-signal">${UI.escape(signalLabel(item.signal, item))}</td><td><button type="button" class="text-button module-detail" data-module-detail="${UI.escape(item.id)}" aria-label="查看${UI.escape(item.name)}详情">详情</button></td></tr>`,
           )
           .join("")
       : `<tr><td colspan="5" class="data-empty">${ModuleData.issue ? "读取异常，正在重试" : ModuleData.connected() && !ModuleData.loaded ? "正在读取" : "暂无模块"}</td></tr>`;
