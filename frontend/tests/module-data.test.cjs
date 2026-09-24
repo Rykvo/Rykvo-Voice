@@ -56,9 +56,10 @@ test("ICCID is a display fallback and search key, never a dialable phone number"
 
 test("nearby LTE reception is not displayed as a registered cellular service", () => {
   const { Modules } = setup();
-  const item = { managed: true, status: "online", kind: "usb", signal: "none", hardware: { technology: "LTE", operator: "" } };
-  assert.equal(Modules.signalLabel(item.signal, item), "无服务");
+  const item = { id: "module-02", name: "模块 02", managed: true, status: "online", kind: "usb", signal: "none", hardware: { technology: "LTE", operator: "" } };
+  assert.match(Modules.rows([item]), /无服务/);
+  assert.doesNotMatch(Modules.rows([item]), /LTE/);
   item.signal = "cellular";
   item.hardware.operator = "CHINA MOBILE";
-  assert.equal(Modules.signalLabel(item.signal, item), "CHINA MOBILE · LTE");
+  assert.match(Modules.rows([item]), /CHINA MOBILE · LTE/);
 });
