@@ -1,6 +1,6 @@
 # Rykvo Voice 后端
 
-Go + PostgreSQL。实现登录、会话恢复、退出、管理员修改、独立密码、功能显示配置与 Cloudflare Tunnel，新增模块自动发现、只读状态与唯一标签，未实现短信、SIP 和模块控制接口。详见 [模块读取](MODULES.md)。
+Go + PostgreSQL。实现登录、会话恢复、退出、管理员修改、独立密码、功能显示配置与 Cloudflare Tunnel，新增模块自动发现、状态读取、唯一标签及 eSIM 配置管理接口；硬件适配待实机联调。短信、SIP、网络选择、Wi-Fi 通话和数据漫游控制尚未接通。详见 [模块读取](MODULES.md)。
 
 ## 数据
 

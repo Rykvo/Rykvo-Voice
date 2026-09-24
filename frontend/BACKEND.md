@@ -132,7 +132,7 @@ controller.abort();
 - 模块 `{id,name,label,number,status,signal,sims:[]}`。`status` 为 online/offline/error；`signal` 为 none/wifi/mobile/unicom/telecom。当前模块 ID 使用 `module-数字`；若换成任意 ID，同时调整 `Lines.recorded` 校验及迁移，不能静默换线。
 - SIM `{id,label,number,enabled,networkAutomatic,networkId,wifiCalling,roaming}`，操作绑定稳定 lineId，而不是页面数组下标。
 - 模块 PATCH `{label}`；线路 PATCH 仅包含修改字段。启用号码、自动选网、Wi-Fi 通话、漫游由设备确认后返回实际配置；网络列表返回 `{id,name,available}`。
-- eSIM 请求 `{activationCode}`，返回 `{jobId,status}`，激活码不落浏览器存储；后端负责安装与进度。
+- eSIM 请求与任务格式见下方“eSIM 实接接口”；激活码不落浏览器存储，后端负责安装与进度。
 
 ### 电话、记录与统计
 
@@ -214,7 +214,7 @@ Go 使用 `WEB_ROOT` 指定发布目录。`/` 按有效 Cookie 返回登录页�
 
 ## 模块接入（1.1.0）
 
-模块已接入自动发现、只读采集、稳定绑定和唯一标签；无需手动添加，不设数量配额。列表返回 `{data:{items:[],discoveryIssue:""}}`，详情返回 `{data:Module}`。Module 增加 `managed/labelCustom/kind/hardware/issue/capabilities`；signal 支持 cellular，运营商和信号数值使用 hardware。线路修改、短信、电话、SIP 和 eSIM 安装仍未接通。
+模块已接入自动发现、只读采集、稳定绑定和唯一标签；无需手动添加，不设数量配额。列表返回 `{data:{items:[],discoveryIssue:""}}`，详情返回 `{data:Module}`。Module 增加 `managed/labelCustom/kind/hardware/issue/capabilities`；signal 支持 cellular，运营商和信号数值使用 hardware。eSIM 卡内标签、启停、安装与删除已实现接口，待实机联调；网络选择、Wi-Fi 通话、数据漫游、短信、电话和 SIP 尚未接通。
 
 标签 PATCH 仍使用 `{label}`，空值恢复可用默认标签；旧标签迁移可带 `ifUnmodified:true`。标签唯一性包含离线记录，不把同一模块原标签视为重复。浏览器共享一个单飞轮询，隐藏时取消请求；本阶段不启用预留的全业务 SSE。详见 [模块后端](../backend/MODULES.md)。
 

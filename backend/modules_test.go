@@ -91,3 +91,46 @@ func testModuleDatabase(t *testing.T, s *server, cookie, csrf string) {
 		}
 	}
 }
+
+func TestModuleViewReturnsEveryESIMProfile(t *testing.T) {
+	for _, count := range []int{0, 1, 2, 9, 37} {
+		t.Run(fmt.Sprint(count), func(t *testing.T) {
+			m := newModuleManager(nil, nil)
+			s := &server{modules: m}
+			c := hardware.Candidate{Key: "usb:esim", Generation: "1"}
+			v := moduleRecord{ID: 1, Endpoint: c.Key, Label: "工作卡"}
+			info := &hardware.ESIMInfo{EID: "89049032001001234500012345678901"}
+			for i := 0; i < count; i++ {
+				info.Profiles = append(info.Profiles, hardware.ESIMProfile{
+					ICCID: fmt.Sprintf("891234567890%06d", i), Label: fmt.Sprintf("号码 %d", i+1), Enabled: i == 0,
+				})
+			}
+			r := hardware.Reading{Responsive: true, SIM: "READY", Number: "12345", UpdatedAt: time.Now(), ESIM: info}
+			if count > 0 {
+				r.ICCID = info.Profiles[0].ICCID
+			}
+			m.seen[c.Key] = c
+			m.lastScan = time.Now()
+			m.values[v.ID] = moduleSample{c, r}
+			rows := s.moduleView(v)["sims"].([]any)
+			if len(rows) != count {
+				t.Fatalf("got %d profiles, want %d", len(rows), count)
+			}
+			ids := map[string]bool{}
+			for i, row := range rows {
+				sim := row.(map[string]any)
+				id := sim["id"].(string)
+				if ids[id] {
+					t.Fatal("duplicate profile identity")
+				}
+				ids[id] = true
+				if sim["esim"] != true || sim["enabled"] != (i == 0) {
+					t.Fatal("profile state lost")
+				}
+				if i > 0 && sim["number"] != "" {
+					t.Fatal("active phone number copied to another profile")
+				}
+			}
+		})
+	}
+}
