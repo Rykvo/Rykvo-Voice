@@ -53,7 +53,7 @@ func newWiFiEAP(sim *wifiSIM) (*wifiEAP, error) {
 		return nil, errWiFiEAP
 	}
 	return &wifiEAP{
-		identity:     fmt.Sprintf("0%s@wlan.mnc%03s.mcc%s.3gppnetwork.org", id.IMSI, id.MNC, id.MCC),
+		identity:     fmt.Sprintf("0%s@nai.epc.mnc%03s.mcc%s.3gppnetwork.org", id.IMSI, id.MNC, id.MCC),
 		authenticate: sim.authenticate,
 	}, nil
 }

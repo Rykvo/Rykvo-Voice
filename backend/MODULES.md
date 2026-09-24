@@ -57,27 +57,21 @@ Module 保留 `{id,name,label,number,status,signal,sims}`，增加 `managed`、`
 
 数据连接及漫游控制仍待接入，需要管理 APN、数据上下文和漫游许可。
 
-### Wi-Fi 通话接入核对
+### Wi-Fi 通话
 
-参考提交：VoCat `484cd236dd543e2ba142cf1da2c5808ee8e89a6e`，2026-09-25 核对远端 HEAD 一致。
+沿用线路 PATCH：`{requestId,wifiCalling:true|false}`，返回更新后的 Module；页面复用 SIM 详情中的 Wi-Fi 通话页。模块包含 `wifi:{enabled,registered,state,issue}`，能力通过 `capabilities.wifiCalling` 独立判断，不依赖是否为 eSIM。
 
-- `web/src/components/devices/deviceActions.ts` → `internal/server/device_api.go`：开关调用异步运行时，接受请求不表示注册成功；已开蜂窝数据时拒绝开启 VoWiFi。
-- `internal/vowifi/ec20_adapter.go`、`orchestrator.go`：核对设备、记录射频状态，设置并回读 CFUN=4、停止 PDP 数据；读取当前 SIM 身份和明确的 MNC 长度，通过 USIM/ISIM APDU 完成 AKA，不依赖蜂窝驻网。
-- `internal/vowifi/ike/`：发现 ePDG，执行 IKEv2/EAP-AKA、验证对端认证并建立 IPsec。NAT-T/代理路径使用用户态 ESP/TUN，其他适用路径使用 XFRM；不是给模块发送一条开启命令。
-- `internal/vowifi/ims/`：使用隧道提供的 P-CSCF 完成 SIP REGISTER、AKA 挑战及安全协商，再校验注册结果、维护续期。短信与语音还各有独立协议和媒体链路，注册成功不等于已验证通话。
-- `internal/vowifi/runtime/manager.go`：每设备串行处理开关和重连，重复请求合并，失败退避重试；eSIM 切换进入维护状态，先释放旧会话，再按新 ICCID 的策略恢复。号码仅接受 IMS 返回的关联号码，未返回时继续显示 ICCID。
+- 当前接入 EC20（2c7c:0125）的次 AT 口，避免与已占用主 AT 口的 ModemManager 争抢回复。启动前核对 USB 世代、IMEI 指纹和当前 ICCID；蜂窝数据仍启用时不切换射频。
+- 开启联动 CFUN=4，回读确认后进行 USIM AKA、IKEv2/ePDG 和受保护的 IMS REGISTER。开关表示用户配置，只有收到并验证 IMS 200 后才显示“已连接”。
+- UDP 注册请求和响应使用各自协商的 ESP 安全关联，接收端为 UE server 端口；校验 MAC、重放窗口、地址、端口、Call-ID、CSeq、Via branch，保留证书和对端认证。
+- 一个事件循环维护 NAT 心跳、IKE 存活检查、IMS 续期和当前卡校验。可重试网络故障有限退避，鉴权拒绝、未知清理结果不反复重试，也不触发模块重启。
+- 复用单模块互斥。eSIM 操作先停止 Wi-Fi 会话，再等待注销、逻辑通道和射频清理；清理结果不明时阻止写卡。关闭功能恢复该模块蜂窝射频；维护探针恢复进入测试前的射频状态。
+- 用户配置按模块和 ICCID 持久化；重新插入需重新核实身份。旧卡的“已连接”状态不沿用到新卡。账号、会话、配置及其他模块不重置。
+- 用户态 UDP/ESP 不增加系统网络权限、不建立 TUN、不改服务器路由。密钥仅驻留内存，不写日志、数据库或安装包。
 
-注意：底层 Restore 支持按快照/策略恢复，但该版本网页 API 在开启和关闭 VoWiFi 时均设飞行模式，并持久化 AirplaneEnabled=true、NetworkEnabled=false。因此实际网页关闭 VoWiFi 后仍保持射频关闭，需独立关闭飞行模式；不能仅按底层函数判断为自动恢复蜂窝。
+本轮接通的是 **Wi-Fi 通话注册与维持连接**。02 实卡已验证注册、续期、心跳、注销；不代表所有运营商均兼容。当前为 UDP + EAP-AKA / AKAv1-MD5；TCP、AKA′、ISIM 特定运营商配置、完整呼叫/音频和 IMS 短信业务仍待接入。未实现的来电或短信请求不返回虚假成功。
 
-Rykvo 已有线路开关页面和 PATCH 契约，但真实模块当前禁用该入口，后台尚无完整的鉴权、隧道及 IMS 运行时。接入时复用设备互斥、稳定线路 ID 和现有订阅；Wi-Fi 通话能力与 eSIM 管理能力分别判断，普通 SIM 同样可按运营商能力使用。新会话须绑定当前卡和设备世代，写卡/鉴权/射频变更与自动恢复互斥；运营商拒绝、无漫游或 IMS 失败不当成模块通信故障重启。只发布真实注册状态，不增加页面轮询，不让隧道路由接管服务器管理流量。用户已确认开启 VoWiFi 必须同时启用该模块飞行模式；关闭后的射频行为尚未明确。
-
-参考用于协议和流程分析，不复制其受限实现。Rykvo 当前尚未接入数据连接和完整 VoWiFi 链路；未启动真实服务前继续保持能力关闭，不宣称已注册或可通话。
-
-接入第一阶段：`internal/hardware/wifi_sim.go` 复用现有 AT 会话与逻辑通道，增加当前 USIM 的 EF_IMSI / EF_AD 读取、明确 MNC 长度的 ePDG 推导和 AKA 响应解析。鉴权前后核对 ICCID，拒绝把同步失败当成成功，密钥只驻留内存。`-hardware-wifi-check` 为维护用只读入口，stdin 提供端点、设备世代、IMEI 哈希与当前 ICCID；输出不含 IMSI、ICCID 或鉴权密钥，不发起鉴权、不改射频/PDP/配置。此检查成功只说明 SIM 前置读取通过，不证明运营商开通、隧道建立或 IMS 注册。尚未接入开关联动、网络会话或真实 AKA 挑战。
-
-EAP-AKA 协议层复用同一个 SIM 鉴权入口，按 RFC 4187 实现全量身份鉴权、密钥派生、AT_MAC、身份校验摘要和受保护结果确认。重复请求复用响应，不重复调用卡片；报文、身份轮次和同步失败次数均设上限，取消/失败时清除会话密钥。收到有效 Challenge 不等于 EAP Success，EAP Success 也不等于 IKE 对端认证或 IMS 注册。当前不支持 AKA′、快速重鉴权或保存运营商假名；未接入网络收发或网页开关，不向真实卡片发送测试挑战。
-
-标签错误：`INVALID_LABEL`（400）、`LABEL_EXISTS`（409）、`LABEL_ALREADY_SET`（409）。读取失败与空列表分开表示；发现错误字段不带系统原始路径/错误正文。
+参考 VoCat 提交 `484cd236dd543e2ba142cf1da2c5808ee8e89a6e` 的流程与协议行为，未复制其受限实现。`-hardware-wifi-check` 只读前置检查；`-hardware-wifi-run` 为有界维护测试，最长保持 600 秒并自动清理，不在普通接口开放。
 
 ## 运行环境
 

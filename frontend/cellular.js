@@ -4,6 +4,7 @@ const Cellular = (() => {
   let view = "overview", rendered = "", submitting = false;
   const dismissedJobs = new Set();
   const editable = (item) => !item.managed || (item.capabilities?.esim && !submitting);
+  const wifiEditable = (item) => !submitting && (!item.managed || item.capabilities?.wifiCalling === true) && item.wifi?.state !== "stopping";
   const downloadable = (item) => !item.managed || item.capabilities?.esimDownload === true;
   function active() {
     if (activeID) activeLine = module?.sims?.findIndex((sim) => sim.id === activeID) ?? -1;
@@ -18,10 +19,10 @@ const Cellular = (() => {
     return `<div class="cellular-job"><div class="cellular-job-heading"><span role="status">${UI.escape(text)}</span>${busy ? "" : '<button type="button" class="text-button" data-cellular-dismiss aria-label="关闭操作提示">×</button>'}</div>${busy ? `<progress aria-label="${UI.escape(text)}"></progress>` : ""}</div>`;
   }
   function refreshDialog() {
-    if (!module || !["overview", "detail"].includes(view)) return;
+    if (!module || !["overview", "detail", "wifi"].includes(view)) return;
     active();
     if (view !== "overview" && !active()) view = "overview";
-    const render = (showJob) => view === "detail" ? detail(module, activeLine, showJob) : overview(module, showJob);
+    const render = (showJob) => view === "wifi" ? wifiPage(module) : view === "detail" ? detail(module, activeLine, showJob) : overview(module, showJob);
     const html = render(false);
     const content = document.getElementById("dialog-content"), dialog = document.getElementById("dialog");
     if (html === rendered) {
@@ -34,14 +35,14 @@ const Cellular = (() => {
     const scroll = dialog.scrollTop;
     const focus = document.activeElement;
     const setting = focus?.dataset?.cellularSetting, action = focus?.dataset?.cellularAction;
-    const title = view === "detail" ? active().label : "蜂窝网络";
+    const title = view === "wifi" ? "Wi-Fi 通话" : view === "detail" ? active().label : "蜂窝网络";
     content.innerHTML = `<h2 id="dialog-title">${UI.escape(title)}</h2>${render(true)}`;
     dialog.scrollTop = scroll;
     if (setting) content.querySelector(`[data-cellular-setting="${setting}"]`)?.focus({ preventScroll: true });
     else if (action) content.querySelector(`[data-cellular-action="${action}"]`)?.focus({ preventScroll: true });
   }
   async function control(item, operation, body, lineId, requestId) {
-    if (!editable(item)) return false;
+    if (typeof body.wifiCalling === "boolean" ? !wifiEditable(item) : !editable(item)) return false;
     submitting = true;
     try {
       await ModuleData.control(item, operation, body, lineId, requestId);
@@ -49,7 +50,7 @@ const Cellular = (() => {
     } catch (error) {
       UI.toast(ModuleData.issueText(error.code) || "请求失败，请核实操作状态");
       return false;
-    } finally { submitting = false; refreshDialog(); }
+    } finally { submitting = false; rendered = ""; refreshDialog(); }
   }
   const simIcon =
     '<svg viewBox="0 0 28 32" aria-hidden="true"><path d="M6 2h12l6 6v21H4V4a2 2 0 0 1 2-2Z"/><rect x="8" y="13" width="12" height="11" rx="2"/><path d="M12 13v11m4-11v11M8 18.5h12"/></svg>';
@@ -123,11 +124,18 @@ const Cellular = (() => {
       </div>
       <div class="cellular-group cellular-settings">
         ${valueRow(identity.label, identity.value)}
-        ${valueRow("Wi-Fi 通话", pending || (sim.wifiCalling ? "开启" : "关闭"), "wifi", settingsDisabled)}
+        ${valueRow("Wi-Fi 通话", !item.managed || item.capabilities?.wifiCalling ? (sim.wifiCalling ? (item.wifi?.registered ? "已连接" : "开启") : "关闭") : "待接入", "wifi", !sim.enabled || !wifiEditable(item))}
         ${switchRow("roaming", "数据漫游", sim.roaming, settingsDisabled, pending)}
       </div>${remove}<div data-cellular-job>${showJob ? jobNote(item) : ""}</div></section>`;
   }
 
+  function wifiPage(item) {
+    const sim = active();
+    const state = item.wifi?.state;
+    const status = state === "connected" ? "已连接" : state === "connecting" || state === "waiting" ? "连接中" : state === "stopping" ? "关闭中" : "";
+    const issue = item.wifi?.issue;
+    return `<section class="cellular-page">${back(true)}<div class="cellular-group cellular-settings">${switchRow("wifiCalling", "Wi-Fi 通话", sim?.wifiCalling === true, !sim?.enabled || !wifiEditable(item), status)}</div>${issue ? `<p class="cellular-empty" role="status">${UI.escape(ModuleData.issueText(issue))}</p>` : ""}</section>`;
+  }
   function showDetail() {
     active();
     const sim = lines(module)[activeLine];
@@ -154,7 +162,7 @@ const Cellular = (() => {
     if (action) {
       active();
       const sim = lines(module)[activeLine];
-      if (module.managed && (!editable(module) || !sim?.esim || action.dataset.cellularAction !== "label")) return;
+      if (module.managed && (action.dataset.cellularAction === "wifi" ? !wifiEditable(module) : !editable(module) || !sim?.esim || action.dataset.cellularAction !== "label")) return;
       if (!sim) return;
       if (action.dataset.cellularAction === "label") {
         view = "form";
@@ -164,11 +172,8 @@ const Cellular = (() => {
         );
         document.getElementById("cellular-label").focus();
       } else if (action.dataset.cellularAction === "wifi" && sim.enabled) {
-        view = "form";
-        UI.modal(
-          "Wi-Fi 通话",
-          `<section class="cellular-page">${back(true)}<div class="cellular-group cellular-settings">${switchRow("wifiCalling", "在此号码上使用 Wi-Fi 通话", sim.wifiCalling)}</div></section>`,
-        );
+        view = "wifi"; rendered = wifiPage(module);
+        UI.modal("Wi-Fi 通话", rendered);
       }
       return;
     }
@@ -212,6 +217,12 @@ const Cellular = (() => {
     if (module.managed) {
       const enabled = input.checked;
       input.checked = Boolean(sim[key]);
+      if (key === "wifiCalling") {
+        if (!wifiEditable(module)) return;
+        input.disabled = true;
+        control(module, "updateLine", { wifiCalling: enabled }, sim.id);
+        return;
+      }
       if (key !== "enabled" || !sim.esim || !editable(module) || (!enabled && !sim.canDisable)) return;
       input.disabled = true;
       control(module, "updateLine", { enabled }, sim.id);

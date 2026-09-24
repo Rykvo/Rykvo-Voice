@@ -185,6 +185,11 @@ func (m *moduleManager) startJob(ctx context.Context, v moduleRecord, request ha
 		<-m.operationSlots
 		return moduleJob{}, errors.New("DATABASE_UNAVAILABLE")
 	}
+	if err = m.stopWiFiLocked(ctx, v.ID); err != nil {
+		<-m.operationSlots
+		_, _ = m.db.Exec(ctx, "UPDATE module_jobs SET state='failed',issue='DATABASE_UNAVAILABLE',updated_at=now() WHERE id=$1", j.ID)
+		return moduleJob{}, errors.New("DATABASE_UNAVAILABLE")
+	}
 	request.Candidate = sample.Candidate
 	request.ExpectedIMEI = sample.Reading.IMEI
 	m.jobs[v.ID] = j
@@ -209,7 +214,13 @@ func (m *moduleManager) runJob(j moduleJob, r hardware.ESIMRequest) {
 	}
 	m.mu.RLock()
 	c, present := m.seen[r.Candidate.Key]
+	unsafe := m.wifi[j.Module] != nil && (m.wifi[j.Module].Issue == "WIFI_RADIO_RESTORE_UNCONFIRMED" || m.wifi[j.Module].Issue == "WIFI_SIM_CLEANUP_UNCONFIRMED")
 	m.mu.RUnlock()
+	if unsafe {
+		j.State, j.Issue = "failed", "DEVICE_BUSY"
+		m.saveJob(j)
+		return
+	}
 	if !present || !sameEndpoint(c, r.Candidate) {
 		j.State = "failed"
 		j.Issue = "DEVICE_CHANGED"
@@ -303,6 +314,7 @@ func (s *server) moduleControl(ctx context.Context, w http.ResponseWriter, r *ht
 		return
 	}
 	var input struct {
+		WiFiCalling  *bool   `json:"wifiCalling,omitempty"`
 		RequestID    string  `json:"requestId"`
 		EID          string  `json:"eid"`
 		Label        *string `json:"label,omitempty"`
@@ -316,6 +328,18 @@ func (s *server) moduleControl(ctx context.Context, w http.ResponseWriter, r *ht
 	}
 	if !jobIDPattern.MatchString(input.RequestID) {
 		fail(w, 400, "INVALID_ESIM_REQUEST")
+		return
+	}
+	if input.WiFiCalling != nil {
+		if action != "line" || input.Label != nil || input.Enabled != nil || input.Activation != "" || input.Confirmation != "" || input.IMEI != "" {
+			fail(w, 400, "INVALID_REQUEST")
+			return
+		}
+		if err := s.modules.setWiFi(ctx, v, parts[2], input.RequestID, *input.WiFiCalling); err != nil {
+			fail(w, 409, err.Error())
+			return
+		}
+		reply(w, http.StatusAccepted, map[string]any{"data": s.moduleView(v)})
 		return
 	}
 	reading, _, _ := s.modules.state(v)

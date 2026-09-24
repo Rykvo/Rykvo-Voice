@@ -25,6 +25,15 @@ const ModuleData = (() => {
   let issue = "", loaded = false;
   const connected = () => typeof Backend !== "undefined" && Backend.enabled("modules");
   const issueText = (code) => ({
+    WIFI_MODEM_UNSUPPORTED: "模块暂未支持 Wi-Fi 通话",
+    WIFI_DATA_ACTIVE: "请先关闭蜂窝数据", WIFI_DATA_STATE_UNKNOWN: "蜂窝数据状态待确认",
+    WIFI_NETWORK_UNAVAILABLE: "网络暂不可用", WIFI_CONNECTION_FAILED: "连接失败",
+    WIFI_IMS_REJECTED: "运营商未接受注册", WIFI_AUTH_REJECTED: "运营商鉴权未通过", AKA_REJECTED: "SIM 鉴权未通过",
+    WIFI_CERTIFICATE_INVALID: "运营商证书验证失败", WIFI_PEER_AUTH_FAILED: "运营商身份验证失败",
+    WIFI_IMS_AKA_RESYNC_REQUIRED: "SIM 鉴权需要重试", WIFI_IMS_SECURITY_UNSUPPORTED: "运营商安全协议暂未支持",
+    WIFI_IMS_AUTH_UNSUPPORTED: "运营商鉴权协议暂未支持",
+    WIFI_RADIO_RESTORE_UNCONFIRMED: "射频恢复待确认", WIFI_RADIO_UNCONFIRMED: "飞行模式待确认",
+    WIFI_SIM_CLEANUP_UNCONFIRMED: "SIM 通道关闭待确认", WIFI_IMS_DEREGISTER_UNCONFIRMED: "运营商注销待确认", SIM_NOT_READY: "SIM 未就绪",
     COMMAND_UNSUPPORTED: "模块未支持此操作",
     AT_PORT_MISSING: "未找到 AT 串口", PERMISSION_DENIED: "设备访问权限不足",
     DEVICE_BUSY: "设备正在被占用", DEVICE_UNAVAILABLE: "设备暂不可用",
@@ -128,8 +137,11 @@ const ModuleData = (() => {
         body: { ...body, eid: item.hardware?.esim?.eid, requestId },
         idempotencyKey: requestId,
       });
-      item.job = job;
-      if (item.capabilities) item.capabilities.esim = false;
+      if (typeof body.wifiCalling === "boolean") Object.assign(item, job);
+      else {
+        item.job = job;
+        if (item.capabilities) item.capabilities.esim = false;
+      }
       notify();
       return job;
     } finally {

@@ -90,3 +90,10 @@ CREATE TABLE IF NOT EXISTS module_recoveries (
 );
 CREATE INDEX IF NOT EXISTS module_recoveries_time ON module_recoveries(attempted_at);
 CREATE INDEX IF NOT EXISTS module_recoveries_module ON module_recoveries(module_id,attempted_at);
+
+CREATE TABLE IF NOT EXISTS module_wifi (
+ module_id bigint PRIMARY KEY REFERENCES modules(id) ON DELETE CASCADE,
+ iccid text NOT NULL CHECK (iccid ~ '^[0-9]{18,20}$'),
+ enabled boolean NOT NULL DEFAULT false,
+ request_id text NOT NULL
+);

@@ -407,3 +407,35 @@ test("card transport errors replace the pending inventory message", () => {
   item.hardware.esim.issue = "DEVICE_BUSY";
   assert.match(cellular.overview(item), /设备正在被占用/);
 });
+
+test("managed physical SIM uses the existing Wi-Fi page without eSIM capability", () => {
+  const f=setup();
+  const item={...structuredClone(fixture),managed:true,capabilities:{wifiCalling:true,esim:false},wifi:{state:"connected",registered:true},sims:[{id:"line-01",label:"SIM",enabled:true,wifiCalling:true,esim:false}]};
+  f.cellular.open(item);clickLine(f.events,0);
+  f.events.click({target:{closest:selector=>selector==="#dialog-content"?{}:selector==="[data-cellular-action]"?{dataset:{cellularAction:"wifi"}}:null}});
+  assert.equal(f.dialogs.at(-1)[0],"Wi-Fi 通话");
+  assert.match(f.dialogs.at(-1)[1],/data-cellular-setting="wifiCalling"/);
+  assert.match(f.dialogs.at(-1)[1],/已连接/);
+  assert.doesNotMatch(f.dialogs.at(-1)[1],/待接入|disabled|已完成/);
+});
+test("unsupported managed Wi-Fi remains read-only",()=>{
+  const f=setup(),item={...structuredClone(fixture),managed:true,capabilities:{wifiCalling:false},sims:[{id:"line-01",label:"SIM",enabled:true}]};
+  assert.match(f.cellular.detail(item,0),/data-cellular-action="wifi" disabled/);
+  f.cellular.open(item);clickLine(f.events,0);const n=f.dialogs.length;
+  f.events.click({target:{closest:selector=>selector==="#dialog-content"?{}:selector==="[data-cellular-action]"?{dataset:{cellularAction:"wifi"}}:null}});
+  assert.equal(f.dialogs.length,n);
+});
+test("managed Wi-Fi switch uses line API once and does not change eSIM",async()=>{
+  const f=setup(),calls=[];
+  const item={...structuredClone(fixture),managed:true,capabilities:{wifiCalling:true,esim:false},sims:[{id:"line-01",label:"SIM",enabled:true,wifiCalling:false}]};
+  f.data.control=async(...args)=>{calls.push(args);};
+  f.cellular.open(item);clickLine(f.events,0);
+  const target={dataset:{cellularSetting:"wifiCalling"},checked:true,closest:()=>({})};
+  f.events.change({target});target.checked=true;f.events.change({target});
+  await Promise.resolve();await Promise.resolve();
+  assert.equal(calls.length,1);
+  assert.equal(calls[0][1],"updateLine");
+  assert.equal(calls[0][2].wifiCalling,true);
+  assert.equal(calls[0][3],"line-01");
+  assert.equal(item.sims[0].wifiCalling,false);
+});

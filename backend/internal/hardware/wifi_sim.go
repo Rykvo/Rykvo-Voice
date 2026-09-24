@@ -46,9 +46,9 @@ func inspectWiFiSIM(ctx context.Context, session *atSession, expectedICCID strin
 	if !decimal(expectedICCID, 18, 20) {
 		return nil, errors.New("DEVICE_CHANGED")
 	}
-	lines, err := session.query(ctx, "AT+CPIN?")
+	lines, err := session.exchange(ctx, "AT+CPIN?", 5*time.Second)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("WIFI_SIM_PIN: %w", err)
 	}
 	ready := false
 	for _, line := range lines {
@@ -57,9 +57,9 @@ func inspectWiFiSIM(ctx context.Context, session *atSession, expectedICCID strin
 	if !ready {
 		return nil, errors.New("SIM_NOT_READY")
 	}
-	lines, err = session.query(ctx, "AT+QCCID")
+	lines, err = session.exchange(ctx, "AT+QCCID", 5*time.Second)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("WIFI_SIM_ICCID: %w", err)
 	}
 	if digits(lines, 18, 20) != expectedICCID {
 		return nil, errors.New("DEVICE_CHANGED")
@@ -68,7 +68,7 @@ func inspectWiFiSIM(ctx context.Context, session *atSession, expectedICCID strin
 	// Partial AID selection chooses the USIM in the currently enabled profile.
 	aid, _ := hex.DecodeString("A0000000871002")
 	if _, err = s.card.OpenLogicalChannel(aid); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("WIFI_SIM_CHANNEL: %w", err)
 	}
 	ok := false
 	defer func() {
@@ -78,12 +78,12 @@ func inspectWiFiSIM(ctx context.Context, session *atSession, expectedICCID strin
 	}()
 	imsi, err := s.readFile(ctx, 0x6f07, 9)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("WIFI_SIM_IMSI: %w", err)
 	}
 	defer clear(imsi)
 	ad, err := s.readFile(ctx, 0x6fad, 4)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("WIFI_SIM_AD: %w", err)
 	}
 	s.id, err = wifiSIMIdentity(imsi, ad)
 	if err != nil {
@@ -99,7 +99,7 @@ func inspectWiFiSIM(ctx context.Context, session *atSession, expectedICCID strin
 }
 
 func (s *wifiSIM) verifyCard(ctx context.Context) error {
-	lines, err := s.session.query(ctx, "AT+QCCID")
+	lines, err := s.session.exchange(ctx, "AT+QCCID", 5*time.Second)
 	if err != nil {
 		return err
 	}
@@ -254,8 +254,13 @@ func parseAKA(data []byte) (akaResult, error) {
 }
 
 // Local read-only probe. No RF, PDP, profile or authentication commands.
-func WiFiSIMCheck() error {
-	var request struct{ Endpoint, Generation, HardwareKey, ICCID string }
+func WiFiSIMCheck() error { return wifiProbe(false) }
+func WiFiSIMRun() error   { return wifiProbe(true) }
+func wifiProbe(run bool) error {
+	var request struct {
+		Endpoint, Generation, HardwareKey, ICCID string
+		HoldSeconds                              int
+	}
 	decoder := json.NewDecoder(io.LimitReader(os.Stdin, 4096))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&request); err != nil {
@@ -264,7 +269,14 @@ func WiFiSIMCheck() error {
 	if !strings.HasPrefix(request.HardwareKey, "imei:") || len(request.HardwareKey) != 69 || !decimal(request.ICCID, 18, 20) {
 		return errors.New("INVALID_REQUEST")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	limit := 25 * time.Second
+	if run {
+		if request.HoldSeconds < 0 || request.HoldSeconds > 600 {
+			return errors.New("INVALID_REQUEST")
+		}
+		limit = time.Duration(120+request.HoldSeconds) * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), limit)
 	defer cancel()
 	devices, err := NewSystem().Discover(ctx)
 	if err != nil {
@@ -274,17 +286,15 @@ func WiFiSIMCheck() error {
 		if c.Key != request.Endpoint || c.Generation != request.Generation || len(c.Ports) == 0 {
 			continue
 		}
-		session, err := openATSession(ctx, c, "")
+
+		session, err := openWiFiSession(ctx, c, request.HardwareKey)
 		if err != nil {
 			return err
 		}
 		defer session.port.Close()
-		lines, err := session.query(ctx, "AT+CGSN")
-		if err != nil {
-			return err
-		}
-		if c.Identity(Reading{IMEI: digits(lines, 14, 17)}) != request.HardwareKey {
-			return errors.New("DEVICE_CHANGED")
+
+		if run {
+			return runWiFiSIM(ctx, c, session, request.ICCID, time.Duration(request.HoldSeconds)*time.Second)
 		}
 		sim, err := inspectWiFiSIM(ctx, session, request.ICCID)
 		if err != nil {

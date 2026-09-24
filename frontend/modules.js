@@ -71,6 +71,7 @@ const Modules = (() => {
       if (item.status !== "online") return "—";
       if (item.kind === "reader") return "SIM 读卡器";
       if (item.hardware?.simState === "absent") return "无 SIM 卡";
+      if (item.wifi?.registered === true) return "Wi-Fi 通话";
       if (item.hardware?.registration === "denied") return "注册被拒绝";
       if (item.signal === "none") return "无服务";
       return [item.hardware?.operator || item.hardware?.plmn, item.hardware?.technology].filter(Boolean).join(" · ") || "无服务";

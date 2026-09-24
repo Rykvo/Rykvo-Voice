@@ -14,6 +14,7 @@ type moduleSample struct {
 	Reading   hardware.Reading
 }
 type moduleManager struct {
+	wifi            map[int64]*moduleWiFi
 	mu              sync.RWMutex
 	source          hardware.Source
 	db              *pgxpool.Pool
@@ -36,7 +37,7 @@ type moduleManager struct {
 }
 
 func newModuleManager(pool *pgxpool.Pool, source hardware.Source) *moduleManager {
-	return &moduleManager{db: pool, source: source, seen: map[string]hardware.Candidate{}, values: map[int64]moduleSample{}, done: make(chan struct{}), gates: map[string]chan struct{}{}, jobs: map[int64]moduleJob{}, operationSlots: make(chan struct{}, 4), recoveryProof: map[string]moduleSample{}, recoveryPending: map[int64]bool{}, recovery: map[string]recoveryStreak{}, recoveryUntil: map[string]time.Time{}}
+	return &moduleManager{wifi: map[int64]*moduleWiFi{}, db: pool, source: source, seen: map[string]hardware.Candidate{}, values: map[int64]moduleSample{}, done: make(chan struct{}), gates: map[string]chan struct{}{}, jobs: map[int64]moduleJob{}, operationSlots: make(chan struct{}, 4), recoveryProof: map[string]moduleSample{}, recoveryPending: map[int64]bool{}, recovery: map[string]recoveryStreak{}, recoveryUntil: map[string]time.Time{}}
 }
 func (m *moduleManager) run(ctx context.Context) {
 	defer close(m.done)
@@ -45,6 +46,7 @@ func (m *moduleManager) run(ctx context.Context) {
 	m.mu.Unlock()
 	m.loadJobs(ctx)
 	m.loadRecovery(ctx)
+	m.loadWiFi(ctx)
 	defer m.operations.Wait()
 	jobs := make(chan hardware.Candidate, 4)
 	results := make(chan moduleSample, 4)
@@ -107,6 +109,14 @@ func (m *moduleManager) run(ctx context.Context) {
 			if _, present := next[key]; !present {
 				delete(m.recovery, key)
 				delete(m.recoveryProof, key)
+			}
+		}
+		for _, w := range m.wifi {
+			if w.running {
+				c, ok := next[w.candidate.Key]
+				if !ok || !sameEndpoint(c, w.candidate) {
+					w.cancel()
+				}
 			}
 		}
 		m.seen = next
@@ -205,6 +215,7 @@ func (m *moduleManager) accept(ctx context.Context, sample moduleSample) {
 		m.recoveryProof[c.Key] = sample
 	}
 	m.values[v.ID] = sample
+	m.startWiFiLocked(v.ID, sample)
 	m.verifyRecovery(call, v.ID, sample.Reading)
 	job := m.jobs[v.ID]
 	if job.State == "uncertain" && job.confirm(sample.Reading) {

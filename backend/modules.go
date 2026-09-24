@@ -284,9 +284,25 @@ func (s *server) moduleView(v moduleRecord) map[string]any {
 	} else if present && reading.ICCID != "" && !cardReading {
 		sims = append(sims, map[string]any{"id": "line-" + hardware.Digest(reading.ICCID)[:24], "iccid": reading.ICCID, "label": "SIM", "number": reading.Number, "enabled": reading.SIM == "READY", "readOnly": true})
 	}
+	wifi := map[string]any{"enabled": false, "registered": false, "state": "off", "issue": ""}
+	supported := false
+	if s.modules != nil {
+		wifi = s.modules.wifiView(v.ID, reading.ICCID)
+		s.modules.mu.RLock()
+		sample, ok := s.modules.values[v.ID]
+		supported = ok && hardware.WiFiSupported(sample.Candidate) && present && reading.SIM == "READY" && reading.ICCID != ""
+		s.modules.mu.RUnlock()
+	}
+	for _, line := range sims {
+		sim := line.(map[string]any)
+		sim["wifiCalling"] = wifi["enabled"] == true && sim["iccid"] == reading.ICCID
+	}
 	signal := "none"
 	if reading.Registration == "home" || reading.Registration == "roaming" || reading.Registration == "registered" {
 		signal = "cellular"
 	}
-	return map[string]any{"id": moduleID(v.ID), "name": moduleName(v.ID), "label": v.Label, "labelCustom": v.Custom, "number": reading.Number, "status": status, "signal": signal, "sims": sims, "kind": v.Kind, "hardware": reading, "issue": issue, "managed": true, "cardReading": cardReading, "job": job, "capabilities": map[string]bool{"read": true, "sms": false, "calls": false, "lineControl": false, "esim": esim && !job.active(), "esimDownload": esim}}
+	if wifi["registered"] == true {
+		signal = "wifi"
+	}
+	return map[string]any{"wifi": wifi, "id": moduleID(v.ID), "name": moduleName(v.ID), "label": v.Label, "labelCustom": v.Custom, "number": reading.Number, "status": status, "signal": signal, "sims": sims, "kind": v.Kind, "hardware": reading, "issue": issue, "managed": true, "cardReading": cardReading, "job": job, "capabilities": map[string]bool{"read": true, "sms": false, "calls": false, "lineControl": false, "wifiCalling": supported, "esim": esim && !job.active(), "esimDownload": esim}}
 }

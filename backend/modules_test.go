@@ -198,6 +198,7 @@ func testModuleDatabase(t *testing.T, s *server, cookie, csrf string) {
 		t.Fatal(err)
 	}
 	testRecoveryDatabase(t, s, records[0].ID)
+	testWiFiDatabase(t, s, moved, cookie, csrf)
 }
 
 func TestRetiredNetworkRequestsDoNotReachHardware(t *testing.T) {

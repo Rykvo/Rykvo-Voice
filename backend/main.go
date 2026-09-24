@@ -29,7 +29,15 @@ func main() {
 	card := flag.String("hardware-card", "", "Internal isolated PC/SC reader")
 	esim := flag.Bool("hardware-esim", false, "Internal isolated eUICC session")
 	wifiCheck := flag.Bool("hardware-wifi-check", false, "Read Wi-Fi calling SIM prerequisites from stdin")
+	wifiRun := flag.Bool("hardware-wifi-run", false, "Bounded Wi-Fi calling maintenance test")
 	flag.Parse()
+	if *wifiRun {
+		if err := hardware.WiFiSIMRun(); err != nil {
+			log.Print(err)
+			os.Exit(1)
+		}
+		return
+	}
 	if *wifiCheck {
 		if err := hardware.WiFiSIMCheck(); err != nil {
 			log.Print(err)
