@@ -1,0 +1,24 @@
+# Rykvo Voice: no modem writes or network access.
+[Unit]
+Description=Rykvo Voice QMI status query
+
+[Service]
+ExecStart=/usr/bin/python3 -I /opt/rykvo-voice/live/qmi-read.py
+StandardInput=socket
+StandardOutput=socket
+StandardError=null
+RuntimeMaxSec=5
+TimeoutStopSec=1
+NoNewPrivileges=true
+CapabilityBoundingSet=
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX
+MemoryMax=64M
+TasksMax=8
+UMask=0077

@@ -99,6 +99,13 @@ test("four cards and five content columns have no selection controls", () => {
     /iPhone|储存|同步|phone-art|checkbox|module-check|module-selected/,
   );
 });
+test("network rejection is distinct from a failed modem read", () => {
+  const { modules } = setup();
+  const item = { id: "test", name: "模块", managed: true, status: "online", signal: "none", hardware: { registration: "denied" } };
+  assert.match(modules.rows([item]), /注册被拒绝/);
+  Object.assign(item, { status: "error", issue: "QMI_READ_FAILED" });
+  assert.match(modules.rows([item]), /读取异常/);
+});
 test("counts and filters derive from records without mutating them", () => {
   const { modules } = setup();
   const records = Object.freeze(

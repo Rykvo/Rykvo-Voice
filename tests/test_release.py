@@ -92,7 +92,7 @@ class InstallerTests(unittest.TestCase):
 
     def test_rollback_restores_files_and_link(self):
         with tempfile.TemporaryDirectory() as directory:
-            self.run_shell('''BASE="$2/app"; BACKUP="$2/backup"; UNIT="$2/unit"; SITE="$2/site"; ENABLED="$2/enabled"; HARDWARE_RULE="$2/hardware-rule"; PCSC_RULE="$2/pcsc-rule";
+            self.run_shell('''BASE="$2/app"; BACKUP="$2/backup"; UNIT="$2/unit"; SITE="$2/site"; ENABLED="$2/enabled"; HARDWARE_RULE="$2/hardware-rule"; PCSC_RULE="$2/pcsc-rule"; QMI_SOCKET="$2/qmi-socket"; QMI_UNIT="$2/qmi-unit";
 mkdir -p "$BASE/releases/old" "$BASE/releases/new" "$BACKUP";
 printf old-unit > "$BACKUP/unit"; printf old-site > "$BACKUP/nginx";
 printf '%s' "$BASE/releases/old" > "$BACKUP/live-link";
@@ -115,7 +115,7 @@ curl() {
     def test_uninstall_deletes_app_data_backups_and_manager(self):
         with tempfile.TemporaryDirectory() as directory:
             self.run_shell('''BASE="$2/app"; STATE="$2/state"; BACKUPS="$2/backups"; MANAGER="$2/manager";
-UNIT="$2/unit"; SITE="$2/site"; ENABLED="$2/enabled"; HARDWARE_RULE="$2/hardware-rule"; PCSC_RULE="$2/pcsc-rule"; WRAPPER="$2/command";
+UNIT="$2/unit"; SITE="$2/site"; ENABLED="$2/enabled"; HARDWARE_RULE="$2/hardware-rule"; PCSC_RULE="$2/pcsc-rule"; QMI_SOCKET="$2/qmi-socket"; QMI_UNIT="$2/qmi-unit"; WRAPPER="$2/command";
 mkdir -p "$BASE"; touch "$UNIT"; calls="$2/calls";
 preflight() { :; }; db_sql() { printf 1; }; app_sql() { printf f; };
 confirm_uninstall() { printf 'confirmed\\n' >> "$calls"; };

@@ -1,0 +1,15 @@
+# Rykvo Voice: private read-only QMI endpoint.
+[Unit]
+Description=Rykvo Voice QMI status socket
+
+[Socket]
+ListenStream=/run/rykvo-voice-qmi.sock
+SocketUser=rykvo_voice
+SocketGroup=rykvo_voice
+SocketMode=0600
+Accept=yes
+MaxConnections=8
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

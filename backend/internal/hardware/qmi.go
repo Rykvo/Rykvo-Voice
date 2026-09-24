@@ -3,11 +3,45 @@ package hardware
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
+	"net"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
 )
+
+const qmiSocket = "/run/rykvo-voice-qmi.sock"
+
+func proxyQuery(ctx context.Context, socket, device, command string) (string, error) {
+	call, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+	conn, err := (&net.Dialer{}).DialContext(call, "unix", socket)
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+	deadline, _ := call.Deadline()
+	conn.SetDeadline(deadline)
+	stop := context.AfterFunc(call, func() { conn.Close() })
+	defer stop()
+	if err = json.NewEncoder(conn).Encode(map[string]string{"device": device, "command": command}); err != nil {
+		return "", err
+	}
+	var response struct {
+		Output string `json:"output"`
+		Error  string `json:"error"`
+	}
+	if err = json.NewDecoder(io.LimitReader(conn, 131073)).Decode(&response); err != nil {
+		return "", err
+	}
+	if response.Error != "" || len(response.Output) > 65536 {
+		return "", errors.New("QMI_READ_FAILED")
+	}
+	return response.Output, nil
+}
 
 type boundedOutput struct{ bytes.Buffer }
 
@@ -20,14 +54,22 @@ func (b *boundedOutput) Write(p []byte) (int, error) {
 
 func readQMI(ctx context.Context, c Candidate) Reading {
 	r := Reading{Model: c.Model, SIM: "unknown", Registration: "unknown"}
+	_, socketErr := os.Stat(qmiSocket)
 	path, err := exec.LookPath("qmicli")
-	if err != nil {
+	if err != nil && socketErr != nil {
 		r.Issue = "QMI_UNAVAILABLE"
 		return r
 	}
 	query := func(op string) string {
 		if ctx.Err() != nil {
 			return ""
+		}
+		if socketErr == nil {
+			output, err := proxyQuery(ctx, qmiSocket, c.Control, op)
+			if err != nil {
+				r.Warnings = append(r.Warnings, op+":READ_FAILED")
+			}
+			return output
 		}
 		call, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
@@ -59,6 +101,12 @@ func readQMI(ctx context.Context, c Candidate) Reading {
 	}
 	status := query("--nas-get-serving-system")
 	r.Registration = qmiValue(status, "Registration state")
+	if r.Registration == "registration-denied" {
+		r.Registration = "denied"
+	}
+	if r.Registration == "" {
+		r.Registration, r.Issue = "unknown", "QMI_STATUS_FAILED"
+	}
 	r.Operator = qmiValue(status, "Description")
 	r.PLMN = qmiValue(status, "MCC") + qmiValue(status, "MNC")
 	if strings.Contains(strings.ToLower(status), "lte") {

@@ -13,6 +13,8 @@ ENABLED=/etc/nginx/sites-enabled/rykvo-voice
 WRAPPER=/usr/local/bin/rykvo
 HARDWARE_RULE=/etc/udev/rules.d/70-rykvo-voice.rules
 PCSC_RULE=/etc/polkit-1/rules.d/70-rykvo-voice-pcsc.rules
+QMI_SOCKET=/etc/systemd/system/rykvo-qmi.socket
+QMI_UNIT=/etc/systemd/system/rykvo-qmi@.service
 DB=rykvo_voice
 DB_URL='postgres:///rykvo_voice?host=/var/run/postgresql&user=rykvo_voice'
 TEMP=
@@ -88,7 +90,7 @@ packages() {
 }
 
 preflight() {
-    for path in "$HARDWARE_RULE" "$PCSC_RULE"; do
+    for path in "$HARDWARE_RULE" "$PCSC_RULE" "$QMI_SOCKET" "$QMI_UNIT"; do
         if exists "$path" && { [[ -L "$path" ]] || ! grep -q 'Rykvo Voice:' "$path"; }; then
             die '同名设备规则不属于本项目'
         fi
@@ -148,6 +150,7 @@ stage_release() {
     install -m 755 "$SOURCE/bin/rykvo-auth" "$CANDIDATE/rykvo-auth"
     install -m 755 "$SOURCE/bin/cloudflared" "$CANDIDATE/cloudflared"
     cp "$SOURCE/VERSION" "$SOURCE/manifest.json" "$CANDIDATE/"
+    install -m 644 "$SOURCE/deploy/qmi-read.py" "$CANDIDATE/qmi-read.py"
     "$CANDIDATE/cloudflared" --version
     find "$CANDIDATE" -type d -exec chmod 755 {} +
 }
@@ -155,7 +158,7 @@ stage_release() {
 snapshot() {
     BACKUP="$BACKUPS/$(date -u +%Y%m%d-%H%M%S)-$(openssl rand -hex 3)"
     install -d -m 700 "$BACKUPS" "$BACKUP"
-    for pair in "unit:$UNIT" "nginx:$SITE" "hardware:$HARDWARE_RULE" "pcsc:$PCSC_RULE"; do
+    for pair in "unit:$UNIT" "nginx:$SITE" "hardware:$HARDWARE_RULE" "pcsc:$PCSC_RULE" "qmi-socket:$QMI_SOCKET" "qmi-unit:$QMI_UNIT"; do
         local name=${pair%%:*} path=${pair#*:}
         if exists "$path"; then cp -a "$path" "$BACKUP/$name"; fi
     done
@@ -163,8 +166,11 @@ snapshot() {
     if [[ -L /etc/nginx/sites-enabled/default ]]; then readlink /etc/nginx/sites-enabled/default > "$BACKUP/default-link"; fi
     if [[ -L "$BASE/live" ]]; then readlink "$BASE/live" > "$BACKUP/live-link"; fi
     printf '%s\n' "$WAS_ACTIVE" > "$BACKUP/was-active"
+    if systemctl is-active --quiet rykvo-qmi.socket; then touch "$BACKUP/qmi-active"; fi
+    if systemctl is-enabled --quiet rykvo-qmi.socket; then touch "$BACKUP/qmi-enabled"; fi
     SWITCHING=1
     systemctl stop rykvo-auth 2>/dev/null || [[ ! -f "$UNIT" ]]
+    qmi_stop
     if [[ "$(db_sql "SELECT 1 FROM pg_database WHERE datname='$DB'")" == 1 ]]; then
         runuser -u postgres -- pg_dump -Fc "$DB" > "$BACKUP/database.dump"
     fi
@@ -211,7 +217,7 @@ database() {
 health() {
     local attempt
     for ((attempt = 0; attempt < 30; attempt++)); do
-        if systemctl is-active --quiet rykvo-auth && curl --noproxy '*' -fsS --max-time 2 http://127.0.0.1/ -o "$TEMP/health.html" && grep -q 'id="login-form"' "$TEMP/health.html"; then
+        if systemctl is-active --quiet rykvo-qmi.socket && systemctl is-active --quiet rykvo-auth && curl --noproxy '*' -fsS --max-time 2 http://127.0.0.1/ -o "$TEMP/health.html" && grep -q 'id="login-form"' "$TEMP/health.html"; then
             [[ "$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' --max-time 3 -H 'Host: panel.example.com' http://127.0.0.1/)" == 404 ]] || return 1
             [[ "$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' --max-time 3 -H 'Host: panel.example.com' http://127.0.0.1/gly)" == 200 ]] || return 1
             [[ "$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1/app.js)" == 401 ]] || return 1
@@ -222,11 +228,17 @@ health() {
     return 1
 }
 
+qmi_stop() {
+    systemctl stop rykvo-qmi.socket 'rykvo-qmi@*.service' 2>/dev/null || true
+}
+
 rollback() {
     systemctl stop rykvo-auth || true
+    qmi_stop
+    systemctl disable rykvo-qmi.socket 2>/dev/null || true
     local name path
-    for name in unit nginx hardware pcsc; do
-        case "$name" in unit) path=$UNIT;; nginx) path=$SITE;; hardware) path=$HARDWARE_RULE;; pcsc) path=$PCSC_RULE;; esac
+    for name in unit nginx hardware pcsc qmi-socket qmi-unit; do
+        case "$name" in unit) path=$UNIT;; nginx) path=$SITE;; hardware) path=$HARDWARE_RULE;; pcsc) path=$PCSC_RULE;; qmi-socket) path=$QMI_SOCKET;; qmi-unit) path=$QMI_UNIT;; esac
         if exists "$BACKUP/$name"; then cp -a "$BACKUP/$name" "$path"; else rm -f -- "$path"; fi
     done
     rm -f -- "$ENABLED"
@@ -239,6 +251,8 @@ rollback() {
         mv -Tf "$BASE/.live-rollback" "$BASE/live"
     elif [[ -L "$BASE/live" ]]; then unlink "$BASE/live"; fi
     systemctl daemon-reload
+    if [[ -f "$BACKUP/qmi-enabled" ]]; then systemctl enable rykvo-qmi.socket; fi
+    if [[ -f "$BACKUP/qmi-active" ]]; then systemctl start rykvo-qmi.socket; fi
     udevadm control --reload-rules || true
     nginx -t && systemctl reload nginx
     if (( WAS_ACTIVE )); then systemctl start rykvo-auth; fi
@@ -289,6 +303,8 @@ deploy() {
     ln -s "$CANDIDATE" "$BASE/.live-$RELEASE"
     mv -Tf "$BASE/.live-$RELEASE" "$BASE/live"
     install -m 644 "$SOURCE/deploy/rykvo-auth.service" "$UNIT"
+    install -m 644 "$SOURCE/deploy/rykvo-qmi.socket" "$QMI_SOCKET"
+    install -m 644 "$SOURCE/deploy/rykvo-qmi@.service" "$QMI_UNIT"
     install -m 644 "$SOURCE/deploy/nginx.conf" "$SITE"
     if [[ -L /etc/nginx/sites-enabled/default ]]; then
         readlink /etc/nginx/sites-enabled/default > "$BASE/default-site-link"
@@ -297,6 +313,7 @@ deploy() {
     ln -sfn "$SITE" "$ENABLED"
     nginx -t
     systemctl daemon-reload
+    systemctl enable --now rykvo-qmi.socket
     systemctl enable --now nginx rykvo-auth
     systemctl reload nginx
     health || die '健康检查未通过'
@@ -326,7 +343,9 @@ uninstall() {
     confirm_uninstall
     snapshot
     systemctl disable --now rykvo-auth 2>/dev/null || [[ ! -f "$UNIT" ]]
-    rm -f -- "$UNIT" "$ENABLED" "$SITE" "$HARDWARE_RULE" "$PCSC_RULE"
+    qmi_stop
+    systemctl disable rykvo-qmi.socket 2>/dev/null || true
+    rm -f -- "$UNIT" "$ENABLED" "$SITE" "$HARDWARE_RULE" "$PCSC_RULE" "$QMI_SOCKET" "$QMI_UNIT"
     udevadm control --reload-rules || true
     if [[ -f "$BASE/default-site-link" && ! -e /etc/nginx/sites-enabled/default ]]; then
         ln -s "$(cat "$BASE/default-site-link")" /etc/nginx/sites-enabled/default

@@ -92,7 +92,9 @@ func (s *System) Read(ctx context.Context, c Candidate) Reading {
 	} else {
 		r = readAT(ctx, c)
 		if !r.Responsive && c.Control != "" && ctx.Err() == nil {
+			atIssue := r.Issue
 			r = readQMI(ctx, c)
+			r.Warnings = append(r.Warnings, "AT:"+atIssue)
 		}
 	}
 	if r.Responsive && r.SIM != "absent" && r.SIM != "SIM PIN" && r.SIM != "SIM PUK" && ctx.Err() == nil {
