@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"regexp"
@@ -13,23 +14,55 @@ import (
 )
 
 type moduleJob struct {
-	ID      string `json:"id"`
-	Module  int64  `json:"-"`
-	Action  string `json:"action"`
-	State   string `json:"state"`
-	Stage   string `json:"stage"`
-	Issue   string `json:"issue"`
-	Warning string `json:"warning"`
+	ID           string              `json:"id"`
+	Module       int64               `json:"-"`
+	Action       string              `json:"action"`
+	State        string              `json:"state"`
+	Stage        string              `json:"stage"`
+	Issue        string              `json:"issue"`
+	Warning      string              `json:"warning"`
+	Verification *moduleVerification `json:"-"`
 }
 
-const jobColumns = "id,module_id,action,state,stage,issue,warning"
+// Retain only the identity and expected result, never activation credentials.
+type moduleVerification struct {
+	EID   string `json:"eid"`
+	ICCID string `json:"iccid"`
+	Label string `json:"label,omitempty"`
+	IMEI  string `json:"imei,omitempty"`
+}
+
+func (j moduleJob) confirmed(reading hardware.Reading) bool {
+	v := j.Verification
+	if v == nil || v.EID == "" || !reading.Responsive || (v.IMEI != "" && reading.IMEI != v.IMEI) {
+		return false
+	}
+	return hardware.VerifyESIM(hardware.ESIMRequest{Action: j.Action, EID: v.EID, ICCID: v.ICCID, Label: v.Label}, hardware.ESIMResult{TargetICCID: v.ICCID}, reading.ESIM)
+}
+
+func (j *moduleJob) confirm(reading hardware.Reading) bool {
+	if !j.confirmed(reading) {
+		return false
+	}
+	j.State, j.Stage, j.Issue, j.Warning = "succeeded", "done", "", ""
+	if reading.ESIM.Pending > 0 {
+		j.Warning = "ESIM_NOTIFICATION_PENDING"
+	}
+	return true
+}
+
+const jobColumns = "id,module_id,action,state,stage,issue,warning,verification"
 
 var jobIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{16,64}$`)
 
 func (j moduleJob) active() bool { return j.State == "queued" || j.State == "running" }
 func scanJob(row interface{ Scan(...any) error }) (moduleJob, error) {
 	var j moduleJob
-	err := row.Scan(&j.ID, &j.Module, &j.Action, &j.State, &j.Stage, &j.Issue, &j.Warning)
+	var verification []byte
+	err := row.Scan(&j.ID, &j.Module, &j.Action, &j.State, &j.Stage, &j.Issue, &j.Warning, &verification)
+	if err == nil {
+		err = json.Unmarshal(verification, &j.Verification)
+	}
 	return j, err
 }
 func (m *moduleManager) loadJobs(ctx context.Context) {
@@ -89,11 +122,19 @@ func (m *moduleManager) job(id int64) moduleJob {
 func (m *moduleManager) saveJob(j moduleJob) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	_, err := m.db.Exec(ctx, "UPDATE module_jobs SET state=$2,stage=$3,issue=$4,warning=$5,updated_at=now() WHERE id=$1", j.ID, j.State, j.Stage, j.Issue, j.Warning)
+	err := m.persistJob(ctx, j)
 	m.mu.Lock()
 	m.jobs[j.Module] = j
 	m.mu.Unlock()
 	return err == nil
+}
+func (m *moduleManager) persistJob(ctx context.Context, j moduleJob) error {
+	verification, err := json.Marshal(j.Verification)
+	if err != nil {
+		return err
+	}
+	_, err = m.db.Exec(ctx, "UPDATE module_jobs SET state=$2,stage=$3,issue=$4,warning=$5,verification=$6,updated_at=now() WHERE id=$1", j.ID, j.State, j.Stage, j.Issue, j.Warning, verification)
+	return err
 }
 func (m *moduleManager) startJob(ctx context.Context, v moduleRecord, request hardware.ESIMRequest, id string) (moduleJob, error) {
 	// Retrying the same HTTP action never repeats the card write.
@@ -129,8 +170,9 @@ func (m *moduleManager) startJob(ctx context.Context, v moduleRecord, request ha
 	default:
 		return moduleJob{}, errors.New("DEVICE_BUSY")
 	}
-	j := moduleJob{ID: id, Module: v.ID, Action: request.Action, State: "queued", Stage: "waiting"}
-	_, err = m.db.Exec(ctx, "INSERT INTO module_jobs(id,module_id,action,state,stage) VALUES($1,$2,$3,$4,$5)", j.ID, j.Module, j.Action, j.State, j.Stage)
+	j := moduleJob{ID: id, Module: v.ID, Action: request.Action, State: "queued", Stage: "waiting", Verification: &moduleVerification{EID: request.EID, ICCID: request.ICCID, Label: request.Label, IMEI: sample.Reading.IMEI}}
+	verification, _ := json.Marshal(j.Verification)
+	_, err = m.db.Exec(ctx, "INSERT INTO module_jobs(id,module_id,action,state,stage,verification) VALUES($1,$2,$3,$4,$5,$6)", j.ID, j.Module, j.Action, j.State, j.Stage, verification)
 	if err != nil {
 		<-m.operationSlots
 		return moduleJob{}, errors.New("DATABASE_UNAVAILABLE")
@@ -181,24 +223,46 @@ func (m *moduleManager) runJob(j moduleJob, r hardware.ESIMRequest) {
 			m.saveJob(j)
 		}
 	})
-	// The card may have committed before a transport error. Never auto-replay writes.
-	j.State = "succeeded"
-	j.Stage = "done"
-	j.Issue = result.Issue
-	j.Warning = result.Warning
-	if !result.Verified {
-		j.State = "failed"
-		if result.Changed || j.Issue == "ESIM_INTERRUPTED" || j.Issue == "ESIM_RESULT_UNKNOWN" {
-			j.State = "uncertain"
+	if r.Action == "download" {
+		verification := *j.Verification
+		verification.ICCID = result.TargetICCID
+		j.Verification = &verification
+	}
+	j.Stage = "verifying"
+	m.saveJob(j)
+	// Read after SIM refresh; never replay a write to resolve an uncertain result.
+	readCtx, stop := context.WithTimeout(m.ctx, 90*time.Second)
+	defer stop()
+	var reading hardware.Reading
+	confirmed := false
+	for attempt := 0; attempt < 4; attempt++ {
+		m.mu.RLock()
+		current, present := m.seen[r.Candidate.Key]
+		m.mu.RUnlock()
+		if !present || !sameEndpoint(current, r.Candidate) {
+			break
+		}
+		call, cancelRead := context.WithTimeout(readCtx, 30*time.Second)
+		reading = m.source.Read(call, r.Candidate)
+		cancelRead()
+		confirmed = j.confirm(reading)
+		if confirmed || readCtx.Err() != nil || !result.Changed || (reading.ESIM != nil && reading.ESIM.EID != "" && reading.ESIM.EID != r.EID) {
+			break
+		}
+		if attempt < 3 {
+			select {
+			case <-readCtx.Done():
+			case <-time.After(3 * time.Second):
+			}
 		}
 	}
-	readCtx, stop := context.WithTimeout(m.ctx, 50*time.Second)
-	reading := m.source.Read(readCtx, r.Candidate)
-	stop()
-	if !result.Verified && result.Changed && hardware.VerifyESIM(r, result, reading.ESIM) {
-		j.State = "succeeded"
-		j.Issue = ""
-		j.Warning = "ESIM_NOTIFICATION_PENDING"
+	if !confirmed {
+		j.State, j.Stage, j.Issue, j.Warning = "failed", "done", result.Issue, result.Warning
+		if result.Verified {
+			j.State, j.Issue = "succeeded", ""
+		} else if result.Changed || result.Issue == "ESIM_INTERRUPTED" || result.Issue == "ESIM_RESULT_UNKNOWN" {
+			j.State, j.Issue = "uncertain", "ESIM_RESULT_UNKNOWN"
+		}
 	}
 	m.mu.Lock()
 	if current, ok := m.seen[r.Candidate.Key]; ok && sameEndpoint(current, r.Candidate) {

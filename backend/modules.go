@@ -272,6 +272,7 @@ func (s *server) moduleView(v moduleRecord) map[string]any {
 	if s.modules != nil {
 		job = s.modules.job(v.ID)
 	}
+	cardReading := present && !esim && reading.SIM != "absent" && reading.ESIM != nil && reading.ESIM.Issue != "NO_EUICC"
 	if esim {
 		for _, p := range reading.ESIM.Profiles {
 			number := ""
@@ -280,12 +281,12 @@ func (s *server) moduleView(v moduleRecord) map[string]any {
 			}
 			sims = append(sims, map[string]any{"id": hardware.ProfileID(reading.ESIM.EID, p.ICCID), "iccid": p.ICCID, "label": p.Label, "number": number, "enabled": p.Enabled, "esim": true, "readOnly": false, "canDisable": p.CanDisable, "canDelete": p.CanDelete, "provider": p.Provider})
 		}
-	} else if present && reading.ICCID != "" {
+	} else if present && reading.ICCID != "" && !cardReading {
 		sims = append(sims, map[string]any{"id": "line-" + hardware.Digest(reading.ICCID)[:24], "iccid": reading.ICCID, "label": "SIM", "number": reading.Number, "enabled": reading.SIM == "READY", "readOnly": true})
 	}
 	signal := "none"
 	if reading.Registration == "home" || reading.Registration == "roaming" || reading.Registration == "registered" {
 		signal = "cellular"
 	}
-	return map[string]any{"id": moduleID(v.ID), "name": moduleName(v.ID), "label": v.Label, "labelCustom": v.Custom, "number": reading.Number, "status": status, "signal": signal, "sims": sims, "kind": v.Kind, "hardware": reading, "issue": issue, "managed": true, "job": job, "capabilities": map[string]bool{"read": true, "sms": false, "calls": false, "lineControl": false, "esim": esim && !job.active()}}
+	return map[string]any{"id": moduleID(v.ID), "name": moduleName(v.ID), "label": v.Label, "labelCustom": v.Custom, "number": reading.Number, "status": status, "signal": signal, "sims": sims, "kind": v.Kind, "hardware": reading, "issue": issue, "managed": true, "cardReading": cardReading, "job": job, "capabilities": map[string]bool{"read": true, "sms": false, "calls": false, "lineControl": false, "esim": esim && !job.active()}}
 }

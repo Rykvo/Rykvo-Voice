@@ -189,6 +189,12 @@ func (m *moduleManager) accept(ctx context.Context, sample moduleSample) {
 		return
 	}
 	m.values[v.ID] = sample
+	job := m.jobs[v.ID]
+	if job.State == "uncertain" && job.confirm(sample.Reading) {
+		if m.persistJob(call, job) == nil {
+			m.jobs[v.ID] = job
+		}
+	}
 }
 func (m *moduleManager) issue() string { m.mu.RLock(); defer m.mu.RUnlock(); return m.discoveryIssue }
 func (m *moduleManager) state(v moduleRecord) (hardware.Reading, bool, string) {

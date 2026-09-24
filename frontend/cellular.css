@@ -155,12 +155,6 @@ dialog:has(.cellular-page) .dialog-close {
   color: var(--muted);
   font-size: 20px;
 }
-.cellular-job-check {
-  margin-right: 6px;
-  color: #248a3d;
-}
-.theme-dark .cellular-job-check { color: #30d158; }
-.cellular-job small { display: block; margin-top: 4px; }
 .cellular-job progress {
   display: block;
   width: 100%;

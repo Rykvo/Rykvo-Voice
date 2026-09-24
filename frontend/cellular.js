@@ -10,14 +10,11 @@ const Cellular = (() => {
   }
   function jobNote(item) {
     const job = item.job;
-    if (!job?.id || dismissedJobs.has(job.id)) return "";
+    if (!job?.id || job.state === "succeeded" || dismissedJobs.has(job.id)) return "";
     const busy = ["queued", "running"].includes(job.state);
-    const success = job.state === "succeeded";
     const stage = { waiting: "等待设备", checking: "检查卡片", writing: job.action === "enable" ? "正在切换号码" : "正在处理", authenticating: "正在验证", downloading: "正在下载", installing: "正在写入", verifying: "正在确认卡片状态", notifying: "正在上报状态" };
-    const done = { enable: "号码已切换", disable: "号码已停用", download: "eSIM 已添加", delete: "eSIM 已删除", rename: "标签已更新", notifications: "状态已上报" };
-    const text = busy ? stage[job.stage] || "正在处理" : success ? done[job.action] || "已完成" : ModuleData.issueText(job.issue) || "操作未完成";
-    const warning = success && job.warning ? ModuleData.issueText(job.warning) : "";
-    return `<div class="cellular-job" data-state="${success ? "success" : busy ? "busy" : "attention"}"><div class="cellular-job-heading"><span role="status">${success ? '<span class="cellular-job-check" aria-hidden="true">✓</span>' : ""}${UI.escape(text)}</span>${busy ? "" : '<button type="button" class="text-button" data-cellular-dismiss aria-label="关闭操作提示">×</button>'}</div>${busy ? `<progress aria-label="${UI.escape(text)}"></progress>` : ""}${warning ? `<small>${UI.escape(warning)}</small>` : ""}</div>`;
+    const text = busy ? stage[job.stage] || "正在处理" : ModuleData.issueText(job.issue) || "操作未完成";
+    return `<div class="cellular-job"><div class="cellular-job-heading"><span role="status">${UI.escape(text)}</span>${busy ? "" : '<button type="button" class="text-button" data-cellular-dismiss aria-label="关闭操作提示">×</button>'}</div>${busy ? `<progress aria-label="${UI.escape(text)}"></progress>` : ""}</div>`;
   }
   function refreshDialog() {
     if (!module || !["overview", "detail"].includes(view)) return;

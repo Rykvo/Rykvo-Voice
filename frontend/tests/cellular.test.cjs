@@ -379,17 +379,16 @@ test("eSIM progress follows real stages without invented percentages", () => {
   assert.match(cellular.overview(item), /正在确认卡片状态/);
 });
 
-test("only confirmed jobs show success and notification warnings stay separate", () => {
+test("confirmed jobs leave no success footer or duplicate notification warning", () => {
   const { cellular } = setup();
   const item = { ...fixture, job: { id: "job-result", action: "enable", state: "uncertain", issue: "ESIM_RESULT_UNKNOWN" } };
   assert.doesNotMatch(cellular.overview(item), /号码已切换|<progress/);
   assert.match(cellular.overview(item), /请勿重复操作/);
   item.job = { ...item.job, state: "succeeded", issue: "", warning: "ESIM_NOTIFICATION_PENDING" };
   const html = cellular.overview(item);
-  assert.match(html, /号码已切换/);
-  assert.match(html, /运营商通知待重试/);
-  assert.match(html, /data-cellular-dismiss/);
-  assert.doesNotMatch(html, /<progress/);
+  assert.doesNotMatch(html, /号码已切换|已完成|运营商通知待重试|data-cellular-dismiss|class="cellular-job"|<progress/);
+  item.hardware = { esim: { pending: 1 } };
+  assert.match(cellular.overview(item), /重试状态上报/);
 });
 
 test("read errors and pending inventory are not presented as an absent SIM", () => {

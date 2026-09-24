@@ -22,6 +22,64 @@ func TestModuleLabelNormalization(t *testing.T) {
 		t.Fatal("label normalization")
 	}
 }
+
+func TestModuleJobConfirmsOnlyMatchingCardAndTarget(t *testing.T) {
+	info := &hardware.ESIMInfo{EID: "89049032001001234500012345678901", Profiles: []hardware.ESIMProfile{{ICCID: "89123456789012345678", Enabled: true, Label: "主号"}}}
+	reading := hardware.Reading{Responsive: true, IMEI: "123456789012345", ESIM: info}
+	job := moduleJob{Action: "enable", State: "uncertain", Issue: "ESIM_RESULT_UNKNOWN", Verification: &moduleVerification{EID: info.EID, ICCID: info.Profiles[0].ICCID, IMEI: reading.IMEI}}
+	if !job.confirm(reading) || job.State != "succeeded" || job.Issue != "" || job.Warning != "" {
+		t.Fatal("confirmed state did not clear uncertainty")
+	}
+	info.Pending = 1
+	if !job.confirm(reading) || job.Warning != "ESIM_NOTIFICATION_PENDING" {
+		t.Fatal("pending notification lost")
+	}
+	reading.IMEI = "999999999999999"
+	if job.confirmed(reading) {
+		t.Fatal("different modem accepted")
+	}
+	reading.IMEI = job.Verification.IMEI
+	info.EID = "89049032001001234500012345678902"
+	if job.confirmed(reading) {
+		t.Fatal("different card accepted")
+	}
+	info.EID = job.Verification.EID
+	info.Profiles[0].Enabled = false
+	if job.confirmed(reading) {
+		t.Fatal("disabled target accepted")
+	}
+	job.Action = "disable"
+	if !job.confirmed(reading) {
+		t.Fatal("disable not verified")
+	}
+	job.Action = "download"
+	if !job.confirmed(reading) {
+		t.Fatal("installed profile not verified")
+	}
+	job.Verification = nil
+	if job.confirmed(reading) {
+		t.Fatal("legacy job guessed")
+	}
+}
+
+func TestModulePendingESIMDoesNotBecomePhysicalSIM(t *testing.T) {
+	m := newModuleManager(nil, nil)
+	c := hardware.Candidate{Key: "usb:esim", Generation: "1"}
+	v := moduleRecord{ID: 1, Endpoint: c.Key}
+	m.seen[c.Key], m.lastScan = c, time.Now()
+	m.values[v.ID] = moduleSample{c, hardware.Reading{Responsive: true, SIM: "READY", ICCID: "89123456789012345678", UpdatedAt: time.Now(), ESIM: &hardware.ESIMInfo{Issue: "READ_TIMEOUT"}}}
+	s := &server{modules: m}
+	view := s.moduleView(v)
+	if view["cardReading"] != true || len(view["sims"].([]any)) != 0 {
+		t.Fatal("transient eSIM failure presented as physical SIM")
+	}
+	sample := m.values[v.ID]
+	sample.Reading.ESIM.Issue = "NO_EUICC"
+	m.values[v.ID] = sample
+	if len(s.moduleView(v)["sims"].([]any)) != 1 {
+		t.Fatal("physical SIM hidden")
+	}
+}
 func TestModuleStateAndStaleSIM(t *testing.T) {
 	m := newModuleManager(nil, nil)
 	s := &server{modules: m}
@@ -93,6 +151,33 @@ func testModuleDatabase(t *testing.T, s *server, cookie, csrf string) {
 		if v.Label == "" {
 			t.Fatal("empty label")
 		}
+	}
+	job := moduleJob{ID: "verification-fixture", Module: records[0].ID, Action: "enable", State: "uncertain", Stage: "done", Issue: "ESIM_RESULT_UNKNOWN", Verification: &moduleVerification{EID: "89049032001001234500012345678901", ICCID: "89123456789012345678", IMEI: "123456789012300"}}
+	if _, err := s.db.Exec(ctx, "INSERT INTO module_jobs(id,module_id,action,state) VALUES($1,$2,$3,$4)", job.ID, job.Module, job.Action, job.State); err != nil {
+		t.Fatal(err)
+	}
+	m := newModuleManager(s.db, nil)
+	if !m.saveJob(job) {
+		t.Fatal("job persistence")
+	}
+	loaded, err := scanJob(s.db.QueryRow(ctx, "SELECT "+jobColumns+" FROM module_jobs WHERE id=$1", job.ID))
+	if err != nil || loaded.Verification == nil || *loaded.Verification != *job.Verification {
+		t.Fatalf("verification roundtrip: %v", err)
+	}
+	serialized, _ := json.Marshal(loaded)
+	if strings.Contains(string(serialized), job.Verification.EID) {
+		t.Fatal("verification exposed in job API")
+	}
+	m.loadJobs(ctx)
+	c := hardware.Candidate{Key: "usb:moved", Kind: "usb"}
+	m.seen[c.Key], m.lastScan = c, time.Now()
+	reading := hardware.Reading{Responsive: true, IMEI: job.Verification.IMEI, UpdatedAt: time.Now(), ESIM: &hardware.ESIMInfo{EID: job.Verification.EID, Profiles: []hardware.ESIMProfile{{ICCID: job.Verification.ICCID, Enabled: true}}}}
+	m.accept(ctx, moduleSample{c, reading})
+	if m.job(job.Module).State != "succeeded" {
+		t.Fatal("late read did not reconcile uncertain job")
+	}
+	if _, err := s.db.Exec(ctx, "DELETE FROM module_jobs WHERE id=$1", job.ID); err != nil {
+		t.Fatal(err)
 	}
 }
 
