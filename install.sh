@@ -117,6 +117,11 @@ get_source() {
         fi
     fi
     if [[ -z "$token" ]]; then
+        if SOURCE=$(printf '\n' | python3 "$SCRIPT_ROOT/deploy/release.py" fetch "$TEMP" "$ARCH" 2>"$TEMP/download-error"); then
+            return
+        fi
+    fi
+    if [[ -z "$token" ]]; then
         read -rs -p 'GitHub 令牌（仅需本私有仓库 Contents: Read）：' token </dev/tty
         printf '\n' >/dev/tty
     fi

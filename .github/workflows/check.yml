@@ -26,7 +26,7 @@ jobs:
           node-version: '22'
       - run: node --test frontend/tests/*.test.cjs
       - run: python3 -m unittest discover -s tests
-      - run: bash -n install.sh && shellcheck install.sh
+      - run: bash -n install.sh && bash -n deploy.sh && shellcheck install.sh deploy.sh
       - working-directory: backend
         env:
           TEST_DATABASE_URL: postgres://postgres:test-only@localhost:5432/rykvo_ci_test?sslmode=disable
