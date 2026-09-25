@@ -1,4 +1,4 @@
-"""Rykvo Voice: fixed QMI queries and scoped EC20 recovery on a private socket."""
+"""Private helper: fixed QMI operations and a delayed host restart."""
 import json
 import os
 from pathlib import Path
@@ -50,7 +50,24 @@ def valid_restart(request):
     )
 
 
+def restart_host():
+    try:
+        result = subprocess.run(
+            ["/usr/bin/systemd-run", "--quiet", "--unit=rykvo-host-restart",
+             "--on-active=5s", "--timer-property=AccuracySec=1s",
+             "/usr/bin/systemctl", "reboot"],
+            env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LC_ALL": "C"},
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, timeout=3, check=False,
+        )
+        return {"output": "scheduled"} if result.returncode == 0 else {"error": "HOST_RESTART_FAILED"}
+    except (OSError, subprocess.TimeoutExpired):
+        return {"error": "HOST_RESTART_UNKNOWN"}
+
+
 def query(request):
+    if request == {"command": "host-restart"}:
+        return restart_host()
     if not isinstance(request, dict) or not {"device", "command"}.issubset(request):
         return {"error": "INVALID_REQUEST"}
     command = request["command"]

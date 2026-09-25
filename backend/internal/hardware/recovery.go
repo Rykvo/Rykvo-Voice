@@ -37,3 +37,9 @@ func (s *System) Restart(ctx context.Context, c Candidate) error {
 	})
 	return err
 }
+
+// The privileged helper accepts a fixed delayed reboot, never a command string.
+func (s *System) RestartHost(ctx context.Context) error {
+	_, err := proxyRequest(ctx, qmiSocket, map[string]string{"command": "host-restart"})
+	return err
+}

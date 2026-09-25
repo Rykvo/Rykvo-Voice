@@ -16,6 +16,41 @@ const Modules = (() => {
   let filter = "all";
   let query = "";
   let unsubscribe = null;
+  const restartRequests = new Map(), restarting = new Set();
+  let hostRestarting = false;
+  function restartDisabled(item) {
+    return hostRestarting || restarting.size > 0 || (item ? item.capabilities?.restart !== true : items.some(item => ["queued", "running"].includes(item.job?.state)));
+  }
+  function restartTitle(item) {
+    const label = item.label || item.name;
+    return `重启${/^模块 \d+$/.test(label) ? label : `“${label}”`}？`;
+  }
+  function confirmRestart(scope) {
+    const item = items.find(item => item.id === scope);
+    if ((scope !== "host" && scope !== "all" && !item) || !ModuleData.connected() || restartDisabled(item)) return;
+    const title = scope === "host" ? "重启主机？" : scope === "all" ? "重启全部模块？" : restartTitle(item);
+    const note = scope === "host" ? "所有服务将暂时中断。" : scope === "all" ? "所有模块将暂时断开。" : "此模块将暂时断开。";
+    ContextMenu.confirm(title, () => restart(scope), "重启", note);
+  }
+  async function restart(scope) {
+    if (restarting.size || hostRestarting) return;
+    restarting.add(scope);
+    if (!restartRequests.has(scope)) restartRequests.set(scope, UI.id());
+    updateRows(false);
+    try {
+      const result = await ModuleData.restart(scope, restartRequests.get(scope));
+      if (scope === "host") {
+        hostRestarting = result.state === "accepted";
+        UI.toast(hostRestarting ? "主机正在重启" : "重启结果待确认，请稍后刷新");
+      } else UI.toast("已提交重启");
+      if (result.state !== "uncertain") restartRequests.delete(scope);
+    } catch (error) {
+      UI.toast(error.code === "DEVICE_BUSY" ? "设备正在忙，请稍后重试" : error.code === "DEVICE_UNAVAILABLE" ? "设备未连接" : "请求结果待确认，请稍后重试");
+    } finally {
+      restarting.delete(scope);
+      updateRows(false);
+    }
+  }
   function count(records) {
     return records.reduce(
       (total, item) => {
@@ -62,7 +97,11 @@ const Modules = (() => {
           order.compare(a.number || "", b.number || ""),
       );
   }
-  function badge(status, issue) {
+  function badge(status, issue, job) {
+    if (job?.action === "restart" && ["queued", "running", "uncertain", "failed"].includes(job.state)) {
+      const text = job.state === "failed" ? "重启失败" : job.state === "uncertain" && issue !== "RECOVERING" ? "重启待确认" : "正在重启";
+      return `<span class="module-status" data-status="error"><i aria-hidden="true"></i>${text}</span>`;
+    }
     const text = issue === "RECOVERING" ? "正在恢复" : status === "error" && issue && issue !== "IDENTITY_CONFLICT" ? "读取异常" : statuses[status] || "未知";
     return `<span class="module-status" data-status="${UI.escape(status)}" title="${UI.escape(ModuleData.issueText(issue))}"><i aria-hidden="true"></i>${UI.escape(text)}</span>`;
   }
@@ -83,7 +122,7 @@ const Modules = (() => {
       ? records
           .map(
             (item) =>
-              `<tr data-module-row="${UI.escape(item.id)}"><th scope="row">${UI.escape(item.label || item.name)}</th><td class="module-number">${UI.escape(ModuleData.identity(item.number, item.hardware?.iccid).caption)}</td><td>${badge(item.status, item.issue)}</td><td class="module-signal">${UI.escape(signalLabel(item.signal, item))}</td><td><button type="button" class="text-button module-detail" data-module-detail="${UI.escape(item.id)}" aria-label="查看${UI.escape(item.name)}详情">详情</button></td></tr>`,
+              `<tr data-module-row="${UI.escape(item.id)}"><th scope="row">${UI.escape(item.label || item.name)}</th><td class="module-number">${UI.escape(ModuleData.identity(item.number, item.hardware?.iccid).caption)}</td><td>${badge(item.status, item.issue, item.job)}</td><td class="module-signal">${UI.escape(signalLabel(item.signal, item))}</td><td><div class="module-actions"><button type="button" class="text-button module-restart" data-module-restart="${UI.escape(item.id)}" aria-label="重启${UI.escape(item.label || item.name)}" ${restartDisabled(item) ? "disabled" : ""}>重启</button><button type="button" class="text-button module-detail" data-module-detail="${UI.escape(item.id)}" aria-label="查看${UI.escape(item.name)}详情">详情</button></div></td></tr>`,
           )
           .join("")
       : `<tr><td colspan="5" class="data-empty">${ModuleData.issue ? "读取异常，正在重试" : ModuleData.connected() && !ModuleData.loaded ? "正在读取" : "暂无模块"}</td></tr>`;
@@ -101,7 +140,7 @@ const Modules = (() => {
       )
       .join(
         "",
-      )}</div><div class="data-toolbar"><label class="data-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><input id="module-search" type="search" aria-label="搜索模块或号码" placeholder="搜索模块或号码" autocomplete="off"></label></div><div class="data-table-wrap" role="region" aria-label="模块列表滚动区域" tabindex="0"><table class="data-table" aria-label="模块列表"><colgroup><col class="module-col-name"><col class="module-col-number"><col class="module-col-status"><col class="module-col-signal"><col class="module-col-action"></colgroup><thead><tr><th scope="col">模块</th><th scope="col">号码</th><th scope="col">状态</th><th scope="col">信号</th><th scope="col">操作</th></tr></thead><tbody id="module-rows">${rows(select(items, filter))}</tbody></table></div><p id="module-service" class="field-error" role="status" hidden></p><span id="module-result" class="sr-only" role="status" aria-live="polite"></span></section>`;
+      )}</div><div class="data-toolbar"><label class="data-search"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></svg><input id="module-search" type="search" aria-label="搜索模块或号码" placeholder="搜索模块或号码" autocomplete="off"></label><div class="module-toolbar-actions"><button type="button" class="text-button" data-module-restart="all">模块重启</button><button type="button" class="text-button" data-module-restart="host">主机重启</button></div></div><div class="data-table-wrap" role="region" aria-label="模块列表滚动区域" tabindex="0"><table class="data-table" aria-label="模块列表"><colgroup><col class="module-col-name"><col class="module-col-number"><col class="module-col-status"><col class="module-col-signal"><col class="module-col-action"></colgroup><thead><tr><th scope="col">模块</th><th scope="col">号码</th><th scope="col">状态</th><th scope="col">信号</th><th scope="col">操作</th></tr></thead><tbody id="module-rows">${rows(select(items, filter))}</tbody></table></div><p id="module-service" class="field-error" role="status" hidden></p><span id="module-result" class="sr-only" role="status" aria-live="polite"></span></section>`;
   }
   function updateRows(resetScroll = true) {
     const visible = select(items, filter, query);
@@ -128,6 +167,10 @@ const Modules = (() => {
       });
       for (const row of previous.values()) row.remove();
     }
+    document.querySelectorAll(".module-toolbar-actions [data-module-restart]").forEach(button => {
+      button.disabled = !ModuleData.connected() || restartDisabled() || (button.dataset.moduleRestart === "all" && !items.some(item => item.capabilities?.restart));
+      if (button.dataset.moduleRestart === "host") button.textContent = hostRestarting ? "重启中…" : "主机重启";
+    });
     const counts = count(items);
     document.querySelectorAll("[data-module-filter]").forEach((button) => {
       const value = button.querySelector?.("strong");
@@ -144,6 +187,8 @@ const Modules = (() => {
       document.querySelector(".modules-page .data-table-wrap").scrollTop = 0;
   }
   document.addEventListener("click", (event) => {
+    const restartButton = event.target.closest("[data-module-restart]");
+    if (restartButton) { if (!restartButton.disabled) confirmRestart(restartButton.dataset.moduleRestart);return; }
     const button = event.target.closest("[data-module-filter]");
     if (button) {
       const value = button.dataset.moduleFilter;
@@ -243,7 +288,7 @@ const Modules = (() => {
   document.addEventListener("input", search);
   document.addEventListener("compositionend", search);
   return {
-    render, count, select, rows,
+    render, count, select, rows, restartTitle,
     get total() { return items.length; },
     mount() { unsubscribe?.(); unsubscribe = ModuleData.subscribe(() => updateRows(false)); updateRows(false); },
     unmount() { unsubscribe?.(); unsubscribe = null; },

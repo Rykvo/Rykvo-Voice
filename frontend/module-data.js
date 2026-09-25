@@ -157,7 +157,23 @@ const ModuleData = (() => {
       if (started && !document.hidden) timer = setTimeout(refresh, 1000);
     }
   }
+  async function restart(scope, requestId) {
+    stopRequest();
+    try {
+      const operation = scope === "all" ? "restartAll" : scope === "host" ? "restartHost" : "restart";
+      const result = await Backend.modules[operation]({ params: { moduleId: scope }, body: { requestId, confirm: true }, idempotencyKey: requestId });
+      for (const entry of result.jobs || []) {
+        const item = items.find(item => item.id === entry.moduleId);
+        if (item) { item.job = entry.job; if (item.capabilities) item.capabilities.restart = false; }
+      }
+      notify();
+      return result;
+    } finally {
+      if (started && !document.hidden) timer = setTimeout(refresh, 1000);
+    }
+  }
   return {
+    restart,
     items, labels, labelKey, validLabel, identity, duplicate, connected, merge, start, saveLabel, control, issueText,
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     get issue() { return issue; },

@@ -234,13 +234,16 @@ func (m *moduleManager) accept(ctx context.Context, sample moduleSample) {
 		m.saveCarrierConfig(call, sample.Reading.ICCID, *sample.Reading.CarrierConfig)
 	}
 	m.verifyRecovery(call, v.ID, sample.Reading)
-	m.startWiFiLocked(v.ID, sample)
 	job := m.jobs[v.ID]
-	if job.State == "uncertain" && job.confirm(sample.Reading) {
+	if job.State == "uncertain" && (job.confirmRestart(sample) || job.confirm(sample.Reading)) {
 		if m.persistJob(call, job) == nil {
 			m.jobs[v.ID] = job
+			if job.Action == "restart" {
+				resumeWiFiIntent(m.wifi[v.ID], sample.Reading)
+			}
 		}
 	}
+	m.startWiFiLocked(v.ID, sample)
 }
 func (m *moduleManager) issue() string { m.mu.RLock(); defer m.mu.RUnlock(); return m.discoveryIssue }
 func (m *moduleManager) state(v moduleRecord) (hardware.Reading, bool, string) {

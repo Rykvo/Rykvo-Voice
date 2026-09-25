@@ -261,3 +261,11 @@ EC20 连续通信超时恢复期间 `issue=RECOVERING`，页面显示“正在�
 - 按当前已核实 SIM 的 ICCID 持久保存，换卡隔离、重启后载入；旧请求重放不会覆盖新选择。继续使用管理员会话、Origin 与 CSRF 校验。
 - Wi-Fi 开关开启（含连接中、断线等待、失败）或仍在关闭清理时，前端将漫游开关置灰，后台拒绝修改；完整关闭后恢复可操作。置灰不清除原有选择。
 - 本字段是数据使用许可，不会直接发起 PDP、打开射频、改变默认路由或启用主机流量；实际数据/MMS 传输仍待接入并消费该许可。SMS/MMS 收发尚未实现。
+
+### 重启
+- `POST /modules/:moduleId/restart`：独立模块重启。
+- `POST /modules/restart`：全部 USB 模块依次重启，不受列表筛选影响。
+- `POST /modules/host-restart`：主机延迟重启。
+- 请求 `{requestId, confirm: true}`；登录、同源、CSRF 与持久化去重。设备忙时拒绝，不中断 eSIM 写入或发送中的消息。
+- 模块响应 `{jobs: [{moduleId, job}]}`；相同 IMEI 的新 USB 代次读取正常后任务才完成。Wi-Fi 通话意图和漫游设置不修改。
+- 主机响应 `{state: "accepted" | "uncertain"}`；仅报告已提交或结果待确认，不把 HTTP 202 当作恢复完成。不自动重放重启。

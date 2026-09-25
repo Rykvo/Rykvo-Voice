@@ -571,6 +571,13 @@ dialog:has(.confirm-actions) h2 {
   font-size: 17px;
   font-weight: 600;
 }
+dialog:has(.confirm-note) h2 { padding-bottom: 8px; }
+.confirm-note {
+  padding: 0 24px 24px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
 .confirm-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;

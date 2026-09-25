@@ -381,3 +381,16 @@ test("invalid labels and storage failure leave existing labels intact", () => {
     /object Object/,
   );
 });
+
+test("restart controls are separate and labels stay minimal", () => {
+  const { modules } = setup();
+  const html = modules.render();
+  assert.equal((html.match(/data-module-restart=/g) || []).length, 52);
+  assert.match(html, /data-module-restart="all">模块重启/);
+  assert.match(html, /data-module-restart="host">主机重启/);
+  assert.equal(modules.restartTitle({name:"模块 05"}), "重启模块 05？");
+  assert.equal(modules.restartTitle({name:"模块 05",label:"香港卡"}), "重启“香港卡”？");
+  const source = readFileSync(join(__dirname, "..", "modules.js"), "utf8");
+  assert.doesNotMatch(source, /原设置保留/);
+  assert.match(source, /ContextMenu.confirm\(title, \(\) => restart\(scope\), "重启", note\)/);
+});

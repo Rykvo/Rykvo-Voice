@@ -254,7 +254,13 @@ func (m *moduleManager) processMessage(parent context.Context) {
 	if strings.HasPrefix(id, "rx-") {
 		next = "downloading"
 	}
+	m.mu.RLock()
+	if !m.ready || m.jobs[module].active() {
+		m.mu.RUnlock()
+		return
+	}
 	tag, e := m.db.Exec(ctx, "UPDATE messages SET state=$2,issue='' WHERE id=$1 AND state=$3 AND deleted_at IS NULL", id, next, state)
+	m.mu.RUnlock()
 	if e != nil || tag.RowsAffected() != 1 {
 		return
 	}

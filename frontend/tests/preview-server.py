@@ -137,7 +137,7 @@ if __name__ == "__main__":
             Preview.devices.append({
                 "id": f"module-{n:02d}", "name": f"模块 {n:02d}", "label": f"模块 {n:02d}",
                 "labelCustom": False, "managed": True, "kind": "usb", "number": "", "signal": "cellular",
-                "status": "offline" if n == 8 else "online", "capabilities": {"esim": n != 8},
+                "status": "offline" if n == 8 else "online", "capabilities": {"esim": n != 8, "restart": n != 8},
                 "hardware": {"model": "EC20", "imei": "123456789012345", "iccid": "89123456789012345678", "simState": "READY", "registration": "home", "operator": "测试运营商", "technology": "LTE", "rssi": -69, "esim": esim},
                 "sims": [{"id": "fixture-main", "iccid": "89123456789012345678", "label": "主号", "number": "", "enabled": True, "esim": True, "canDisable": True, "canDelete": True}, {"id": "fixture-spare", "iccid": "89123456789012345679", "label": "备用", "number": "", "enabled": False, "esim": True, "canDisable": True, "canDelete": True}],
             })

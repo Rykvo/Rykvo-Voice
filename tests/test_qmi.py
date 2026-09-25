@@ -12,6 +12,21 @@ spec.loader.exec_module(qmi)
 
 
 class QMIReadTests(unittest.TestCase):
+    def test_host_restart_is_fixed_delayed_and_rejects_extra_fields(self):
+        with patch.object(qmi.subprocess, "run") as run:
+            run.return_value = subprocess.CompletedProcess([], 0)
+            self.assertEqual(qmi.query({"command": "host-restart"}), {"output": "scheduled"})
+            command = run.call_args.args[0]
+            self.assertEqual(command[-2:], ["/usr/bin/systemctl", "reboot"])
+            self.assertIn("--on-active=5s", command)
+            self.assertIn("--unit=rykvo-host-restart", command)
+            run.reset_mock()
+            for request in ({"command": "host-restart", "args": "anything"}, {"command": "reboot"}):
+                self.assertEqual(qmi.query(request), {"error": "INVALID_REQUEST"})
+            run.assert_not_called()
+            run.side_effect = subprocess.TimeoutExpired("systemd-run", 3)
+            self.assertEqual(qmi.query({"command": "host-restart"}), {"error": "HOST_RESTART_UNKNOWN"})
+
     def test_restart_requires_matching_ec20_endpoint_and_generation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

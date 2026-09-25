@@ -31,12 +31,12 @@ const ContextMenu = (() => {
     menu.style.top = `${Math.max(8, Math.min(y, innerHeight - menu.offsetHeight - 8))}px`;
     menu.querySelector("button:not(:disabled)")?.focus();
   }
-  function confirm(title, action, label = "删除") {
+  function confirm(title, action, label = "删除", note = "") {
     close();
     pending = action;
     UI.modal(
       title,
-      `<div class="confirm-actions"><button type="button" data-confirm="cancel">取消</button><button type="button" class="danger-button" data-confirm="accept">${escape(label)}</button></div>`,
+      `${note ? `<div class="confirm-note">${escape(note)}</div>` : ""}<div class="confirm-actions"><button type="button" data-confirm="cancel">取消</button><button type="button" class="danger-button" data-confirm="accept">${escape(label)}</button></div>`,
     );
     $('[data-confirm="cancel"]').focus();
   }

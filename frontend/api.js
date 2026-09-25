@@ -8,6 +8,9 @@ const Backend = (() => {
     },
     modules: {
       list: ["GET", "/modules"],
+      restart: ["POST", "/modules/:moduleId/restart"],
+      restartAll: ["POST", "/modules/restart"],
+      restartHost: ["POST", "/modules/host-restart"],
       get: ["GET", "/modules/:moduleId"],
       update: ["PATCH", "/modules/:moduleId"],
       lines: ["GET", "/modules/:moduleId/lines"],

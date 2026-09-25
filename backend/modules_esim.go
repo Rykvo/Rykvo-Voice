@@ -26,10 +26,11 @@ type moduleJob struct {
 
 // Retain only the identity and expected result, never activation credentials.
 type moduleVerification struct {
-	EID   string `json:"eid"`
-	ICCID string `json:"iccid"`
-	Label string `json:"label,omitempty"`
-	IMEI  string `json:"imei,omitempty"`
+	EID        string `json:"eid"`
+	ICCID      string `json:"iccid"`
+	Label      string `json:"label,omitempty"`
+	IMEI       string `json:"imei,omitempty"`
+	Generation string `json:"generation,omitempty"`
 }
 
 func (j moduleJob) confirmed(reading hardware.Reading) bool {
@@ -66,7 +67,7 @@ func scanJob(row interface{ Scan(...any) error }) (moduleJob, error) {
 	return j, err
 }
 func (m *moduleManager) loadJobs(ctx context.Context) {
-	if _, err := m.db.Exec(ctx, "UPDATE module_jobs SET state='uncertain',issue=CASE WHEN action LIKE 'network-%' THEN 'OPERATION_RETIRED' ELSE 'ESIM_INTERRUPTED' END,updated_at=now() WHERE state IN ('queued','running')"); err != nil {
+	if _, err := m.db.Exec(ctx, "UPDATE module_jobs SET state='uncertain',issue=CASE WHEN action LIKE 'network-%' THEN 'OPERATION_RETIRED' WHEN action='restart' THEN 'RESTART_INTERRUPTED' ELSE 'ESIM_INTERRUPTED' END,updated_at=now() WHERE state IN ('queued','running')"); err != nil {
 		return
 	}
 	rows, err := m.db.Query(ctx, "SELECT "+jobColumns+" FROM (SELECT DISTINCT ON(module_id) "+jobColumns+" FROM module_jobs ORDER BY module_id,created_at DESC) latest WHERE action NOT LIKE 'network-%'")

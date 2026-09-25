@@ -172,3 +172,10 @@ BEGIN PERFORM pg_advisory_xact_lock(-734901); NEW.revision=nextval('message_revi
 DROP TRIGGER IF EXISTS message_revision_trigger ON messages;
 CREATE TRIGGER message_revision_trigger BEFORE INSERT OR UPDATE ON messages FOR EACH ROW EXECUTE FUNCTION message_revision_update();
 CREATE INDEX IF NOT EXISTS messages_revision ON messages(revision);
+
+CREATE TABLE IF NOT EXISTS restart_requests (
+ id text PRIMARY KEY,
+ scope text NOT NULL,
+ state text NOT NULL DEFAULT 'requested',
+ created_at timestamptz NOT NULL DEFAULT now()
+);

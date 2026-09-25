@@ -102,7 +102,7 @@ main[data-page="modules"] .page-enter,
   background: #ff9f0a;
 }
 .module-col-name {
-  width: 24%;
+  width: 22%;
 }
 .module-col-number {
   width: 28%;
@@ -114,7 +114,7 @@ main[data-page="modules"] .page-enter,
   width: 20%;
 }
 .module-col-action {
-  width: 12%;
+  width: 14%;
 }
 .module-number {
   font-variant-numeric: tabular-nums;
@@ -132,11 +132,28 @@ main[data-page="modules"] .page-enter,
   white-space: nowrap;
   font-size: 13px;
 }
-.module-detail {
+.module-detail,
+.module-restart {
   padding: 10px 0 10px 10px;
   min-height: 40px;
   font-size: 14px;
 }
+.module-actions,
+.module-toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.module-toolbar-actions { margin-left: auto;gap: 8px; }
+.module-toolbar-actions .text-button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  white-space: nowrap;
+  min-height: 36px;
+}
+.module-actions button:disabled,
+.module-toolbar-actions button:disabled { opacity: 0.4;cursor: default; }
 @media (max-width: 1000px) {
   .module-stat {
     --stat-color: var(--blue);
@@ -189,7 +206,11 @@ main[data-page="modules"] .page-enter,
     gap: 3px;
     font-size: 12px;
   }
-  .module-detail {
+  .module-actions { gap: 4px;flex-wrap: wrap; }
+  .modules-page .data-toolbar { flex-wrap: wrap; }
+  .module-toolbar-actions { margin-left: 0; }
+  .module-detail,
+  .module-restart {
     padding: 8px 0;
     font-size: 12px;
   }

@@ -137,6 +137,25 @@ func freeModuleLabel(ctx context.Context, tx pgx.Tx, id int64) (string, error) {
 
 func (s *server) modulesAPI(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	tail := strings.TrimPrefix(r.URL.Path, "/api/modules")
+	if tail == "/restart" || tail == "/host-restart" {
+		scope := "host"
+		var records []moduleRecord
+		if tail == "/restart" {
+			scope = "all"
+			all, err := listModuleRecords(ctx, s.db)
+			if err != nil {
+				fail(w, 503, "DATABASE_UNAVAILABLE")
+				return
+			}
+			for _, v := range all {
+				if v.Kind == "usb" {
+					records = append(records, v)
+				}
+			}
+		}
+		s.moduleRestartAPI(ctx, w, r, scope, records)
+		return
+	}
 	parts := strings.Split(strings.TrimPrefix(tail, "/"), "/")
 	if tail == "" && r.Method == http.MethodGet {
 		records, err := listModuleRecords(ctx, s.db)
@@ -173,6 +192,10 @@ func (s *server) modulesAPI(ctx context.Context, w http.ResponseWriter, r *http.
 	}
 	if err != nil {
 		fail(w, 503, "DATABASE_UNAVAILABLE")
+		return
+	}
+	if len(parts) == 2 && parts[1] == "restart" {
+		s.moduleRestartAPI(ctx, w, r, moduleID(v.ID), []moduleRecord{v})
 		return
 	}
 	if len(parts) > 1 {
@@ -290,9 +313,11 @@ func (s *server) moduleView(v moduleRecord) map[string]any {
 	}
 	wifi := map[string]any{"enabled": false, "registered": false, "state": "off", "issue": ""}
 	supported := false
+	restartable := false
 	if s.modules != nil {
 		wifi = s.modules.wifiView(v.ID, reading.ICCID)
 		s.modules.mu.RLock()
+		restartable = s.modules.restartableLocked(v)
 		sample, ok := s.modules.values[v.ID]
 		supported = ok && hardware.WiFiSupported(sample.Candidate) && present && reading.SIM == "READY" && reading.ICCID != ""
 		s.modules.mu.RUnlock()
@@ -317,5 +342,5 @@ func (s *server) moduleView(v moduleRecord) map[string]any {
 	if s.modules != nil && present {
 		carrier = s.modules.carrierView(reading.ICCID)
 	}
-	return map[string]any{"carrierConfiguration": carrier, "wifi": wifi, "id": moduleID(v.ID), "name": moduleName(v.ID), "label": v.Label, "labelCustom": v.Custom, "number": reading.Number, "status": status, "signal": signal, "sims": sims, "kind": v.Kind, "hardware": reading, "issue": issue, "managed": true, "cardReading": cardReading, "job": job, "capabilities": map[string]bool{"read": true, "roaming": roamingReady && present && reading.SIM == "READY", "sms": wifi["smsReady"] == true || (supported && wifi["enabled"] != true && wifi["state"] != "stopping" && cellularRegistered(reading)), "mms": s.modules != nil && present && reading.SIM == "READY" && s.modules.mmsConfigured(reading.ICCID), "calls": false, "lineControl": false, "wifiCalling": supported, "esim": esim && !job.active(), "esimDownload": esim}}
+	return map[string]any{"carrierConfiguration": carrier, "wifi": wifi, "id": moduleID(v.ID), "name": moduleName(v.ID), "label": v.Label, "labelCustom": v.Custom, "number": reading.Number, "status": status, "signal": signal, "sims": sims, "kind": v.Kind, "hardware": reading, "issue": issue, "managed": true, "cardReading": cardReading, "job": job, "capabilities": map[string]bool{"read": true, "restart": restartable, "roaming": roamingReady && present && reading.SIM == "READY", "sms": wifi["smsReady"] == true || (supported && wifi["enabled"] != true && wifi["state"] != "stopping" && cellularRegistered(reading)), "mms": s.modules != nil && present && reading.SIM == "READY" && s.modules.mmsConfigured(reading.ICCID), "calls": false, "lineControl": false, "wifiCalling": supported, "esim": esim && !job.active(), "esimDownload": esim}}
 }
