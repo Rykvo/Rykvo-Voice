@@ -265,8 +265,11 @@ func (m *moduleManager) state(v moduleRecord) (hardware.Reading, bool, string) {
 		return empty, true, "STATE_STALE"
 	}
 	reading := sample.Reading
-	if reading.Number == "" && reading.SIM == "READY" {
-		reading.Number = m.phoneNumbers[reading.ICCID]
+	if reading.SIM == "READY" {
+		confirmed := m.phoneNumbers[reading.ICCID]
+		if reading.Number == "" || (hardware.ValidAssociatedNumber(confirmed) && confirmed == "+"+reading.Number) {
+			reading.Number = confirmed
+		}
 	}
 	if wifiActive || wifiRefreshing {
 		reading.Registration, reading.Operator, reading.PLMN, reading.Technology = "unknown", "", "", ""

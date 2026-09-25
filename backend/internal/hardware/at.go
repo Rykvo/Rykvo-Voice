@@ -163,8 +163,8 @@ func readATFields(ctx context.Context, s *atSession, r *Reading) {
 				continue
 			}
 			v := fields(line)
-			if len(v) > 1 && validNumber(v[1]) {
-				r.Number = v[1]
+			if number := subscriberNumber(v); number != "" {
+				r.Number = number
 				break
 			}
 		}
@@ -236,6 +236,22 @@ func digits(lines []string, min, max int) string {
 	}
 	return ""
 }
+
+// TS 27.007 +CNUM supplies an international/national type-of-address octet.
+func subscriberNumber(fields []string) string {
+	if len(fields) < 2 || !validNumber(fields[1]) {
+		return ""
+	}
+	number := fields[1]
+	if !strings.HasPrefix(number, "+") && len(fields) > 2 {
+		toa, err := strconv.Atoi(strings.TrimSpace(fields[2]))
+		if err == nil && toa >= 128 && toa <= 255 && (toa>>4)&7 == 1 && toa&15 == 1 {
+			number = "+" + number
+		}
+	}
+	return number
+}
+
 func validNumber(s string) bool {
 	v := strings.TrimPrefix(s, "+")
 	return len(v) >= 5 && len(v) <= 20 && strings.Trim(v, "0123456789") == ""

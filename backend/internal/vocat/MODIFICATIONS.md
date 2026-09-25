@@ -36,3 +36,8 @@ CAP_NET_ADMIN. The web/DB process remains unprivileged. Recognized runtime netwo
 capped at 30 seconds) while Wi-Fi remains enabled; operator rejections and
 unconfirmed local cleanup are not retried. See deploy/VOWIFI-INTEGRATION.md.
 No production engine switch is performed merely by importing this code.
+
+- Handle RFC 3261 REGISTER 423 using validated Min-Expires, with one retry per
+  transaction and the existing 24-hour expiry ceiling. Preserve the negotiated
+  minimum across refreshes and keep deregistration at Expires: 0 even when a
+  carrier specifies an expiry override. See deploy/WIFI-COMPATIBILITY.md.

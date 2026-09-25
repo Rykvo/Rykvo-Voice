@@ -129,7 +129,7 @@ test("phone display follows regional spacing without changing digits", () => {
   for (const [raw, formatted] of [
     ["+12684643388", "+1 268 464 3388"],
     ["+8613812345678", "+86 138 1234 5678"],
-    ["13812345678", "138 1234 5678"],
+    ["13812345678", "13812345678"],
     ["+85251234567", "+852 5123 4567"],
     ["+8525123456", "+852 5123 456"],
     ["+447400123456", "+44 7400 123456"],
@@ -148,7 +148,7 @@ test("phone display follows regional spacing without changing digits", () => {
 test("country labels are available on phone, absent from empty SMS previews", () => {
   const { context, countries } = setup();
   assert.match(countries.country("+85251234567"), /香港/);
-  assert.equal(countries.country("13812345678"), "中国");
+  assert.equal(countries.country("13812345678"), "");
   assert.equal(countries.country("+12684643388"), "安提瓜和巴布达");
   const html = vm.runInContext("Messages.render()", context);
   assert.ok(!html.includes("安提瓜和巴布达"));
@@ -159,4 +159,12 @@ test("caret conversion skips display spaces", () => {
   const formatted = "+86 138 1234 5678";
   assert.equal(countries.rawOffset(formatted, 8), 6);
   assert.equal(countries.displayOffset(formatted, 6), 8);
+});
+
+test("bare 133 does not imply China", () => {
+  const { countries } = setup();
+  assert.equal(countries.format("13325550123"), "13325550123");
+  assert.equal(countries.country("13325550123"), "");
+  assert.equal(countries.format("+13325550123"), "+1 332 555 0123");
+  assert.equal(countries.format("13812345678", "CN"), "138 1234 5678");
 });

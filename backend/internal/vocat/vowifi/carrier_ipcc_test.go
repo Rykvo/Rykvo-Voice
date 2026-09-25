@@ -23,6 +23,9 @@ func TestImportCarrierIPCCHutchisonGatewayWithoutEPDGLabel(t *testing.T) {
 			value: map[string]any{
 				"CarrierName":   "Hutchison HK",
 				"SupportedSIMs": []any{"45403", "45404"},
+				"IMSConfig": map[string]any{
+					"Signaling": map[string]any{"CountryOfOriginationFormat": "PANI"},
+				},
 				"TechSettings": map[string]any{
 					"IKE": map[string]any{
 						"RemoteAddress": "wlan.three.com.hk",
@@ -41,6 +44,9 @@ func TestImportCarrierIPCCHutchisonGatewayWithoutEPDGLabel(t *testing.T) {
 	}
 	if len(document.Profiles) != 1 || document.Profiles[0].EPDG.Hostname != "wlan.three.com.hk" {
 		t.Fatalf("carrier gateway lost during import: %#v", document.Profiles)
+	}
+	if profile := document.Profiles[0]; profile.IMS.PANIEnabled == nil || !*profile.IMS.PANIEnabled || profile.IMS.PANICountry != "AUTO" {
+		t.Fatalf("carrier PANI setting lost during import: %#v", profile.IMS)
 	}
 	for _, code := range []string{"unsupported_epdg_address", "epdg_not_explicit"} {
 		if hasIPCCWarning(result.Warnings, code) {

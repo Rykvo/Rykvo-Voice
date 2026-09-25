@@ -322,7 +322,7 @@ const Countries = (() => {
       .replace(/^00/, "+");
     const callingCode = code(raw);
     if (!callingCode) {
-      return /^1[3-9]\d{9}$/.test(raw)
+      return hint === "CN" && /^1[3-9]\d{9}$/.test(raw)
         ? {
             national: raw,
             prefix: "",

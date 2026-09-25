@@ -620,6 +620,7 @@ type Session struct {
 	instanceID         string
 	pani               string
 	paniResolved       bool
+	minimumExpiry      int
 	cseq               uint32
 	auth               *authenticationState
 	securityProposal   securityProposal
@@ -860,7 +861,8 @@ func safeSIPDiagnostic(value string) string {
 // register completes a REGISTER transaction, including AKA challenges, and
 // advances cached qop=auth credentials when the registrar permits preauthentication.
 func (session *Session) register(ctx context.Context, expires int) (*sipResponse, error) {
-	for challenges := 0; challenges <= maxAuthenticationChallenges; challenges++ {
+	intervalRetried := false
+	for challenges := 0; challenges <= maxAuthenticationChallenges; {
 		cseq := session.cseq
 		session.cseq++
 		authorization := ""
@@ -892,12 +894,22 @@ func (session *Session) register(ctx context.Context, expires int) (*sipResponse
 			return nil, err
 		}
 		session.evidence.LastSIPCode = response.StatusCode
+		if response.StatusCode == 423 && expires > 0 && !intervalRetried {
+			minimum, err := registrationMinimum(response, session.registrationExpiry(expires))
+			if err != nil {
+				return nil, err
+			}
+			session.minimumExpiry = minimum
+			intervalRetried = true
+			continue
+		}
 		if response.StatusCode != 401 && response.StatusCode != 407 {
 			return response, nil
 		}
 		if challenges == maxAuthenticationChallenges {
 			break
 		}
+		challenges++
 		if session.securityActive {
 			return nil, errors.New("ims: protected registration was challenged again")
 		}
@@ -947,6 +959,38 @@ func (session *Session) register(ctx context.Context, expires int) (*sipResponse
 	return nil, errors.New("ims: too many SIP authentication challenges")
 }
 
+// RFC 3261 sections 10.2.8 and 20.23: honor one increasing Min-Expires
+// per transaction. Keep it for refreshes, but never turn deregistration into
+// registration. Use the same 24-hour bound as configured registration expiry.
+func registrationMinimum(response *sipResponse, previous int) (int, error) {
+	values := response.values("Min-Expires")
+	if len(values) != 1 {
+		return 0, errors.New("ims: 423 response requires one Min-Expires")
+	}
+	raw := strings.TrimSpace(values[0])
+	if !digitsBetween(raw, 1, 10) {
+		return 0, errors.New("ims: invalid Min-Expires")
+	}
+	value, err := strconv.ParseUint(raw, 10, 32)
+	if err != nil || value > 86400 || value <= uint64(previous) {
+		return 0, errors.New("ims: unsupported or non-increasing Min-Expires")
+	}
+	return int(value), nil
+}
+
+func (session *Session) registrationExpiry(expires int) int {
+	if expires <= 0 {
+		return expires
+	}
+	if configured := vowifi.ResolveCarrierProfile(session.request.Identity).IMSRegisterOptions.ExpirySeconds; configured > 0 {
+		expires = configured
+	}
+	if session.minimumExpiry > expires {
+		expires = session.minimumExpiry
+	}
+	return expires
+}
+
 func challengeFromResponse(response *sipResponse) (digestChallenge, error) {
 	header := "WWW-Authenticate"
 	proxy := false
@@ -976,9 +1020,7 @@ func (session *Session) buildRegister(
 ) ([]byte, error) {
 	profile := vowifi.ResolveCarrierProfile(session.request.Identity)
 	registerOptions := profile.IMSRegisterOptions
-	if registerOptions.ExpirySeconds != 0 {
-		expires = registerOptions.ExpirySeconds
-	}
+	expires = session.registrationExpiry(expires)
 	branch, err := randomHex(12)
 	if err != nil {
 		return nil, err

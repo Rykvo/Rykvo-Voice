@@ -71,3 +71,18 @@ func testPhoneDatabase(t *testing.T, s *server) {
 		t.Fatal("number source missing", err)
 	}
 }
+
+func TestIMSPhoneNormalizesOnlySameDigitsAndSameCard(t *testing.T) {
+	m, w, sample, v := phoneFixture()
+	m.acceptWiFiNumber(context.Background(), 1, w, sample, "+13325550123")
+	for _, tc := range []struct{ number, want string }{
+		{"13325550123", "+13325550123"}, {"13325550124", "13325550124"},
+		{"+8613325550123", "+8613325550123"}, {"3325550123", "3325550123"},
+	} {
+		sample.Reading.Number = tc.number
+		m.values[1] = sample
+		if got := (&server{modules: m}).moduleView(v)["number"]; got != tc.want {
+			t.Fatalf("%+v got %v", tc, got)
+		}
+	}
+}
