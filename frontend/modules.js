@@ -17,7 +17,7 @@ const Modules = (() => {
   let query = "";
   let unsubscribe = null;
   const restartRequests = new Map(), restarting = new Set();
-  let hostRestarting = false;
+  let hostRestarting = false, hostDisconnected = false, hostRestartStarted = 0;
   function restartDisabled(item) {
     return hostRestarting || restarting.size > 0 || (item ? item.capabilities?.restart !== true : items.some(item => ["queued", "running"].includes(item.job?.state)));
   }
@@ -41,6 +41,7 @@ const Modules = (() => {
       const result = await ModuleData.restart(scope, restartRequests.get(scope));
       if (scope === "host") {
         hostRestarting = result.state === "accepted";
+        hostDisconnected = false;hostRestartStarted = Date.now();
         UI.toast(hostRestarting ? "主机正在重启" : "重启结果待确认，请稍后刷新");
       } else UI.toast("已提交重启");
       if (result.state !== "uncertain") restartRequests.delete(scope);
@@ -146,6 +147,14 @@ const Modules = (() => {
     const visible = select(items, filter, query);
     const body = document.getElementById("module-rows");
     if (!body) return;
+    if (hostRestarting) {
+      if (ModuleData.issue) hostDisconnected = true;
+      if (hostDisconnected && !ModuleData.issue || Date.now() - hostRestartStarted > 95000) {
+        const restored = hostDisconnected && !ModuleData.issue;
+        hostRestarting = false;
+        UI.toast(restored ? "主机已恢复连接" : "重启结果待确认，请检查主机");
+      }
+    }
     const html = rows(visible);
     if (!body.querySelectorAll || !visible.length) {
       if (body.innerHTML !== html) body.innerHTML = html;
