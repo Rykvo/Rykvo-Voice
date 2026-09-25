@@ -141,6 +141,16 @@ func (m *moduleManager) persistJob(ctx context.Context, j moduleJob) error {
 	_, err = m.db.Exec(ctx, "UPDATE module_jobs SET state=$2,stage=$3,issue=$4,warning=$5,verification=$6,updated_at=now() WHERE id=$1", j.ID, j.State, j.Stage, j.Issue, j.Warning, verification)
 	return err
 }
+
+// Wi-Fi owns the card gate, so its matching snapshot can queue a handoff even
+// when polling is paused. The helper rechecks IMEI/EID before any card write.
+func wifiOwnsESIMSnapshot(w *moduleWiFi, sample moduleSample) bool {
+	return w != nil && w.Enabled && w.running && w.ICCID != "" &&
+		w.ICCID == sample.Reading.ICCID && w.candidate.Key == sample.Candidate.Key &&
+		w.candidate.Generation != "" && sameEndpoint(w.candidate, sample.Candidate) &&
+		sample.Reading.Responsive && sample.Reading.Issue == ""
+}
+
 func (m *moduleManager) startJob(ctx context.Context, v moduleRecord, request hardware.ESIMRequest, id string) (moduleJob, error) {
 	// Retrying the same HTTP action never repeats the card write.
 	old, err := scanJob(m.db.QueryRow(ctx, "SELECT "+jobColumns+" FROM module_jobs WHERE id=$1", id))
@@ -166,7 +176,7 @@ func (m *moduleManager) startJob(ctx context.Context, v moduleRecord, request ha
 	if !ok || !present || !sameEndpoint(sample.Candidate, current) || sample.Candidate.Key != v.Endpoint || time.Since(m.lastScan) > 20*time.Second {
 		return moduleJob{}, errors.New("DEVICE_UNAVAILABLE")
 	}
-	if time.Since(sample.Reading.UpdatedAt) > 90*time.Second {
+	if time.Since(sample.Reading.UpdatedAt) > 90*time.Second && !wifiOwnsESIMSnapshot(m.wifi[v.ID], sample) {
 		return moduleJob{}, errors.New("DEVICE_CHANGED")
 	}
 	info := sample.Reading.ESIM

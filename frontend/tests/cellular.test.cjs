@@ -209,6 +209,20 @@ test("activation validation and submission never claim installation", () => {
   assert.deepEqual(notices, ["eSIM 服务尚未接入，未添加"]);
 });
 
+test("queued and running eSIM download/delete jobs retain progress while Wi-Fi hands off", () => {
+  const { cellular } = setup();
+  for (const action of ["download", "delete"]) {
+    for (const [state, stage] of [["queued", "waiting"], ["running", "checking"], ["running", "writing"], ["running", "verifying"]]) {
+      const item = { ...structuredClone(fixture), managed: true, wifi: { enabled: true, state: "stopping" },
+        capabilities: { esim: false, esimDownload: true }, job: { id: `fixture-${action}`, action, state, stage } };
+      const html = cellular.overview(item);
+      assert.match(html, /<progress aria-label=/);
+      assert.match(html, /data-cellular-add disabled/);
+      assert.doesNotMatch(html, /设备或卡片已变化/);
+    }
+  }
+});
+
 test("managed modules hide hardware diagnostics and retain real eSIM controls", () => {
   const { cellular } = setup();
   const item = { ...structuredClone(fixture), managed: true, capabilities: { esim: true, esimDownload: true }, hardware: { model: "EC20", imei: "123456789012345", esim: { eid: "89049032001001234500012345678901" } } };

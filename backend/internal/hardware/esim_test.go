@@ -137,6 +137,21 @@ func TestESIMRejectsActiveDeletionAndPolicy(t *testing.T) {
 		t.Fatal(r)
 	}
 }
+
+func TestESIMHandoffRechecksEIDBeforeDownloadOrDelete(t *testing.T) {
+	for _, action := range []string{"download", "delete"} {
+		f := fixtureESIM()
+		f.eid = "89049032001001234500012345678999"
+		progress := false
+		r := executeESIM(context.Background(), f, ESIMRequest{
+			Action: action, EID: testCardEID, ICCID: testICCID,
+			Activation: "LPA:1$carrier.example$fixture-only", IMEI: "123456789012345",
+		}, func(string) { progress = true })
+		if r.Issue != "DEVICE_CHANGED" || r.Changed || f.writes != 0 || progress {
+			t.Fatalf("%s used a changed card: %+v", action, r)
+		}
+	}
+}
 func TestESIMNoFakeSuccessOrRepeatedStateWrite(t *testing.T) {
 	f := fixtureESIM()
 	f.fail = true

@@ -199,6 +199,7 @@ func testModuleDatabase(t *testing.T, s *server, cookie, csrf string) {
 	}
 	testRecoveryDatabase(t, s, records[0].ID)
 	testWiFiDatabase(t, s, moved, cookie, csrf)
+	testESIMWiFiHandoffDatabase(t, s, moved, cookie, csrf)
 	testAPNDatabase(t, s, moved, cookie, csrf)
 	testPhoneDatabase(t, s)
 	testCarrierDatabase(t, s)
