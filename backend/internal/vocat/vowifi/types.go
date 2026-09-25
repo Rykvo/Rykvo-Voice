@@ -99,6 +99,7 @@ type State struct {
 	HomeMNC            string        `json:"home_mnc,omitempty"`
 	CarrierProfile     string        `json:"carrier_profile,omitempty"`
 	CarrierProfileFrom string        `json:"carrier_profile_from,omitempty"`
+	IMSIdentitySource  string        `json:"ims_identity_source,omitempty"`
 	EPDG               string        `json:"epdg,omitempty"`
 	ProxyMode          ProxyMode     `json:"proxy_mode,omitempty"`
 	ProxyID            string        `json:"proxy_id,omitempty"`
@@ -134,6 +135,8 @@ func (state State) clone() State {
 // HomeMCC and HomeMNC must be supplied by the SIM reader; the orchestrator does
 // not guess MNC length or a phone number from IMSI.
 type SIMIdentity struct {
+	// ProvisionedIMS is read from the current ISIM, never inferred from a number.
+	ProvisionedIMS  *ProvisionedIMSIdentity
 	ICCID           string
 	IMSI            string
 	IMEI            string
@@ -329,6 +332,12 @@ type PhoneRecord struct {
 // SIMIdentityReader reads live SIM identity and home PLMN information.
 type SIMIdentityReader interface {
 	ReadIdentity(context.Context, string) (SIMIdentity, error)
+}
+
+// ProvisionedIMSIdentityReader reads the complete TS 31.103 identity set while
+// checking that the UICC still matches the supplied subscription.
+type ProvisionedIMSIdentityReader interface {
+	ReadProvisionedIMSIdentity(context.Context, SIMIdentity) (*ProvisionedIMSIdentity, error)
 }
 
 // SIMMetadata contains optional, non-secret carrier selectors stored by the

@@ -20,7 +20,7 @@ A catalogue match is not proof of registration, SMS, voice/media or MMS support.
 | ePDG | Carrier override and standard selection | DNS + verified authenticated IKE/IPsec, not hostname match alone |
 | IMS REGISTER | AKA, TCP/UDP and P-CSCF handling | Correlated 200 response, contact expiry and required security |
 | 423 negotiation | Added bounded Min-Expires retry | One increasing retry; strict header validation; maximum 24 hours; remembered for refresh; unregister remains Expires: 0 |
-| Provisioned IMS identities | Generic identities and selected legacy exceptions | Generic ISIM IMPI/IMPU/domain discovery still requires implementation |
+| Provisioned IMS identities | EC20 ISIM IMPI/IMPU/domain reading implemented in v1.5.3 | Card-bound atomic set, strict validation, bounded reads, cleanup and identity recheck; no-ISIM retains USIM derivation; native-QMI-only identity reading remains pending |
 | Entitlement | No general TS.43 integration | Per-operator entitlement server/configuration and activation tests needed |
 | PANI location | Existing AUTO uses home MCC | This is not measured access location; do not equate it with iPhone location behavior |
 | Runtime recovery | Single retry coordinator, bounded backoff | Verify renewal, internet loss, reboot and explicit off per operator |
@@ -57,3 +57,45 @@ Record separate evidence for SIM selection, tunnel, IMS registration, renewal,
 SMS send/receive, calls/audio, and MMS. Repeat after reboot and network interruption.
 Keep Wi-Fi intent/radio-off policy and manual-off behavior. Unknown and untested
 carriers remain unverified rather than being reported as supported automatically.
+
+## Phone developer documentation audit / v1.5.3
+
+Sources reviewed 2026-09-25 (primary documentation, not operator-name guesses):
+
+- Android carrier configuration and SIM selectors: https://source.android.com/docs/core/connect/carrier
+- Android IWLAN configuration reference: https://developer.android.com/reference/android/telephony/CarrierConfigManager.Iwlan
+- Android IMS implementation architecture: https://source.android.com/docs/core/connect/ims
+- Android TS.43 provisioning integration: https://source.android.com/docs/core/connect/ims-service-entitlement
+- ISIM EF definitions, TS 31.103 sections 4.2.2–4.2.4: https://www.etsi.org/deliver/etsi_ts/131100_131199/131103/18.03.00_60/ts_131103v180300p.pdf
+- Apple carrier settings updates: https://support.apple.com/en-ie/109324
+
+| Operator-dependent input | Selection/negotiation | Rykvo implementation / remaining work |
+|---|---|---|
+| MNO/MVNO service profile | Home PLMN, IMSI, GID, SPN and applicable SIM selectors | Existing 655 rules; rules are data, not 655 verified networks |
+| ePDG endpoint | Operator override, home/visited network, address family and discovery priority | Current override + standard derivation; full Android IWLAN policy parity is not claimed |
+| IKE/IPsec | Supported proposals, identity, NAT/DPD/rekey, authenticated responder | Existing negotiation and recovery; do not disable authentication to force compatibility |
+| IMS registration identity | ISIM-provisioned IMPI/IMPU/domain, or USIM-derived identity when no ISIM exists | Added complete ISIM set on EC20; explicit local overrides remain higher priority |
+| SIM authentication application | ePDG/EAP and IMS can use different UICC applications | ISIM for provisioned IMS identity; default EAP application is preserved |
+| IMS transport and registration headers | P-CSCF result, transport/security, expiry and operator header policy | Existing carrier profile + negotiation; 423 expiry handling retained |
+| Service activation | Operator-specific entitlement endpoint and optional subscriber activation UI | General TS.43 client integration remains missing; an enabled UI flag does not provision service |
+| Access location/emergency address | Actual access location and operator activation flow | Home MCC is not physical location; automatic location/entitlement integration remains missing |
+| Media, messaging, roaming policy | Codec negotiation and separate service/network acceptance | Registration alone does not prove calls/audio, SMS, MMS or roaming support |
+
+The public phone documents describe mechanisms and configuration keys; they do
+not provide every carrier's current private provisioning policy. The target is
+automatic SIM-based selection plus standards negotiation, with new carrier data
+added independently of module indices. Treat a carrier as accepted only after
+its actual service tests, not because a catalogue entry or switch exists.
+
+ISIM implementation reads EF_IMPI (6F02), EF_DOMAIN (6F03) and EF_IMPU (6F04),
+uses FCP lengths and bounded READ operations, validates TLVs before use, keeps
+all identities in session memory and never emits them to the UI or logs. It
+restores a touched basic channel or closes its logical channel even on failure.
+Changed cards, failed cleanup and incomplete records stop before registration.
+Currently accepted identity syntax is ASCII NAI and SIP/SIPS identity with a DNS
+domain; other provisioned syntax is rejected rather than silently rewritten.
+
+Candidate test on 3HK 05 at 2026-09-25 13:51 UTC: SIM/application discovery
+completed, no ISIM was present, USIM-derived registration reached initial SIP
+403. The new generic ISIM path therefore does not fix that card's rejection.
+No subscriber setting was switched off and no cellular attach was requested.

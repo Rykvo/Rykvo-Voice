@@ -234,6 +234,23 @@ func (orchestrator *Orchestrator) Enable(ctx context.Context) (State, error) {
 	if !akaEvidence.Ready {
 		return fail(PhaseSIMReady, errors.New("AKA application is not ready"))
 	}
+	if reader, ok := orchestrator.deps.AKA.(ProvisionedIMSIdentityReader); ok {
+		readContext, cancel := context.WithTimeout(setupContext, 15*time.Second)
+		provisioned, readErr := reader.ReadProvisionedIMSIdentity(readContext, identity)
+		cancel()
+		if readErr != nil && !errors.Is(readErr, ErrISIMUnavailable) {
+			return fail(PhaseSIMReady, readErr)
+		}
+		if readErr == nil {
+			if provisioned == nil {
+				return fail(PhaseSIMReady, errors.New("ISIM reader returned no identity set"))
+			}
+			if err := provisioned.Validate(); err != nil {
+				return fail(PhaseSIMReady, err)
+			}
+			identity.ProvisionedIMS = provisioned
+		}
+	}
 	if reader, ok := orchestrator.deps.SIM.(SMSCenterReader); ok {
 		if smsc, smscErr := reader.ReadSMSCenter(setupContext, orchestrator.options.DeviceID); smscErr == nil {
 			identity.SMSC = strings.TrimSpace(smsc)
@@ -251,6 +268,10 @@ func (orchestrator *Orchestrator) Enable(ctx context.Context) (State, error) {
 		state.HomeMNC = strings.TrimSpace(identity.HomeMNC)
 		state.CarrierProfile = carrierProfile.ID
 		state.CarrierProfileFrom = carrierProfile.MatchSource
+		state.IMSIdentitySource = "derived"
+		if identity.ProvisionedIMS != nil {
+			state.IMSIdentitySource = "isim"
+		}
 		state.LastReason = "sim_and_aka_ready"
 	})
 

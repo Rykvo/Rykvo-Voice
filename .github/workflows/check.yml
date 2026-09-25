@@ -34,6 +34,11 @@ jobs:
       - name: Hardware race tests
         working-directory: backend
         run: go test -race ./internal/hardware && go test -race -run 'TestModule' .
+      - name: IMS identity race and parser bounds
+        working-directory: backend
+        run: >-
+          go test -race ./internal/vocat/vowifi/...
+          && go test ./internal/vocat/vowifi -run '^$' -fuzz '^FuzzISIMDecoders$' -fuzztime=20s -parallel=2
       - name: EAP packet bounds
         working-directory: backend
         run: go test ./internal/hardware -run '^$' -fuzz '^FuzzWiFiEAPPacket$' -fuzztime=20s -parallel=2

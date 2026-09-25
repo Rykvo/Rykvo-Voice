@@ -438,10 +438,24 @@ func deriveIdentities(identity vowifi.SIMIdentity, config Config) (identitySet, 
 		publicDomain = "one.att.net"
 	}
 	privateIdentity := config.PrivateIdentity
+	publicIdentity := config.PublicIdentity
+	provisionedPublic := false
+	if provisioned := identity.ProvisionedIMS; provisioned != nil {
+		if err := provisioned.Validate(); err != nil {
+			return identitySet{}, err
+		}
+		domain = provisioned.Domain
+		if privateIdentity == "" {
+			privateIdentity = provisioned.PrivateIdentity
+		}
+		if publicIdentity == "" {
+			publicIdentity = provisioned.PublicIdentities[0]
+			provisionedPublic = true
+		}
+	}
 	if privateIdentity == "" {
 		privateIdentity = imsi + "@" + privateDomain
 	}
-	publicIdentity := config.PublicIdentity
 	if publicIdentity == "" {
 		publicIdentity = "sip:" + imsi + "@" + publicDomain
 	}
@@ -458,7 +472,7 @@ func deriveIdentities(identity vowifi.SIMIdentity, config Config) (identitySet, 
 	if user == "" || strings.ContainsAny(user, "<>\" \t;") {
 		return identitySet{}, errors.New("ims: public identity user is invalid")
 	}
-	return identitySet{domain: domain, private: privateIdentity, public: publicIdentity, user: user, temporaryPublic: config.PublicIdentity == ""}, nil
+	return identitySet{domain: domain, private: privateIdentity, public: publicIdentity, user: user, temporaryPublic: config.PublicIdentity == "" && !provisionedPublic}, nil
 }
 
 type pcscfEndpoint struct {
@@ -922,7 +936,7 @@ func (session *Session) register(ctx context.Context, expires int) (*sipResponse
 			return nil, err
 		}
 		preference := ""
-		if vowifi.IsATT310280(session.request.Identity) {
+		if session.request.Identity.ProvisionedIMS != nil || vowifi.IsATT310280(session.request.Identity) {
 			preference = "isim_strict"
 		}
 		material, err := authenticateAKA(ctx, session.provider.aka, session.request.Identity, challenge, preference)

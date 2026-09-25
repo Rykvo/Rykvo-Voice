@@ -743,6 +743,10 @@ func TestEC20AdapterISIMStrictUsesCUADFullAID(t *testing.T) {
 	if !bytes.Equal(result.RES, []byte{1, 2, 3, 4, 5, 6, 7, 8}) {
 		t.Fatalf("RES = %x", result.RES)
 	}
+	// An IMS-specific application choice must not leak into later EAP calls.
+	if binding, err := adapter.bindingFor(identity); err != nil || binding.application == "ISIM" {
+		t.Fatal("ISIM preference changed the default AKA binding")
+	}
 	transcript.assertDone()
 }
 

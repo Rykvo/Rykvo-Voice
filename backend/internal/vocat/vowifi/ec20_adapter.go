@@ -86,12 +86,14 @@ type EC20Adapter struct {
 }
 
 type ec20SIMBinding struct {
-	deviceID     string
-	iccid        string
-	imsi         string
-	aid          string
-	application  string
-	basicChannel bool
+	isimAID          string
+	isimBasicChannel bool
+	deviceID         string
+	iccid            string
+	imsi             string
+	aid              string
+	application      string
+	basicChannel     bool
 }
 
 type ec20RadioCheckpoint struct {
@@ -497,21 +499,22 @@ func (adapter *EC20Adapter) authenticateWithApplication(
 		return AKAResult{}, err
 	}
 	if strings.EqualFold(strings.TrimSpace(preference), "isim_strict") && binding.application != "ISIM" {
-		aid, application, err := adapter.discoverPreferredAKAApplication(
-			ctx,
-			binding.deviceID,
-			isimAIDPrefix,
-			"ISIM",
-		)
-		if err != nil {
-			return AKAResult{}, err
+		aid, application := binding.isimAID, "ISIM"
+		if aid == "" {
+			aid, application, err = adapter.discoverPreferredAKAApplication(
+				ctx,
+				binding.deviceID,
+				isimAIDPrefix,
+				"ISIM",
+			)
+			if err != nil {
+				return AKAResult{}, err
+			}
 		}
 		binding.aid = aid
 		binding.application = application
-		binding.basicChannel = false
-		adapter.mu.Lock()
-		adapter.bindings[binding.iccid] = binding
-		adapter.mu.Unlock()
+		binding.basicChannel = binding.isimBasicChannel
+		// ISIM is for this IMS challenge only; EAP-AKA retains its USIM binding.
 	}
 	if binding.aid == "" {
 		if _, err := adapter.CheckReady(ctx, identity); err != nil {
@@ -1304,8 +1307,15 @@ func (adapter *EC20Adapter) transmitLogicalAPDU(
 		if err != nil {
 			return nil, fmt.Errorf("%w: %v", ErrEC20AKAResponse, err)
 		}
-		collected = append(collected, body...)
 		sw1 := byte(status >> 8)
+		if sw1 == 0x6c {
+			if len(current) != 5 && !(len(current) >= 6 && len(current) == 6+int(current[4])) {
+				return nil, errors.New("vocat: logical-channel APDU has no response length")
+			}
+			current[len(current)-1] = byte(status)
+			continue
+		}
+		collected = append(collected, body...)
 		if sw1 != 0x61 && sw1 != 0x9f {
 			collected = append(collected, byte(status>>8), byte(status))
 			return collected, nil

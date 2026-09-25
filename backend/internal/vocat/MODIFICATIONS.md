@@ -41,3 +41,9 @@ No production engine switch is performed merely by importing this code.
   transaction and the existing 24-hour expiry ceiling. Preserve the negotiated
   minimum across refreshes and keep deregistration at Expires: 0 even when a
   carrier specifies an expiry override. See deploy/WIFI-COMPATIBILITY.md.
+
+- Add TS 31.103 EC20 ISIM identity discovery/reading, bounded FCP/TLV parsing,
+  complete-set validation, UICC cleanup and current-card checks. Prefer these
+  identities for IMS; keep EAP's default AKA application separate from ISIM.
+  Add logical APDU 6C response-length handling and identity parser fuzz/race tests.
+  This does not implement TS.43 provisioning or certify all operators.
