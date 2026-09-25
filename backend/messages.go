@@ -84,6 +84,10 @@ func messageImage(raw string) (*mms.Part, error) {
 func (s *server) messagesAPI(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/messages")
 	id := strings.Trim(path, "/")
+	if id == "contacts" {
+		s.messageContactAPI(ctx, w, r)
+		return
+	}
 	if strings.HasSuffix(id, "/image") && r.Method == "GET" {
 		id = strings.TrimSuffix(id, "/image")
 		var raw string
@@ -154,7 +158,13 @@ func (s *server) messagesAPI(ctx context.Context, w http.ResponseWriter, r *http
 			fail(w, 503, "DATABASE_UNAVAILABLE")
 			return
 		}
-		reply(w, 200, map[string]any{"data": map[string]any{"items": items, "cursor": after, "more": len(items) == 200}})
+		rows.Close()
+		contacts, e := s.messageContacts(ctx)
+		if e != nil {
+			fail(w, 503, "DATABASE_UNAVAILABLE")
+			return
+		}
+		reply(w, 200, map[string]any{"data": map[string]any{"items": items, "cursor": after, "more": len(items) == 200, "contacts": contacts}})
 		return
 	}
 	if r.Method != "POST" {

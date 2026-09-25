@@ -269,3 +269,11 @@ EC20 连续通信超时恢复期间 `issue=RECOVERING`，页面显示“正在�
 - 请求 `{requestId, confirm: true}`；登录、同源、CSRF 与持久化去重。设备忙时拒绝，不中断 eSIM 写入或发送中的消息。
 - 模块响应 `{jobs: [{moduleId, job}]}`；相同 IMEI 的新 USB 代次读取正常后任务才完成。Wi-Fi 通话意图和漫游设置不修改。
 - 主机响应 `{state: "accepted" | "uncertain"}`；仅报告已提交或结果待确认，不把 HTTP 202 当作恢复完成。不自动重放重启。
+
+
+## 信息备注与会话显示
+
+- `PUT /messages/contacts`：`{lineId, number, name}`，同源登录与 CSRF 验证，备注最多 24 个 Unicode 字符；空备注恢复号码。存入主机数据库，不依赖浏览器缓存。
+- `GET /messages` 同时返回 `contacts: [{lineId, number, name, revision}]`；客户端仅接受较新备注版本，保留清空记录以防旧备注复活。
+- 会话按原发送模块/SIM 隔离，使用同一 SIM 已出现的国际号码或已保存的备注号码解析无加号、本地格式。英国 +44 同时识别 0 前缀。仅有本地号码或匹配多个国家时不猜测、不合并；短号和字母发件人独立。原始消息、线路绑定不变。
+- 已接收的短信不显示发送状态。排队/发送/等待网络显示转圈；只有真实 `delivered` 回执显示“已送达”；accepted/unknown/partial/failed 等显示“尚未送达”，不代表可以安全重复发送。

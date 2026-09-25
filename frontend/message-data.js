@@ -1,5 +1,6 @@
 const MessageData = (() => {
   const records = new Map(), listeners = new Set();
+  let contacts = [];
   let cursor = 0, timer = null, controller = null, users = 0;
   const enabled = () => Backend.enabled("messages");
   function merge(item) {
@@ -8,7 +9,14 @@ const MessageData = (() => {
     records.set(item.id, { ...item, image: item.image ? Http.apiURL(`/messages/${encodeURIComponent(item.id)}/image`) : null, remote: true });
     return true;
   }
-  const notify = () => { for (const listener of listeners) listener([...records.values()]); };
+  function mergeContact(item) {
+    if (!item || typeof item.lineId !== "string" || typeof item.number !== "string" || !Number.isSafeInteger(item.revision)) return false;
+    const index = contacts.findIndex(c => c.lineId === item.lineId && c.number === item.number);
+    if (index >= 0 && contacts[index].revision >= item.revision) return false;
+    if (index < 0) contacts.push(item); else contacts[index] = item;
+    return true;
+  }
+  const notify = () => { for (const listener of listeners) listener([...records.values()], contacts); };
   function stop() { clearTimeout(timer); timer = null; controller?.abort(); controller = null; }
   async function poll() {
     if (!users || document.hidden || !enabled() || controller) return;
@@ -18,6 +26,7 @@ const MessageData = (() => {
       const data = await Backend.messages.list({ query: { after: cursor }, signal: request.signal });
       if (request.signal.aborted) return;
       let changed = false;
+      for (const item of data.contacts || []) changed = mergeContact(item) || changed;
       for (const item of data.items || []) changed = merge(item) || changed;
       if (Number.isSafeInteger(data.cursor) && data.cursor >= cursor) cursor = data.cursor;
       more = data.more === true;
@@ -38,8 +47,13 @@ const MessageData = (() => {
   window.addEventListener("pagehide", stop);
   return {
     enabled,
+    async saveContact(body) {
+      const item = await Backend.messages.saveContact({ body });
+      if (mergeContact(item)) notify();
+      return item;
+    },
     async send(body) { const item = await Backend.messages.send({ body }); if (merge(item)) notify(); return item; },
     async remove(ids) { for (const id of ids) { await Backend.messages.remove({params:{messageId:id}}); records.delete(id); } notify(); },
-    subscribe(listener) { listeners.add(listener); users++; listener([...records.values()]); poll(); return () => { if (listeners.delete(listener)) users--; if (!users) stop(); }; },
+    subscribe(listener) { listeners.add(listener); users++; listener([...records.values()], contacts); poll(); return () => { if (listeners.delete(listener)) users--; if (!users) stop(); }; },
   };
 })();

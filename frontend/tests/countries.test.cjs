@@ -40,6 +40,7 @@ function setup(storage = new Map()) {
     "module-data.js",
     "tests/module-fixture.js",
     "lines.js",
+    "message-identity.js",
     "messages.js",
   ]) {
     vm.runInContext(readFileSync(join(__dirname, "..", file), "utf8"), context);
@@ -98,7 +99,7 @@ test("opening and refreshing never append demonstration conversations", () => {
   assert.equal(empty.storage.size, 0);
 });
 
-test("click action copies the complete number", async () => {
+test("copy helper preserves complete numbers while chat title edits notes", async () => {
   const app = setup(
     new Map([
       [
@@ -111,7 +112,7 @@ test("click action copies the complete number", async () => {
   assert.equal(app.copied(), "+85251234567");
   assert.match(
     vm.runInContext("Messages.render()", app.context),
-    /data-msg-action="copy"/,
+    /data-msg-action="note"/,
   );
 });
 test("groups sort by calling code and keep unmarked numbers separate", () => {

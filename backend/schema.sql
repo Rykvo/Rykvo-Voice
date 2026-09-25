@@ -173,6 +173,15 @@ DROP TRIGGER IF EXISTS message_revision_trigger ON messages;
 CREATE TRIGGER message_revision_trigger BEFORE INSERT OR UPDATE ON messages FOR EACH ROW EXECUTE FUNCTION message_revision_update();
 CREATE INDEX IF NOT EXISTS messages_revision ON messages(revision);
 
+CREATE SEQUENCE IF NOT EXISTS message_contact_revision_seq;
+CREATE TABLE IF NOT EXISTS message_contacts (
+ line_id text NOT NULL,
+ peer text NOT NULL,
+ name text NOT NULL DEFAULT '' CHECK (char_length(name)<=24),
+ revision bigint NOT NULL DEFAULT nextval('message_contact_revision_seq'),
+ PRIMARY KEY(line_id,peer)
+);
+
 CREATE TABLE IF NOT EXISTS restart_requests (
  id text PRIMARY KEY,
  scope text NOT NULL,

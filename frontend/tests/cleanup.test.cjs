@@ -82,6 +82,7 @@ function setup(calls = [], threads = [], days = 0) {
     "module-data.js",
     "lines.js",
     "phone.js",
+    "message-identity.js",
     "messages.js",
     "cleanup.js",
   ])

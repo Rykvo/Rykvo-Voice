@@ -49,6 +49,7 @@ const Backend = (() => {
       removeAll: ["POST", "/conversations/delete"],
     },
     messages: {
+      saveContact: ["PUT", "/messages/contacts"],
       list: ["GET", "/messages"],
       remove: ["DELETE", "/messages/:messageId"],
       send: ["POST", "/messages"],

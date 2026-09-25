@@ -126,6 +126,28 @@ func testMessagesDatabase(t *testing.T, s *server, v moduleRecord, cookie, csrf 
 	if json.Unmarshal(w.Body.Bytes(), &page) != nil || page.Data.Cursor < 1 {
 		t.Fatal("revision missing")
 	}
+
+	contact := map[string]string{"lineId": line, "number": "+12025550123", "name": "测试备注"}
+	note, _ := json.Marshal(contact)
+	call("PUT", "/api/messages/contacts", string(note), "", 403)
+	call("PUT", "/api/messages/contacts", string(note), csrf, 200)
+	w = call("GET", "/api/messages?after=0", "", "", 200)
+	if !strings.Contains(w.Body.String(), `"name":"测试备注"`) {
+		t.Fatal("contact missing", w.Body.String())
+	}
+	contact["name"] = strings.Repeat("字", 25)
+	note, _ = json.Marshal(contact)
+	call("PUT", "/api/messages/contacts", string(note), csrf, 400)
+	contact["name"] = ""
+	note, _ = json.Marshal(contact)
+	call("PUT", "/api/messages/contacts", string(note), csrf, 200)
+	var name string
+	if e := s.db.QueryRow(ctx, "SELECT name FROM message_contacts WHERE line_id=$1 AND peer=$2", line, contact["number"]).Scan(&name); e != nil || name != "" {
+		t.Fatal("clear note", name, e)
+	}
+	contact["lineId"] = "not-a-real-line"
+	note, _ = json.Marshal(contact)
+	call("PUT", "/api/messages/contacts", string(note), csrf, 404)
 	call("DELETE", "/api/messages/"+id, "", csrf, 204)
 	call("GET", "/api/messages/"+id+"/image", "", "", 404)
 }

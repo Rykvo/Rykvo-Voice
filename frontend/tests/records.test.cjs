@@ -6,8 +6,8 @@ const vm = require("node:vm");
 const M = "rykvo-voice-messages-v1",
   C = "rykvo-voice-calls-v1",
   S = "rykvo-voice-sms-sender-v1";
-function setup(storage = new Map()) {
- let remoteEnabled=false, listener=null, revision=0;const remoteRecords=[], requests=[];
+function setup(storage = new Map(), mounted = false) {
+ let remoteEnabled=false, listener=null, revision=0;const remoteRecords=[], contacts=[], requests=[];
   if (!storage.size) {
     storage.set(
       M,
@@ -43,27 +43,29 @@ function setup(storage = new Map()) {
     fail = false,
     copied = "";
   const node = (selector) => {
-    if (selector === ".messages-app") return null;
+    if (selector === ".messages-app" && !mounted) return null;
     if (!nodes.has(selector))
       nodes.set(selector, {
         value: "",
         innerHTML: "",
         style: {},
         dataset: {},
-        focus() {},
+        focus() {}, showModal() {}, close() {}, setAttribute() {},
+        querySelector(){return node("note-save")}, isConnected:true,
         insertAdjacentHTML(_, html) {
           this.innerHTML += html;
         },
-        classList: { add() {}, remove() {} },
+        classList: { add() {}, remove() {}, toggle() {} },
       });
     return nodes.get(selector);
   };
   const context = vm.createContext({
     MessageData: {
       enabled:()=>remoteEnabled,
-      subscribe(fn){listener=fn;fn(remoteRecords);return ()=>{listener=null}},
-      async send(body){requests.push(body);const result={id:"server-"+(++revision),number:body.to,senderId:body.moduleId,lineId:body.lineId,text:body.text,mine:true,kind:"sms",state:"queued",at:Date.now(),revision,remote:true};remoteRecords.push(result);listener?.(remoteRecords);return result;},
-      async remove(ids){for(let i=remoteRecords.length-1;i>=0;i--)if(ids.includes(remoteRecords[i].id))remoteRecords.splice(i,1);listener?.(remoteRecords)}
+      subscribe(fn){listener=fn;fn(remoteRecords,contacts);return ()=>{listener=null}},
+      async send(body){requests.push(body);const result={id:"server-"+(++revision),number:body.to,senderId:body.moduleId,lineId:body.lineId,text:body.text,mine:true,kind:"sms",state:"queued",at:Date.now(),revision,remote:true};remoteRecords.push(result);listener?.(remoteRecords,contacts);return result;},
+      async saveContact(body){const result={...body,revision:++revision};contacts.push(result);listener?.(remoteRecords,contacts);return result;},
+      async remove(ids){for(let i=remoteRecords.length-1;i>=0;i--)if(ids.includes(remoteRecords[i].id))remoteRecords.splice(i,1);listener?.(remoteRecords,contacts)}
     },
     document: {
       querySelector: node,
@@ -105,6 +107,7 @@ function setup(storage = new Map()) {
     "tests/module-fixture.js",
     "lines.js",
     "phone.js",
+    "message-identity.js",
     "messages.js",
   ])
     vm.runInContext(readFileSync(join(__dirname, "..", file), "utf8"), context);
@@ -112,6 +115,8 @@ function setup(storage = new Map()) {
     (events[type] || []).forEach((fn) => fn({ target, preventDefault() {} }));
   return {
     storage, requests,
+    publish(items){remoteRecords.push(...items.map((item,i)=>({id:"incoming-"+remoteRecords.length+"-"+i,at:i,text:"message "+i,mine:false,remote:true,senderId:"module-01",lineId:"line-module-01-0",state:"received",revision:++revision,...item})));listener?.(remoteRecords,contacts)},
+    async note(name){node("#msg-note-name").value=name;emit("submit",{...node("note-form"),id:"message-note-form"});await new Promise(setImmediate)},
     server(){remoteEnabled=true;vm.runInContext('ModuleData.items.forEach(item=>item.sims.forEach((sim,i)=>sim.id="line-"+item.id+"-"+i));Messages.mount()',context)},
     copied: () => copied,
     node,
@@ -311,4 +316,42 @@ test("fresh delivery ignores old preview records without deleting browser data",
   assert.doesNotMatch(app.html(), /123456/);
   assert.equal(storage.get("apple-panel-calls-v1"), oldCalls);
   assert.equal(storage.get("apple-panel-messages-v1"), oldMessages);
+});
+
+
+test("remote aliases merge both directions with note persistence and full deletion", async () => {
+  const app=setup(); app.server();
+  app.publish([{number:"+13322500550"},{number:"13322500550"},{number:"3322500550",mine:true,state:"accepted"}]);
+  const id="remote:module-01:line-module-01-0:+13322500550";
+  app.select(id);
+  assert.equal((app.html().match(/data-msg-thread="remote:/g)||[]).length,1);
+  app.action("note"); assert.equal(app.copied(),"");
+  assert.match(app.node("#dialog-content").innerHTML,/备注名称/);
+  await app.note("张先生");
+  assert.match(app.html(),/张先生/);
+  assert.match(app.node("#msg-transcript").innerHTML,/张先/);
+  assert.match(app.node("#msg-transcript").innerHTML,/尚未送达/);
+  assert.doesNotMatch(app.node("#msg-transcript").innerHTML,/运营商已接受/);
+  app.publish([{number:"3322500550"}]); assert.match(app.html(),/张先生/);
+  app.action("note"); await app.note(""); assert.doesNotMatch(app.html(),/张先生/);
+  app.open("messages",id)[1].action(); await app.confirm().action();
+  assert.doesNotMatch(app.html(),/data-msg-thread="remote:/);
+});
+
+test("later international identity keeps selected conversation and draft", async () => {
+  const app=setup();app.server();app.publish([{number:"07598999919"}]);
+  app.select("remote:module-01:line-module-01-0:07598999919");
+  app.node("#msg-input").value="保留草稿";app.emit("input",{id:"msg-input",value:"保留草稿"});
+  app.publish([{number:"+447598999919"}]);
+  assert.match(app.html(),/data-msg-thread="remote:module-01:line-module-01-0:\+447598999919" aria-pressed="true"/);
+  assert.match(app.html(),/保留草稿/);
+});
+
+
+test("empty mounted chat subscribes once and accepts the first remote page",()=>{
+  const app=setup(new Map([[M,"[]"]]),true);
+  app.server();
+  app.publish([{number:"+13322500550"}]);
+  assert.match(app.html(),/\+1 332 250 0550/);
+  assert.doesNotMatch(app.html(),/msg-empty-state/);
 });

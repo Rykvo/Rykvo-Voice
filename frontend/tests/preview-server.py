@@ -13,12 +13,19 @@ class Preview(SimpleHTTPRequestHandler):
     modules = False
     devices = []
     apn_profiles = {}
+    messages = []
+    contacts = []
 
     def apn_path(self):
         parts = urlsplit(self.path).path.strip("/").split("/")
         return parts if self.authenticated and self.modules and len(parts) >= 6 and parts[:2] == ["api", "modules"] and parts[3] == "lines" and parts[5] == "apns" else None
 
     def do_PUT(self):
+        if self.authenticated and self.path == "/api/messages/contacts":
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
+            body["revision"] = len(self.contacts) + 1
+            self.contacts.append(body)
+            return self.api(200, {"data": body})
         parts = self.apn_path()
         if not parts or len(parts) != 7:
             return self.api(404, {"error": {"code": "PREVIEW_ONLY"}})
@@ -74,6 +81,8 @@ class Preview(SimpleHTTPRequestHandler):
     def do_GET(self):
         path = urlsplit(self.path).path
         parts = self.apn_path()
+        if self.authenticated and path == "/api/messages":
+            return self.api(200, {"data": {"items": self.messages, "cursor": len(self.messages), "more": False, "contacts": self.contacts}})
         if parts and len(parts) == 6:
             profiles = [p for (module, line, _), p in self.apn_profiles.items() if (module, line) == (parts[2], parts[4])]
             current = [{"cid": 1, "apn": "", "protocol": "IPV4V6"}, {"cid": 2, "apn": "ims", "protocol": "IPV4V6"}, {"cid": 3, "apn": "SOS", "protocol": "IPV4V6"}]
@@ -128,9 +137,15 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=5174)
     parser.add_argument("--authenticated", action="store_true", help="Isolated layout fixture, not real authentication")
     parser.add_argument("--modules", action="store_true", help="Isolated EC20/eUICC layout fixture")
+    parser.add_argument("--messages", action="store_true", help="Isolated SMS conversation fixture")
     args = parser.parse_args()
     Preview.authenticated = args.authenticated
     Preview.modules = args.modules
+    if args.messages:
+        import time
+        peers = ["+13322500550", "13322500550", "3322500550", "+447598999919", "07598999919", "7598999919", "+85262717066", "852 62717066", "62717066", "#DIYsim", "54623"]
+        for i, peer in enumerate(peers):
+            Preview.messages.append({"id": f"preview-{i}", "number": peer, "senderId": "module-01", "lineId": "fixture-main", "mine": i % 3 != 0, "text": "这是一条预览信息。" if i % 3 == 0 else "收到，稍后联系。", "image": "", "kind": "sms", "state": ["received", "delivered", "sending"][i % 3], "at": int(time.time()*1000)-(len(peers)-i)*60000, "revision": i+1})
     if args.modules:
         for n in range(1, 9):
             esim = {"eid": "89049032001001234500012345678901", "pending": 1, "profiles": []}
