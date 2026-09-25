@@ -120,7 +120,7 @@ const Messages = (() => {
             `<h2 class="msg-code-group">${code ? `+${code}` : "未标注区号"}</h2>${items
               .map((t) => {
                 const last = t.messages.at(-1);
-                return `<button class="msg-thread ${active === t.id ? "selected" : ""}" data-msg-thread="${esc(t.id)}" aria-pressed="${active === t.id}"><span class="msg-unread ${t.unread ? "visible" : ""}" aria-label="${t.unread ? "未读" : ""}"></span>${avatar(t)}<span class="msg-thread-copy"><span class="msg-thread-top"><strong>${esc(title(t))}</strong><time>${last ? time(last.at) : ""}</time><span aria-hidden="true">›</span></span><span class="msg-preview">${esc(last?.text || (last?.image ? "照片" : ""))}</span></span></button>`;
+                return `<button class="msg-thread ${active === t.id ? "selected" : ""}" data-msg-thread="${esc(t.id)}" aria-pressed="${active === t.id}"><span class="msg-unread ${t.unread ? "visible" : ""}" aria-label="${t.unread ? "未读" : ""}"></span>${avatar(t)}<span class="msg-thread-copy"><span class="msg-thread-top"><strong>${t.name ? `<span class="msg-thread-name">${esc(t.name)}</span><span class="msg-thread-number">${esc(t.number)}</span>` : esc(title(t))}</strong><time>${last ? time(last.at) : ""}</time><span aria-hidden="true">›</span></span><span class="msg-preview">${esc(last?.text || (last?.image ? "照片" : ""))}</span></span></button>`;
               })
               .join("")}`,
         )
@@ -131,7 +131,7 @@ const Messages = (() => {
   function headerHTML() {
     return active === "new"
       ? `<button class="msg-back" data-msg-action="back" aria-label="返回会话列表">‹ 信息</button><h2 class="msg-new-title">新信息</h2><button class="msg-text-button" data-msg-action="cancel">取消</button>`
-      : `<button class="msg-back" data-msg-action="back" aria-label="返回会话列表">‹ 信息</button><button class="msg-contact" data-msg-action="note" aria-label="编辑备注">${avatar(current())}<span>${esc(title(current()))}</span></button>`;
+      : `<button class="msg-back" data-msg-action="back" aria-label="返回会话列表">‹ 信息</button><button class="msg-contact" data-msg-action="note" aria-label="编辑备注">${avatar(current())}<span class="msg-contact-name">${esc(title(current()))}</span>${current()?.name ? `<small class="msg-contact-number">${esc(current().number)}</small>` : ""}</button>`;
   }
   function render() {
     const empty = active !== "new" && !current();

@@ -203,6 +203,8 @@ main[data-page="messages"] #page-content > .page-enter {
   margin-bottom: 0;
 }
 .msg-thread-top strong {
+  display: flex;
+  gap: 5px;
   font-size: 14px;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
@@ -213,6 +215,8 @@ main[data-page="messages"] #page-content > .page-enter {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.msg-thread-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.msg-thread-number { flex-shrink: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .msg-thread-top time {
   font-size: 11px;
   color: var(--msg-muted);
@@ -243,7 +247,7 @@ main[data-page="messages"] #page-content > .page-enter {
   background: var(--msg-bg);
 }
 .msg-chat-header {
-  height: 92px;
+  height: 104px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -261,16 +265,17 @@ main[data-page="messages"] #page-content > .page-enter {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 3px;
   max-width: calc(100% - 120px);
   border-radius: 12px;
-  padding: 4px 15px;
+  padding: 2px 15px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   font-weight: 500;
   color: inherit;
 }
-.msg-contact > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-contact-name, .msg-contact-number { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-contact-number { font-size: 11px; line-height: 14px; color: var(--msg-muted); font-weight: 400; }
 .msg-contact .msg-avatar {
   width: 40px;
   height: 40px;
@@ -336,7 +341,7 @@ main[data-page="messages"] #page-content > .page-enter {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 25px max(30px, calc((100% - 920px) / 2)) 24px;
+  padding: 25px clamp(20px, 2vw, 36px) 24px;
 }
 .msg-date {
   text-align: center;
@@ -647,7 +652,7 @@ main[data-page="messages"] #page-content > .page-enter {
     font-size: 12px;
   }
   .msg-chat-header {
-    height: 90px;
+    height: 100px;
   }
   .msg-composer-area {
     padding: 14px 15px 20px;
@@ -697,7 +702,7 @@ main[data-page="messages"] #page-content > .page-enter {
   }
   .msg-contact {
     font-size: 11px;
-    gap: 5px;
+    gap: 3px;
   }
   .msg-contact .msg-avatar {
     width: 38px;
@@ -708,7 +713,7 @@ main[data-page="messages"] #page-content > .page-enter {
     left: 10px;
   }
   .msg-chat-header {
-    height: 88px;
+    height: 98px;
   }
   .msg-composer {
     gap: 8px;

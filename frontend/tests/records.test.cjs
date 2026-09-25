@@ -355,3 +355,25 @@ test("empty mounted chat subscribes once and accepts the first remote page",()=>
   assert.match(app.html(),/\+1 332 250 0550/);
   assert.doesNotMatch(app.html(),/msg-empty-state/);
 });
+
+
+test("named conversations retain both remark and full number in list and header",async()=>{
+  const app=setup();app.server();app.publish([{number:"+13322500550"}]);
+  app.select("remote:module-01:line-module-01-0:+13322500550");
+  app.action("note");await app.note("我的");
+  const html=app.html();
+  assert.match(html,/<span class="msg-thread-name">我的<\/span><span class="msg-thread-number">\+13322500550<\/span>/);
+  assert.match(html,/<span class="msg-contact-name">我的<\/span><small class="msg-contact-number">\+13322500550<\/small>/);
+  app.action("note");await app.note("");
+  assert.doesNotMatch(app.html(),/class="msg-contact-number"|class="msg-thread-name"/);
+  assert.match(app.html(),/class="msg-contact-name">\+1 332 250 0550/);
+});
+
+test("remark display escapes markup without hiding the peer number",async()=>{
+  const app=setup();app.server();app.publish([{number:"+85262717066"}]);
+  app.select("remote:module-01:line-module-01-0:+85262717066");
+  app.action("note");await app.note("<b>我的</b>");
+  assert.doesNotMatch(app.html(),/<b>我的<\/b>/);
+  assert.match(app.html(),/&lt;b&gt;我的&lt;\/b&gt;/);
+  assert.match(app.html(),/class="msg-contact-number">\+85262717066/);
+});

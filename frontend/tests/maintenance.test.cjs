@@ -129,3 +129,10 @@ test("display password actions share one footer and errors are centered", () => 
     /\.visibility-error \{\s*text-align: center/,
   );
 });
+
+
+test("wide chat uses bounded side padding rather than a centered fixed-width column",()=>{
+ const css=readFileSync(join(dir,"messages.css"),"utf8");
+ assert.match(css,/padding: 25px clamp\(20px, 2vw, 36px\) 24px/);
+ assert.doesNotMatch(css,/100% - 920px/);
+});
