@@ -43,6 +43,9 @@ jobs:
       - name: SIP TCP framing bounds
         working-directory: backend
         run: go test ./internal/hardware -run '^$' -fuzz '^FuzzWiFiSIPStream$' -fuzztime=20s -parallel=2
+      - name: MMS PDU bounds
+        working-directory: backend
+        run: go test ./internal/mms -run '^$' -fuzz '^FuzzPDU$' -fuzztime=20s -parallel=2
       - name: Build both release bundles
         run: python3 deploy/build.py --output dist
       - uses: actions/upload-artifact@v4

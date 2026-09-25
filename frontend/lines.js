@@ -4,14 +4,14 @@ const Lines = (() => {
     id === "random" || ModuleData.items.some((item) => item.id === id);
   const recorded = (id) =>
     id !== "random" && (valid(id) || /^module-\d+$/.test(id));
-  const available = (item) =>
-    (!item.managed || item.capabilities?.calls === true) &&
-    item.status === "online" && item.signal !== "none" && item.sims[0]?.enabled;
-  function resolve(id) {
+  const available = (item, capability = "calls") =>
+    (!item.managed || item.capabilities?.[capability] === true) &&
+    item.status === "online" && item.signal !== "none" && item.sims.some((sim) => sim.enabled);
+  function resolve(id, capability = "calls") {
     if (id !== "random")
-      return ModuleData.items.find((item) => item.id === id && available(item))
+      return ModuleData.items.find((item) => item.id === id && available(item, capability))
         ?.id;
-    const candidates = ModuleData.items.filter(available);
+    const candidates = ModuleData.items.filter(item => available(item, capability));
     return candidates[Math.floor(Math.random() * candidates.length)]?.id;
   }
   function options(query = "") {

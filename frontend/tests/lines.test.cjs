@@ -80,3 +80,7 @@ test("random uses only available enabled modules and handles zero candidates", (
   assert.equal(Lines.recorded("random"), false);
   assert.equal(Lines.resolve("sim-2"), undefined);
 });
+
+test("SMS selection is independent from call capability and supports the active second SIM",()=>{
+ const {Lines,ModuleData}=setup();const item=ModuleData.items[0];item.managed=true;item.capabilities={calls:false,sms:true};item.sims=[{enabled:false},{enabled:true}];assert.equal(Lines.resolve(item.id,"sms"),item.id);assert.equal(Lines.resolve(item.id),undefined);item.capabilities.sms=false;assert.equal(Lines.resolve(item.id,"sms"),undefined);
+});

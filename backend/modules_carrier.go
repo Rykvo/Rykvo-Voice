@@ -71,3 +71,10 @@ func (m *moduleManager) carrierView(iccid string) any {
 	}
 	return map[string]string{"status": "identity_pending"}
 }
+
+func (m *moduleManager) mmsConfigured(card string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	c := m.carrierConfigs[card]
+	return c.MMS.Status == "matched" && c.MMS.Profile != nil
+}

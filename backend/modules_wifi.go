@@ -15,6 +15,7 @@ type moduleWiFi struct {
 	State, Issue       string
 	Profile, Transport string
 	Registered         bool
+	SMSReady           bool
 	RadioOff           bool
 	refreshUntil       time.Time
 	candidate          hardware.Candidate
@@ -72,6 +73,7 @@ func (m *moduleManager) wifiView(id int64, iccid string) map[string]any {
 	v["enabled"], v["registered"], v["state"], v["issue"] = w.Enabled, w.Registered, w.State, w.Issue
 	v["carrierProfile"], v["transport"] = w.Profile, w.Transport
 	v["radioOffConfirmed"] = w.RadioOff
+	v["smsReady"] = w.Enabled && w.Registered && w.SMSReady
 	return v
 }
 func (m *moduleManager) setWiFi(ctx context.Context, v moduleRecord, line, id string, enabled bool) error {
@@ -222,6 +224,10 @@ func (m *moduleManager) runWiFi(ctx context.Context, id int64, w *moduleWiFi, sa
 				log.Printf("module %d Wi-Fi %s", id, stage)
 			}
 			switch stage {
+			case "sms-ready":
+				w.SMSReady = true
+			case "sms-unavailable":
+				w.SMSReady = false
 			case "radio-off":
 				w.RadioOff = true
 			case "connected", "renewed":
@@ -234,6 +240,7 @@ func (m *moduleManager) runWiFi(ctx context.Context, id int64, w *moduleWiFi, sa
 					m.values[id] = value
 				}
 			case "reconnecting":
+				w.SMSReady = false
 				w.State, w.Registered = "connecting", false
 			case "ims-cleaned", "radio-restored":
 				if stage == "radio-restored" {

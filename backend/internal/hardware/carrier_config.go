@@ -26,7 +26,7 @@ func (s carrierSIM) ReadIdentity(ctx context.Context, id string) (vowifi.SIMIden
 	return identity, err
 }
 func matchCarrier(id vowifi.SIMIdentity) carrierconfig.Selection {
-	return carrierconfig.Match(carrierconfig.Identity{MCC: id.HomeMCC, MNC: id.HomeMNC, SPN: id.SPN, GID1: id.GID1, IMSI: id.IMSI, ICCID: id.ICCID})
+	return carrierconfig.Match(carrierconfig.Identity{MCC: id.HomeMCC, MNC: id.HomeMNC, SPN: id.SPN, GID1: id.GID1, GID2: id.GID2, IMSI: id.IMSI, ICCID: id.ICCID})
 }
 
 type carrierCacheEntry struct {

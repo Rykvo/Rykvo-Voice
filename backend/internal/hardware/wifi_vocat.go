@@ -20,6 +20,7 @@ import (
 // VocatWiFi bridges the imported protocol core to Rykvo's exclusive device gate.
 // Select at service startup; it never falls back to the legacy engine mid-session.
 type VocatWiFi struct {
+	messaging       *smsWorker
 	System          *System
 	RestoreCellular func() bool
 }
@@ -132,7 +133,7 @@ func (vocatDirectRoute) Resolve(context.Context, vowifi.ProxyRequest) (vowifi.Pr
 	return vowifi.ProxyRoute{Mode: vowifi.ProxyModeDirect}, nil
 }
 
-// Registration-only integration has no phone/SMS delivery service yet.
+// IMS SMS is bridged to durable storage; call media remains separate.
 // Fail unsupported delivery rather than silently acknowledge and discard messages.
 type vocatPhoneStore struct {
 	iccid string
@@ -208,8 +209,19 @@ func (engine *VocatWiFi) WiFi(ctx context.Context, c Candidate, identity, iccid 
 	registration, err := ims.NewProvider(adapter, ims.Config{
 		Transport: "tcp", AutoTransportFallback: true, Logger: logger,
 		OnDeregistrationUnconfirmed: func() { emit("diagnostic:ims-deregistration-unconfirmed") },
-		OnSMS:                       func(context.Context, ims.ReceivedSMS) error { return errors.New("SMS storage not connected") },
-		OnSIMDataDownload:           func(context.Context, ims.SIMDataDownload) error { return errors.New("SIM download not connected") },
+		OnSMS: func(ctx context.Context, message ims.ReceivedSMS) error {
+			if engine.messaging == nil || message.ICCID != iccid {
+				return errors.New("SMS_STORAGE_UNAVAILABLE")
+			}
+			return engine.messaging.receive(ctx, SMSDelivery{ID: message.MessageID, From: message.From, Text: message.Text, At: message.Timestamp, SCTS: message.ServiceCenterTimestamp, Encoding: string(message.Encoding), Concat: message.Concat, TPDU: message.RawTPDU, DecodeError: message.DecodeError})
+		},
+		OnSMSStatus: func(ctx context.Context, message ims.ReceivedSMSStatus) error {
+			if engine.messaging == nil || message.ICCID != iccid {
+				return errors.New("SMS_STORAGE_UNAVAILABLE")
+			}
+			return engine.messaging.receive(ctx, SMSDelivery{ID: message.CallID, From: message.To, At: message.Timestamp, SCTS: message.ServiceCenterTimestamp, TPDU: message.RawTPDU, Status: &SMSReport{Reference: message.MessageReference, Code: message.StatusCode}})
+		},
+		OnSIMDataDownload: func(context.Context, ims.SIMDataDownload) error { return errors.New("SIM download not connected") },
 	})
 	if err != nil {
 		return errors.New("WIFI_CONNECTION_FAILED")
@@ -217,6 +229,10 @@ func (engine *VocatWiFi) WiFi(ctx context.Context, c Candidate, identity, iccid 
 	o, err := vowifi.New(vowifi.Dependencies{SIM: carrierSIM{adapter, emit}, AKA: adapter, Radio: vocatRadio{adapter, at, c.Network, engine.RestoreCellular}, Proxy: vocatDirectRoute{}, Tunnel: tunnel, IMS: registration, Phones: vocatPhoneStore{iccid: iccid, emit: emit}}, vowifi.Options{DeviceID: at.device, AllowIMSWithoutSMS: true, CleanupTimeout: 25 * time.Second})
 	if err != nil {
 		return errors.New("WIFI_CONNECTION_FAILED")
+	}
+	if engine.messaging != nil {
+		engine.messaging.setSender(o.SendSMS)
+		defer engine.messaging.setSender(nil)
 	}
 	return runVocatRegistration(ctx, o, emit)
 }
@@ -365,6 +381,11 @@ func vocatEmitState(state vowifi.State, emit func(string)) {
 	}
 	if state.IMSReady && state.TunnelReady && state.Phase != vowifi.PhaseFailed && state.Phase != vowifi.PhaseStopping {
 		emit("connected")
+		if state.SMSReady {
+			emit("sms-ready")
+		} else {
+			emit("sms-unavailable")
+		}
 	} else {
 		emit("reconnecting")
 	}

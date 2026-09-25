@@ -7,6 +7,7 @@ const M = "rykvo-voice-messages-v1",
   C = "rykvo-voice-calls-v1",
   S = "rykvo-voice-sms-sender-v1";
 function setup(storage = new Map()) {
+ let remoteEnabled=false, listener=null, revision=0;const remoteRecords=[], requests=[];
   if (!storage.size) {
     storage.set(
       M,
@@ -58,6 +59,12 @@ function setup(storage = new Map()) {
     return nodes.get(selector);
   };
   const context = vm.createContext({
+    MessageData: {
+      enabled:()=>remoteEnabled,
+      subscribe(fn){listener=fn;fn(remoteRecords);return ()=>{listener=null}},
+      async send(body){requests.push(body);const result={id:"server-"+(++revision),number:body.to,senderId:body.moduleId,lineId:body.lineId,text:body.text,mine:true,kind:"sms",state:"queued",at:Date.now(),revision,remote:true};remoteRecords.push(result);listener?.(remoteRecords);return result;},
+      async remove(ids){for(let i=remoteRecords.length-1;i>=0;i--)if(ids.includes(remoteRecords[i].id))remoteRecords.splice(i,1);listener?.(remoteRecords)}
+    },
     document: {
       querySelector: node,
       querySelectorAll: () => [],
@@ -104,7 +111,8 @@ function setup(storage = new Map()) {
   const emit = (type, target) =>
     (events[type] || []).forEach((fn) => fn({ target, preventDefault() {} }));
   return {
-    storage,
+    storage, requests,
+    server(){remoteEnabled=true;vm.runInContext('ModuleData.items.forEach(item=>item.sims.forEach((sim,i)=>sim.id="line-"+item.id+"-"+i));Messages.mount()',context)},
     copied: () => copied,
     node,
     emit,
@@ -158,6 +166,7 @@ function setup(storage = new Map()) {
     send(text) {
       node("#msg-input").value = text;
       emit("submit", { id: "ipad-message-form" });
+      return new Promise(resolve=>setImmediate(resolve));
     },
   };
 }
@@ -223,48 +232,16 @@ test("empty and background menus disable unavailable actions", () => {
   app.confirm().action();
   assert.equal(app.open("messages")[2].disabled, true);
 });
-test("only new messages show the sender picker; existing chats keep their original line", () => {
-  const app = setup();
-  assert.doesNotMatch(app.html(), /id="msg-from"/);
-  app.action("compose");
-  assert.match(app.html(), /id="msg-from"/);
-  app.changeSender("module-04");
-  app.node("#msg-to").value = "+12025550148";
-  app.send("new line");
-  assert.equal(app.read(M)[0].senderId, "module-04");
-  assert.doesNotMatch(app.html(), /id="msg-from"/);
-  app.action("compose");
-  app.changeSender("module-01");
-  app.action("cancel");
-  app.send("same original line");
-  assert.deepEqual(
-    app.read(M)[0].messages.map((m) => m.senderId),
-    ["module-04", "module-04"],
-  );
-  const reload = setup(app.storage);
-  reload.send("after reload");
-  assert.equal(reload.read(M)[0].messages.at(-1).senderId, "module-04");
-  reload.select("a");
-  reload.send("existing conversation");
-  assert.equal(
-    reload
-      .read(M)
-      .find((t) => t.id === "a")
-      .messages.at(-1).senderId,
-    "module-01",
-  );
+test("new SMS uses server queue and existing chat keeps the concrete SIM",async()=>{
+ const app=setup();app.server();assert.doesNotMatch(app.html(),/id="msg-from"/);app.action("compose");assert.match(app.html(),/id="msg-from"/);app.changeSender("module-04");app.node("#msg-to").value="+12025550148";
+ const old=app.storage.get(M);await app.send("new line");assert.equal(app.requests[0].moduleId,"module-04");assert.equal(app.requests[0].lineId,"line-module-04-0");assert.equal(app.storage.get(M),old);assert.doesNotMatch(app.html(),/id="msg-from"/);
+ await app.send("same SIM");assert.equal(app.requests[1].moduleId,"module-04");assert.equal(app.requests[1].lineId,"line-module-04-0");
 });
-test("new message uses the selected line and an empty list can receive new threads", () => {
-  const app = setup();
-  app.open("messages")[2].action();
-  app.confirm().action();
-  app.action("compose");
-  app.changeSender("module-04");
-  app.node("#msg-to").value = "+1 202 555 0148";
-  app.send("test");
-  assert.equal(app.read(M).length, 1);
-  assert.equal(app.read(M)[0].messages[0].senderId, "module-04");
+
+test("disconnected message backend never adds a fake sent bubble",async()=>{
+ const app=setup();const old=app.storage.get(M);app.action("compose");app.changeSender("module-04");app.node("#msg-to").value="+12025550148";await app.send("keep draft");assert.equal(app.requests.length,0);assert.equal(app.storage.get(M),old);assert.equal(app.node("#msg-input").value,"keep draft");
 });
+
 test("invalid sender and failed preference storage keep a valid selection", () => {
   const app = setup();
   app.action("compose");
@@ -293,17 +270,10 @@ test("menus copy raw numbers without changing records or opening confirmation", 
   }
 });
 
-test("random new SMS stores a concrete module and retains it after reload", () => {
-  const app = setup();
-  app.action("compose");
-  app.node("#msg-to").value = "+8613800009000";
-  app.send("first");
-  const id = app.read(M)[0].senderId;
-  assert.match(id, /^module-\d{2}$/);
-  const reload = setup(app.storage);
-  reload.send("reply");
-  assert.equal(reload.read(M)[0].messages.at(-1).senderId, id);
+test("random new SMS submits one concrete module without changing legacy records",async()=>{
+ const app=setup();app.server();const old=app.storage.get(M);app.action("compose");app.node("#msg-to").value="+12025550148";await app.send("first");assert.match(app.requests[0].moduleId,/^module-\d{2}$/);await app.send("reply");assert.equal(app.requests[1].moduleId,app.requests[0].moduleId);assert.equal(app.storage.get(M),old);
 });
+
 test("offline module does not create a conversation or discard the draft", () => {
   const app = setup();
   const before = app.read(M);
@@ -314,18 +284,8 @@ test("offline module does not create a conversation or discard the draft", () =>
   assert.deepEqual(app.read(M), before);
   assert.equal(app.node("#msg-input").value, "keep draft");
 });
-test("recomposing an existing number preserves its original sender", () => {
-  const app = setup();
-  app.action("compose");
-  app.node("#msg-to").value = "+8613800009000";
-  app.changeSender("module-04");
-  app.send("first");
-  app.action("compose");
-  app.node("#msg-to").value = "+8613800009000";
-  app.changeSender("module-01");
-  app.send("again");
-  assert.equal(app.read(M)[0].senderId, "module-04");
-  assert.equal(app.read(M)[0].messages.length, 2);
+test("composing the same destination from another SIM does not mix sender bindings",async()=>{
+ const app=setup();app.server();app.action("compose");app.node("#msg-to").value="+12025550148";app.changeSender("module-04");await app.send("first");app.action("compose");app.node("#msg-to").value="+12025550148";app.changeSender("module-01");await app.send("second");assert.equal(app.requests[0].moduleId,"module-04");assert.equal(app.requests[1].moduleId,"module-01");assert.notEqual(app.requests[0].lineId,app.requests[1].lineId);
 });
 
 test("fresh delivery ignores old preview records without deleting browser data", () => {

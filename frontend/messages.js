@@ -45,6 +45,7 @@ const Messages = (() => {
   } catch {
     threads = [];
   }
+  let unsubscribe = null, sending = false, pendingSubmit = null;
   let active = threads[0]?.id || "",
     view = "list",
     query = "",
@@ -52,7 +53,7 @@ const Messages = (() => {
     newNumber = "",
     attachment = null;
   function save() {
-    return UI.write(key, threads);
+    return UI.write(key, threads.filter(t => !t.remote));
   }
   function current() {
     return threads.find((t) => t.id === active);
@@ -109,7 +110,7 @@ const Messages = (() => {
       isNewDay =
         !previous ||
         date.toDateString() !== new Date(previous.at).toDateString();
-    return `${isNewDay ? `<div class="msg-date">${UI.day(message.at)} ${UI.time(message.at)}</div>` : ""}<div class="msg-line ${message.mine ? "outgoing" : "incoming"}"><div class="msg-bubble ${message.image ? "with-image" : ""}">${message.image ? `<img src="${message.image}" alt="信息中的照片">` : ""}${message.text ? `<span>${esc(message.text)}</span>` : ""}</div></div>`;
+    return `${isNewDay ? `<div class="msg-date">${UI.day(message.at)} ${UI.time(message.at)}</div>` : ""}<div class="msg-line ${message.mine ? "outgoing" : "incoming"}"><div class="msg-bubble ${message.image ? "with-image" : ""}">${message.image ? `<img src="${esc(message.image)}" alt="信息中的照片">` : ""}${message.text ? `<span>${esc(message.text)}</span>` : ""}${message.remote && (issueLabels[message.issue] || stateLabels[message.state]) ? `<small class="msg-delivery" role="status">${esc(issueLabels[message.issue] || stateLabels[message.state])}</small>` : ""}</div></div>`;
   }
   function scrollToLatest() {
     const node = $("#msg-transcript");
@@ -136,11 +137,35 @@ const Messages = (() => {
     const input = $("#msg-input"),
       btn = $(".msg-send");
     if (!input || !btn) return;
-    btn.disabled = !input.value.trim() && !attachment;
+    btn.disabled = sending || (!input.value.trim() && !attachment);
     input.style.height = "auto";
     input.style.height = Math.min(input.scrollHeight, 120) + "px";
   }
+  const stateLabels = {queued:"排队中",sending:"发送中",accepted:"运营商已接受",delivered:"已送达",partial:"部分发送，勿重复发送",unknown:"发送结果待确认，勿重复发送",waiting_network:"等待可用网络",failed:"发送失败",received:"",receiving:"正在接收",download_pending:"等待下载彩信",downloading:"下载彩信中",expired:"已过期",decode_error:"信息解码异常",unsupported_push:"暂不支持的信息类型"};
+  const issueLabels = {MMS_CONFIG_REQUIRED:"尚未匹配彩信配置",SMS_NOT_READY:"等待短信服务",DEVICE_CHANGED:"等待原 SIM 恢复",MMS_NETWORK_REQUIRED:"等待运营商彩信网络"};
+  function syncRemote(records) {
+    const previous = JSON.stringify(current()?.messages || []);
+    const grouped = new Map();
+    for (const message of records) {
+      if (message.deleted) continue;
+      const id = `remote:${message.senderId}:${message.lineId}:${message.number}`;
+      let thread = grouped.get(id);
+      if (!thread) { const old = threads.find(t => t.id === id); thread = {id,remote:true,number:message.number,senderId:message.senderId,lineId:message.lineId,unread:old?.unread || false,messages:[]}; grouped.set(id,thread); }
+      thread.messages.push(message);
+    }
+    for (const thread of grouped.values()) thread.messages.sort((a,b) => a.at-b.at || a.id.localeCompare(b.id));
+    threads = [...threads.filter(t => !t.remote), ...grouped.values()];
+    const list = $("#msg-thread-list"); if (list) list.innerHTML = listHTML();
+    if (previous !== JSON.stringify(current()?.messages || [])) {
+      const transcriptNode = $("#msg-transcript");
+      const nearEnd = !transcriptNode || transcriptNode.scrollHeight-transcriptNode.scrollTop-transcriptNode.clientHeight<60;
+      const top = transcriptNode?.scrollTop || 0;
+      transcript(); if (transcriptNode && !nearEnd) transcriptNode.scrollTop = top;
+    }
+  }
+  function unmount() { unsubscribe?.(); unsubscribe = null; }
   function mount() {
+    if (typeof MessageData !== "undefined" && !unsubscribe && MessageData.enabled()) unsubscribe = MessageData.subscribe(syncRemote);
     if (!$(".messages-app")) return;
     transcript();
     renderAttachment();
@@ -165,72 +190,41 @@ const Messages = (() => {
     mount();
     $("#msg-thread-list").scrollTop = scrollTop;
   }
-  function send() {
-    const input = $("#msg-input");
-    const text = input.value.trim();
+  async function send() {
+    if (sending) return;
+    if (typeof MessageData === "undefined" || !MessageData.enabled()) {toast("信息服务尚未接入");return;}
+    const input = $("#msg-input"), text = input.value.trim();
     if (!text && !attachment) return;
-    const isNew = active === "new";
-    let t = current();
-    let number;
-    if (isNew) {
-      number = $("#msg-to").value.replace(/[\s()-]/g, "");
-      if (!/^\+?\d{3,20}$/.test(number)) {
-        toast("请输入有效的手机号码");
-        $("#msg-to").focus();
-        return;
-      }
-      t = threads.find((item) => item.number === number);
-    }
-    const selectedSender = Lines.resolve(t ? senderId(t) : defaultSender);
-    if (!selectedSender) {
-      toast("暂无可用模块，请选择在线模块");
-      return;
-    }
-    if (isNew) {
-      if (!t) {
-        t = { id: UI.id(), number, unread: false, messages: [] };
-        threads.unshift(t);
-      }
-      active = t.id;
-      newNumber = "";
-      delete drafts.new;
-    }
-    if (!t) return;
-    t.senderId = selectedSender;
-    const previous = t.messages.at(-1),
-      message = {
-        id: UI.id(),
-        text,
-        mine: true,
-        senderId: t.senderId,
-        at: Date.now(),
-        image: attachment?.data || null,
-      };
-    t.messages.push(message);
-    t.unread = false;
-    drafts[active] = "";
-    attachment = null;
-    query = "";
-    save();
-    if (isNew) refresh();
-    else {
-      input.value = "";
-      $("#msg-search").value = "";
-      $("#msg-thread-list").innerHTML = listHTML();
-      $("#msg-transcript").insertAdjacentHTML(
-        "beforeend",
-        bubbleHTML(message, previous),
-      );
-      renderAttachment();
-      updateSend();
-      scrollToLatest();
-    }
-    $("#msg-input").focus();
+    const isNew = active === "new", thread = current();
+    const number = isNew ? $("#msg-to").value.replace(/[\s()-]/g, "") : thread?.number;
+    if (!/^\+?\d{3,15}$/.test(number || "")) {toast("请输入有效的手机号码");return;}
+    const selected = Lines.resolve(thread ? senderId(thread) : defaultSender, attachment ? "mms" : "sms");
+    const item = ModuleData.items.find(item => item.id === selected), line = item?.sims.find(sim => sim.enabled);
+    if (!item || !line) {toast(attachment ? "暂无彩信配置就绪的模块" : "暂无短信服务就绪的模块");return;}
+    if (thread?.lineId && thread.lineId !== line.id) {toast("原 SIM 已切换，请重新选择发件人");return;}
+    const payload = {moduleId:item.id,lineId:line.id,to:number,text,image:attachment?.data || ""};
+    const signature = JSON.stringify(payload);
+    if (!pendingSubmit || pendingSubmit.signature !== signature) pendingSubmit = {signature,requestId:Http.id()};
+    sending = true; updateSend();
+    const originalActive = active;
+    try {
+      const result = await MessageData.send({...payload,requestId:pendingSubmit.requestId});
+      pendingSubmit = null;
+      if (active !== originalActive) return;
+      const id = `remote:${result.senderId}:${result.lineId}:${result.number}`;
+      active = id; newNumber = ""; delete drafts.new; drafts[id] = ""; attachment = null;
+      if (isNew) refresh(); else {input.value="";renderAttachment();transcript();}
+    } catch (error) {
+      const labels = {INVALID_IMAGE:"请选择不超过 1 MB 的 JPG、PNG 或 GIF 图片",MMS_TOO_LARGE:"图片需小于 1 MB",MESSAGE_RATE_LIMIT:"发送过于频繁，请稍后再试",DEVICE_CHANGED:"SIM 状态已变化，请刷新后重试",REQUEST_CONFLICT:"发送请求冲突，请核实记录"};
+      toast(labels[error.code] || "提交结果待确认，再次提交将核对同一请求");
+    } finally {sending = false;updateSend();}
   }
-  function removeThreads(id) {
+  async function removeThreads(id) {
+    const remote = threads.filter(t => t.remote && (!id || t.id === id)).flatMap(t => t.messages.map(m => m.id));
+    if (remote.length) {try {await MessageData.remove(remote);} catch {toast("删除未完成，请稍后重试");return;}}
     const index = threads.findIndex((thread) => thread.id === id);
     const next = id ? threads.filter((thread) => thread.id !== id) : [];
-    if (!UI.write(key, next)) return;
+    if (!UI.write(key, next.filter(t => !t.remote))) return;
     threads = next;
     const activeRemoved = !id || active === id;
     if (id) delete drafts[id];
@@ -250,6 +244,7 @@ const Messages = (() => {
   function prune(cutoff) {
     let changed = false;
     const next = threads.flatMap((thread) => {
+      if (thread.remote) return [thread];
       const messages = thread.messages.filter(
         (message) => !Cleanup.expired(message, cutoff),
       );
@@ -271,7 +266,7 @@ const Messages = (() => {
       ];
     });
     if (!changed) return true;
-    if (!UI.write(key, next)) return false;
+    if (!UI.write(key, next.filter(t => !t.remote))) return false;
     threads = next;
     if (active !== "new" && !current()) {
       active = threads[0]?.id || "";
@@ -393,12 +388,12 @@ const Messages = (() => {
     const file = e.target.files[0];
     if (!file) return;
     if (
-      !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(
+      !["image/png", "image/jpeg", "image/gif"].includes(
         file.type,
       ) ||
-      file.size > 2 * 1024 * 1024
+      file.size > 1024 * 1024
     ) {
-      toast("请选择 2 MB 以内的图片");
+      toast("请选择 1 MB 以内的图片");
       e.target.value = "";
       return;
     }
@@ -420,5 +415,5 @@ const Messages = (() => {
     },
     true,
   );
-  return { render, mount, prune };
+  return { render, mount, unmount, prune };
 })();

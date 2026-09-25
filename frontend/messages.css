@@ -752,3 +752,5 @@ main[data-page="messages"] #page-content > .page-enter {
     font-size: 15px;
   }
 }
+
+.msg-delivery { display:block; margin-top:5px; font-size:11px; line-height:1.4; opacity:.8; }

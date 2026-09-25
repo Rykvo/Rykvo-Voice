@@ -130,3 +130,45 @@ CREATE TABLE IF NOT EXISTS card_data_policy_requests (
  roaming boolean NOT NULL,
  created_at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS messages (
+ id text PRIMARY KEY,
+ module_id bigint NOT NULL REFERENCES modules(id),
+ iccid text NOT NULL CHECK (iccid ~ '^[0-9]{18,20}$'),
+ line_id text NOT NULL,
+ peer text NOT NULL,
+ mine boolean NOT NULL,
+ kind text NOT NULL CHECK (kind IN ('sms','mms')),
+ body text NOT NULL DEFAULT '',
+ image text NOT NULL DEFAULT '',
+ state text NOT NULL,
+ issue text NOT NULL DEFAULT '',
+ request_hash text NOT NULL DEFAULT '',
+ result jsonb NOT NULL DEFAULT '{}',
+ metadata jsonb NOT NULL DEFAULT '{}',
+ read_at timestamptz,
+ deleted_at timestamptz,
+ created_at timestamptz NOT NULL DEFAULT now(),
+ updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS messages_queue ON messages(state,created_at);
+CREATE INDEX IF NOT EXISTS messages_card_peer ON messages(iccid,peer,created_at);
+CREATE TABLE IF NOT EXISTS message_parts (
+ iccid text NOT NULL, fingerprint text NOT NULL, message_id text NOT NULL REFERENCES messages(id),
+ sequence integer NOT NULL, body text NOT NULL, raw_tpdu text NOT NULL,
+ received_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(iccid,fingerprint), UNIQUE(message_id,sequence)
+);
+CREATE TABLE IF NOT EXISTS message_reports (
+ iccid text NOT NULL, fingerprint text NOT NULL, peer text NOT NULL,
+ reference integer NOT NULL, status integer NOT NULL,
+ scts timestamptz, received_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(iccid,fingerprint)
+);
+CREATE SEQUENCE IF NOT EXISTS message_revision_seq;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS revision bigint NOT NULL DEFAULT nextval('message_revision_seq');
+CREATE OR REPLACE FUNCTION message_revision_update() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN PERFORM pg_advisory_xact_lock(-734901); NEW.revision=nextval('message_revision_seq'); NEW.updated_at=now(); RETURN NEW; END $$;
+DROP TRIGGER IF EXISTS message_revision_trigger ON messages;
+CREATE TRIGGER message_revision_trigger BEFORE INSERT OR UPDATE ON messages FOR EACH ROW EXECUTE FUNCTION message_revision_update();
+CREATE INDEX IF NOT EXISTS messages_revision ON messages(revision);

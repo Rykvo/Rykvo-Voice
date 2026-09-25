@@ -1,3 +1,5 @@
 APN catalog: Copyright 2006 The Android Open Source Project.
 Derived from device/sample/etc/apns-full-conf.xml under Apache License 2.0.
 See SOURCE.json for pinned revision and transformation.
+
+Carrier identification rules: The Android Open Source Project, TelephonyProvider/assets/latest_carrier_id/carrier_list.textpb (Apache-2.0).

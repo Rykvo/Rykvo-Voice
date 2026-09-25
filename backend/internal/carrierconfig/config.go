@@ -12,10 +12,11 @@ import (
 //go:embed catalog.json
 var catalogJSON []byte
 
-const Version = "aosp-73f904fbeb87"
+const Version = "aosp-73f904fbeb87-cid-bca387f553a4"
 
-type Identity struct{ MCC, MNC, SPN, GID1, IMSI, ICCID string }
+type Identity struct{ MCC, MNC, SPN, GID1, GID2, IMSI, ICCID string }
 type Profile struct {
+	CarrierID       string `json:"carrier_id,omitempty"`
 	Carrier         string `json:"carrier"`
 	MCC             string `json:"mcc"`
 	MNC             string `json:"mnc"`
@@ -105,10 +106,20 @@ func choose(all []Profile, id Identity, kind string) Choice {
 	best := -1
 	selected := map[string]Profile{}
 	for _, p := range all {
-		if p.MCC != id.MCC || p.MNC != id.MNC || !hasType(p.Types, kind) {
+		if !hasType(p.Types, kind) {
 			continue
 		}
 		ok, rank := mvno(p, id)
+		if p.CarrierID != "" {
+			n := carrierRank(p.CarrierID, id)
+			if n < 0 {
+				continue
+			}
+			rank += n
+		} else if p.MCC != id.MCC || p.MNC != id.MNC {
+			continue
+		}
+		p.MCC, p.MNC = id.MCC, id.MNC
 		if !ok || rank < best {
 			continue
 		}
@@ -122,6 +133,7 @@ func choose(all []Profile, id Identity, kind string) Choice {
 		// Metadata differences do not make identical connection parameters ambiguous.
 		comparable := p
 		comparable.Carrier = ""
+		comparable.CarrierID = ""
 		comparable.MVNOType = ""
 		comparable.MVNOMatch = ""
 		comparable.Types = kind

@@ -143,6 +143,13 @@ func main() {
 		log.Fatal("Invalid Wi-Fi engine selection")
 	}
 	api.modules = newModuleManagerWithWiFi(pool, system, wifi)
+	if client, ok := wifi.(*hardware.VocatWorkerClient); ok {
+		client.OnSMS = api.modules.receiveSMS
+	}
+	messageContext, stopMessages := context.WithCancel(ctx)
+	messageDone := make(chan struct{})
+	go func() { defer close(messageDone); api.modules.runMessages(messageContext) }()
+	defer func() { stopMessages(); <-messageDone }()
 	go api.modules.run(moduleContext)
 	defer func() { stopModules(); <-api.modules.done }()
 	if dir := os.Getenv("TUNNEL_DIR"); dir != "" {

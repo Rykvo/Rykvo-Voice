@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"rykvo.local/auth/internal/carrierconfig"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -21,13 +22,21 @@ const WiFiWorkerSocket = "/run/rykvo-voice-wifi.sock"
 
 // The web process never receives CAP_NET_ADMIN. A private socket activates one
 // fixed-function worker; no paths, AT commands, shell commands or keys are RPCs.
-type VocatWorkerClient struct{ Socket string }
+type VocatWorkerClient struct {
+	Socket      string
+	OnSMS       func(context.Context, Candidate, string, SMSDelivery) error
+	smsMu       sync.Mutex
+	smsSessions map[string]*smsClientSession
+}
 
 type wifiWorkerRequest struct {
 	Endpoint, Generation, HardwareKey, ICCID string
 	RestoreOnly                              bool `json:"restoreOnly,omitempty"`
 }
 type wifiWorkerEvent struct {
+	SMS       *SMSDelivery `json:"sms,omitempty"`
+	SMSResult *SMSReply    `json:"smsResult,omitempty"`
+
 	CarrierConfig *carrierconfig.Selection `json:"carrierConfig,omitempty"`
 	PhoneNumber   string                   `json:"phoneNumber,omitempty"`
 	Stage         string                   `json:"stage,omitempty"`
@@ -52,16 +61,43 @@ func (client *VocatWorkerClient) WiFiWithPolicy(ctx context.Context, c Candidate
 		return errors.New("WIFI_WORKER_UNAVAILABLE")
 	}
 	defer conn.Close()
-	return wifiWorkerExchange(ctx, conn, wifiWorkerRequest{Endpoint: c.Key, Generation: c.Generation, HardwareKey: identity, ICCID: iccid}, emit, restore)
+	session := newSMSClientSession(ctx, conn, func(ctx context.Context, delivery SMSDelivery) error {
+		if client.OnSMS == nil {
+			return errors.New("SMS_STORAGE_UNAVAILABLE")
+		}
+		return client.OnSMS(ctx, c, iccid, delivery)
+	})
+	key := smsSessionKey(c, iccid)
+	client.smsMu.Lock()
+	if client.smsSessions == nil {
+		client.smsSessions = map[string]*smsClientSession{}
+	}
+	client.smsSessions[key] = session
+	client.smsMu.Unlock()
+	defer func() {
+		client.smsMu.Lock()
+		if client.smsSessions[key] == session {
+			delete(client.smsSessions, key)
+		}
+		client.smsMu.Unlock()
+		session.close()
+	}()
+	return wifiWorkerExchangeSMS(ctx, conn, wifiWorkerRequest{Endpoint: c.Key, Generation: c.Generation, HardwareKey: identity, ICCID: iccid}, emit, session, restore)
 }
 
 func wifiWorkerExchange(ctx context.Context, conn net.Conn, request wifiWorkerRequest, emit func(string), restore ...func() bool) error {
+	return wifiWorkerExchangeSMS(ctx, conn, request, emit, nil, restore...)
+}
+func wifiWorkerExchangeSMS(ctx context.Context, conn net.Conn, request wifiWorkerRequest, emit func(string), sms *smsClientSession, restore ...func() bool) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
 	_ = conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	if json.NewEncoder(conn).Encode(request) != nil {
 		return errors.New("WIFI_RADIO_RESTORE_UNCONFIRMED")
+	}
+	if sms != nil {
+		close(sms.ready)
 	}
 	stopped := make(chan struct{})
 	stop := context.AfterFunc(ctx, func() {
@@ -74,6 +110,10 @@ func wifiWorkerExchange(ctx context.Context, conn net.Conn, request wifiWorkerRe
 		if len(restore) > 0 && restore[0] != nil && restore[0]() {
 			command = "stop-cellular\n"
 		}
+		if sms != nil {
+			sms.writeMu.Lock()
+			defer sms.writeMu.Unlock()
+		}
 		_, _ = io.WriteString(conn, command)
 	})
 	defer func() {
@@ -82,11 +122,20 @@ func wifiWorkerExchange(ctx context.Context, conn net.Conn, request wifiWorkerRe
 		}
 	}()
 	scanner := bufio.NewScanner(conn)
-	scanner.Buffer(make([]byte, 1024), 4096)
+	scanner.Buffer(make([]byte, 1024), 32768)
 	for scanner.Scan() {
 		var event wifiWorkerEvent
 		if json.Unmarshal(scanner.Bytes(), &event) != nil {
 			break
+		}
+		if event.SMS != nil || event.SMSResult != nil {
+			if sms == nil || event.CarrierConfig != nil || event.PhoneNumber != "" || event.Stage != "" || event.Done || event.Code != "" || (event.SMS != nil && event.SMSResult != nil) {
+				break
+			}
+			if !sms.event(event) {
+				break
+			}
+			continue
 		}
 		if event.CarrierConfig != nil {
 			if !event.CarrierConfig.Valid() || event.PhoneNumber != "" || event.Stage != "" || event.Done || event.Code != "" {
@@ -123,7 +172,7 @@ func wifiWorkerExchange(ctx context.Context, conn net.Conn, request wifiWorkerRe
 
 func wifiWorkerStage(s string) bool {
 	switch s {
-	case "connected", "reconnecting", "ims-cleaned", "radio-restored", "radio-off":
+	case "sms-ready", "sms-unavailable", "connected", "reconnecting", "ims-cleaned", "radio-restored", "radio-off":
 		return true
 	}
 	if s == "diagnostic:ims-deregistration-unconfirmed" || s == "diagnostic:network-retry-scheduled" {
@@ -172,7 +221,7 @@ func serveWiFiWorker(parent context.Context, input io.Reader, output io.Writer, 
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	scanner := bufio.NewScanner(input)
-	scanner.Buffer(make([]byte, 1024), 4096)
+	scanner.Buffer(make([]byte, 1024), 32768)
 	var request wifiWorkerRequest
 	// stdin socket deadlines are not portable. Bound initial input explicitly;
 	// the single-session process exits even if a hostile peer leaves it idle.
@@ -200,7 +249,7 @@ func serveWiFiWorker(parent context.Context, input io.Reader, output io.Writer, 
 		decoder.DisallowUnknownFields()
 		valid = decoder.Decode(&request) == nil && decoder.Decode(new(any)) == io.EOF
 	}
-	encoder := json.NewEncoder(output)
+	encoder := &smsEventEncoder{encoder: json.NewEncoder(output)}
 	if !valid || len(request.Endpoint) > 256 || request.Endpoint == "" || request.Generation == "" || len(request.Generation) > 256 || !strings.HasPrefix(request.HardwareKey, "imei:") || len(request.HardwareKey) != 69 || !decimal(request.ICCID, 18, 20) {
 		_ = encoder.Encode(wifiWorkerEvent{Done: true, Code: "DEVICE_CHANGED"})
 		return errors.New("DEVICE_CHANGED")
@@ -216,18 +265,30 @@ func serveWiFiWorker(parent context.Context, input io.Reader, output io.Writer, 
 		_ = encoder.Encode(wifiWorkerEvent{Done: true, Code: wifiWorkerCode(err)})
 		return err
 	}
+	sms := newSMSWorker(ctx, encoder, cancel)
 	// EOF, explicit stop, or malformed extra input all cancel this one lease.
 	var restore atomic.Bool
 	if actual, ok := engine.(*VocatWiFi); ok {
 		copied := *actual
 		copied.RestoreCellular = restore.Load
+		copied.messaging = sms
 		engine = &copied
 	}
 	go func() {
-		if scanner.Scan() && scanner.Text() == "stop-cellular" {
-			restore.Store(true)
+		defer cancel()
+		for scanner.Scan() {
+			switch scanner.Text() {
+			case "stop-cellular":
+				restore.Store(true)
+				return
+			case "stop":
+				return
+			default:
+				if !sms.command(scanner.Bytes()) {
+					return
+				}
+			}
 		}
-		cancel()
 	}()
 	err := engine.WiFi(ctx, Candidate{Key: request.Endpoint, Generation: request.Generation}, request.HardwareKey, request.ICCID, func(stage string) {
 		if raw, ok := strings.CutPrefix(stage, "config:"); ok {

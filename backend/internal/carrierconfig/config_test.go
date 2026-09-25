@@ -61,3 +61,17 @@ func TestAmbiguityAndMVNOSelectors(t *testing.T) {
 		t.Fatal("catalog missing")
 	}
 }
+
+func TestCarrierIDOnlyAPNsResolveAlternateHomePLMN(t *testing.T) {
+	id := Identity{MCC: "310", MNC: "240", IMSI: "310240000000001"}
+	s := Match(id)
+	if s.MMS.Status != "matched" || s.MMS.Profile == nil || s.MMS.Profile.MMSC != "http://mms.msg.eng.t-mobile.com/mms/wapenc" || s.MMS.Profile.MCC != "310" || s.MMS.Profile.MNC != "240" {
+		t.Fatalf("carrier-id resolution: %+v", s)
+	}
+	if !s.Valid() {
+		t.Fatal("normalized identity invalid")
+	}
+	if carrierRank("1", Identity{MCC: "234", MNC: "10", IMSI: "234100000000001"}) >= 0 {
+		t.Fatal("carrier ID broadened to unrelated PLMN")
+	}
+}

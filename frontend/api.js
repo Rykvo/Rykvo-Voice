@@ -46,6 +46,8 @@ const Backend = (() => {
       removeAll: ["POST", "/conversations/delete"],
     },
     messages: {
+      list: ["GET", "/messages"],
+      remove: ["DELETE", "/messages/:messageId"],
       send: ["POST", "/messages"],
       get: ["GET", "/messages/:messageId"],
     },
@@ -110,6 +112,7 @@ const Backend = (() => {
     (["session", "visibility", "ui", "administrator"].includes(scope) &&
       document.querySelector('meta[name="session-api"]')?.content ===
         "enabled") ||
+    (scope === "messages" && document.querySelector('meta[name="messages-api"]')?.content === "enabled") ||
     (scope === "modules" &&
       document.querySelector('meta[name="modules-api"]')?.content === "enabled") ||
     (scope === "tunnel" &&

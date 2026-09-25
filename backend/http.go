@@ -190,6 +190,10 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.administrator(ctx, w, r, current)
 		return
 	}
+	if r.URL.Path == "/api/messages" || strings.HasPrefix(r.URL.Path, "/api/messages/") {
+		s.messagesAPI(ctx, w, r)
+		return
+	}
 	if r.URL.Path == "/api/modules" || strings.HasPrefix(r.URL.Path, "/api/modules/") {
 		s.modulesAPI(ctx, w, r)
 		return
