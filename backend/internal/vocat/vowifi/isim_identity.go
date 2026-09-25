@@ -69,6 +69,10 @@ func validISIMDomain(value string) bool {
 
 // TS 31.103 4.2.2–4.2.4: the value is UTF-8 in tag 80; FF pads the EF.
 func decodeISIMString(data []byte) (string, error) {
+	return decodeISIMValue(data, false)
+}
+
+func decodeISIMValue(data []byte, allowEmpty bool) (string, error) {
 	var result string
 	found := false
 	for len(data) > 0 {
@@ -83,7 +87,7 @@ func decodeISIMString(data []byte) (string, error) {
 			return "", errors.New("vocat: malformed ISIM TLV")
 		}
 		if len(tag) == 1 && tag[0] == 0x80 {
-			if found || len(value) == 0 || len(value) > 1024 || !utf8.Valid(value) {
+			if found || (len(value) == 0 && !allowEmpty) || len(value) > 1024 || !utf8.Valid(value) {
 				return "", errors.New("vocat: invalid ISIM value")
 			}
 			found, result = true, string(value)

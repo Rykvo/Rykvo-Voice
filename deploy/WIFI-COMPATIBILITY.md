@@ -99,3 +99,15 @@ Candidate test on 3HK 05 at 2026-09-25 13:51 UTC: SIM/application discovery
 completed, no ISIM was present, USIM-derived registration reached initial SIP
 403. The new generic ISIM path therefore does not fix that card's rejection.
 No subscriber setting was switched off and no cellular attach was requested.
+
+### Hardware correction / v1.5.4
+
+v1.5.3 passed simulated tests but hardware acceptance found empty IMPU spare
+records encoded as `80 00` followed by FF. Treating those optional slots as a
+malformed mandatory identity prevented the existing US cards from registering.
+The host and Latest were rolled back to v1.5.2; v1.5.3 was marked prerelease.
+v1.5.4 skips only well-formed empty IMPU slots, still rejects empty IMPI/domain
+or an entirely empty IMPU set, and adds regression coverage. On 2026-09-25 at
+14:06:14 UTC, module 16 registered with `ims_identity_source=isim` and reached
+`sms_ready` using the corrected candidate. This verifies provisioned identity
+selection on a live card, not a real SMS delivery or voice/media test.

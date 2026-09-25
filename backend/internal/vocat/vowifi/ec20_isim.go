@@ -188,9 +188,15 @@ func readISIMIdentityFiles(transmit func([]byte) ([]byte, error)) (*ProvisionedI
 				if len(bytes.Trim(data, "\xff")) == 0 {
 					continue // unused linear-fixed record, not an identity
 				}
-				value, err := decodeISIMString(data)
+				// Some cards encode an unused IMPU slot as 80 00 followed by
+				// FF padding instead of padding alone. Empty mandatory fields
+				// and an entirely empty IMPU set still fail validation.
+				value, err := decodeISIMValue(data, true)
 				if err != nil {
 					return nil, err
+				}
+				if value == "" {
+					continue
 				}
 				result.PublicIdentities = append(result.PublicIdentities, value)
 			}

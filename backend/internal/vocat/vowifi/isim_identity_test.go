@@ -117,6 +117,34 @@ func TestISIMRejectsPartialMalformedAndInjection(t *testing.T) {
 	}
 }
 
+func TestISIMUnusedIMPURecordsWithEmptyTLV(t *testing.T) {
+	for _, allEmpty := range []bool{false, true} {
+		steps := isimFileSteps("a@private.example", "ims.example", []string{"sip:a@ims.example", "", ""})
+		if allEmpty {
+			for i := 5; i < len(steps); i++ {
+				n := len(steps[i].response) - 2
+				steps[i].response = append(append([]byte{0x80, 0}, bytes.Repeat([]byte{0xff}, n-2)...), 0x90, 0)
+			}
+		}
+		next := 0
+		got, err := readISIMIdentityFiles(func(apdu []byte) ([]byte, error) {
+			if !bytes.Equal(apdu, steps[next].command) {
+				t.Fatalf("unexpected APDU %X", apdu)
+			}
+			raw := steps[next].response
+			next++
+			return raw, nil
+		})
+		if allEmpty {
+			if err == nil || got != nil {
+				t.Fatal("all-empty IMPU accepted")
+			}
+		} else if err != nil || len(got.PublicIdentities) != 1 || got.PublicIdentities[0] != "sip:a@ims.example" {
+			t.Fatalf("optional empty slots rejected: %v", err)
+		}
+	}
+}
+
 func TestEC20ReadProvisionedIMSIdentity(t *testing.T) {
 	for _, basic := range []bool{false, true} {
 		for _, scenario := range []string{"success", "read_error", "sim_changed", "cancelled"} {
@@ -297,6 +325,7 @@ func FuzzISIMDecoders(f *testing.F) {
 			return
 		}
 		_, _ = decodeISIMString(data)
+		_, _ = decodeISIMValue(data, true)
 		_, _ = parseISIMFile(data, false)
 		_, _ = parseISIMFile(data, true)
 	})
