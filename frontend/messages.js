@@ -137,12 +137,14 @@ const Messages = (() => {
     const empty = active !== "new" && !current();
     return `<div class="messages-app" data-view="${view}"><aside class="msg-sidebar" aria-label="会话列表"><header class="msg-list-header"><h1>信息</h1><button class="msg-icon-button" data-msg-action="compose" aria-label="新建信息"><img src="assets/compose.png" alt=""></button></header><label class="msg-search"><span aria-hidden="true"><svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m13 13 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><input id="msg-search" type="search" placeholder="搜索" aria-label="搜索信息" value="${esc(query)}"></label><div class="msg-thread-list scroll-area" id="msg-thread-list">${listHTML()}</div></aside><section class="msg-chat" aria-label="信息对话">${empty ? '<div class="msg-empty-state">暂无信息</div>' : `<header class="msg-chat-header" id="msg-chat-header">${headerHTML()}</header><div class="msg-recipient" id="msg-recipient" ${active === "new" ? "" : "hidden"}><label for="msg-to">收件人：</label><input id="msg-to" type="tel" inputmode="tel" placeholder="手机号码" aria-label="收件人手机号" value="${esc(newNumber)}" maxlength="21"></div>${senderHTML()}<div class="msg-transcript scroll-area" id="msg-transcript" role="log" aria-label="聊天内容" aria-live="polite"></div><div class="msg-composer-area"><div class="msg-attachment" id="msg-attachment" hidden></div><form class="msg-composer" id="ipad-message-form"><button type="button" class="msg-attach-button" data-msg-action="attach" aria-label="添加照片"><img src="assets/message-plus.png" alt=""></button><input hidden id="msg-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><div class="msg-input-wrap"><textarea id="msg-input" aria-label="信息内容" placeholder="短信" rows="1" maxlength="2000">${esc(drafts[active] || "")}</textarea><button class="msg-send" type="submit" aria-label="发送信息" disabled><img src="assets/message-send.png" alt=""><span class="msg-spinner" aria-hidden="true"></span></button></div></form></div>`}</section></div>`;
   }
-  function bubbleHTML(message, previous) {
-    const date = new Date(message.at),
-      isNewDay =
-        !previous ||
-        date.toDateString() !== new Date(previous.at).toDateString();
-    return `${isNewDay ? `<div class="msg-date">${UI.day(message.at)} ${UI.time(message.at)}</div>` : ""}<div class="msg-line ${message.mine ? "outgoing" : "incoming"}">${message.mine ? "" : avatar(current())}<div class="msg-bubble ${message.image ? "with-image" : ""}">${message.image ? `<img src="${esc(message.image)}" alt="信息中的照片">` : ""}${message.text ? `<span>${esc(message.text)}</span>` : ""}${deliveryHTML(message)}</div></div>`;
+  function bubbleHTML(message, previous, next) {
+    const date = new Date(message.at);
+    const isNewDay = !previous || date.toDateString() !== new Date(previous.at).toDateString();
+    const grouped = next && message.mine === next.mine && next.at >= message.at &&
+      next.at - message.at < 300000 && date.toDateString() === new Date(next.at).toDateString();
+    const portrait = message.mine ? "" : grouped
+      ? '<span class="msg-avatar-space" aria-hidden="true"></span>' : avatar(current());
+    return `${isNewDay ? `<div class="msg-date">${UI.day(message.at)} ${UI.time(message.at)}</div>` : ""}<div class="msg-line ${message.mine ? "outgoing" : "incoming"}${grouped ? " grouped" : ""}">${portrait}<div class="msg-content"><div class="msg-bubble ${message.image ? "with-image" : ""}">${message.image ? `<img src="${esc(message.image)}" alt="信息中的照片">` : ""}${message.text ? `<span>${esc(message.text)}</span>` : ""}</div>${deliveryHTML(message)}</div></div>`;
   }
   function scrollToLatest() {
     const node = $("#msg-transcript");
@@ -154,14 +156,14 @@ const Messages = (() => {
     const items = current()?.messages || [];
     const nearEnd = node.scrollHeight - node.scrollTop - node.clientHeight < 60;
     if (!node.children) {
-      node.innerHTML = items.map((message, index) => bubbleHTML(message, items[index - 1])).join("");
+      node.innerHTML = items.map((message, index) => bubbleHTML(message, items[index - 1], items[index + 1])).join("");
       return;
     }
     const existing = new Map([...node.children].map(child => [child.dataset.messageId, child]));
     const keep = new Set();
     let cursor = node.firstElementChild;
     items.forEach((message, index) => {
-      const id = message.id || String(index), html = bubbleHTML(message, items[index - 1]);
+      const id = message.id || String(index), html = bubbleHTML(message, items[index - 1], items[index + 1]);
       let row = existing.get(id);
       if (!row) { row = document.createElement("div"); row.dataset.messageId = id; }
       if (row.messageHTML !== html) { row.innerHTML = html; row.messageHTML = html; }
@@ -198,7 +200,8 @@ const Messages = (() => {
     }
     const state = MessageIdentity.delivery(message);
     if (!state) return "";
-    return `<small class="msg-delivery" role="status">${state === "pending" ? '<span class="msg-spinner" aria-label="发送中"></span>' : state === "delivered" ? "已送达" : "尚未送达"}</small>`;
+    const labels = {sent: "已发送", delivered: "已送达", failed: "尚未送达", unconfirmed: "结果待确认"};
+    return `<small class="msg-delivery${state === "failed" ? " failed" : ""}" role="status">${state === "pending" ? '<span class="msg-spinner" aria-label="发送中"></span>' : labels[state]}</small>`;
   }
   function syncRemote(records, contacts = []) {
     const old = current(), previous = JSON.stringify(old?.messages || []);

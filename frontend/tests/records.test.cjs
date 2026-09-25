@@ -330,7 +330,7 @@ test("remote aliases merge both directions with note persistence and full deleti
   await app.note("张先生");
   assert.match(app.html(),/张先生/);
   assert.match(app.node("#msg-transcript").innerHTML,/张先/);
-  assert.match(app.node("#msg-transcript").innerHTML,/尚未送达/);
+  assert.match(app.node("#msg-transcript").innerHTML,/已发送/);
   assert.doesNotMatch(app.node("#msg-transcript").innerHTML,/运营商已接受/);
   app.publish([{number:"3322500550"}]); assert.match(app.html(),/张先生/);
   app.action("note"); await app.note(""); assert.doesNotMatch(app.html(),/张先生/);
@@ -376,4 +376,40 @@ test("remark display escapes markup without hiding the peer number",async()=>{
   assert.doesNotMatch(app.html(),/<b>我的<\/b>/);
   assert.match(app.html(),/&lt;b&gt;我的&lt;\/b&gt;/);
   assert.match(app.html(),/class="msg-contact-number">\+85262717066/);
+});
+
+
+test("delivery status is outside the bubble and only explicit failure is red",()=>{
+  const app=setup(undefined,true);app.server();
+  app.publish(["accepted","delivered","failed","sending","unknown","partial"].map(state=>({number:"+13322500550",mine:true,state})));
+  app.select("remote:module-01:line-module-01-0:+13322500550");
+  const html=app.node("#msg-transcript").innerHTML;
+  assert.match(html, /<\/span><\/div><small class="msg-delivery" role="status">已发送/);
+  assert.match(html, /class="msg-delivery" role="status">已送达/);
+  assert.match(html, /class="msg-delivery failed" role="status">尚未送达/);
+  assert.equal((html.match(/msg-delivery failed/g)||[]).length,1);
+  assert.equal((html.match(/结果待确认/g)||[]).length,2);
+  assert.match(html, /class="msg-spinner" aria-label="发送中"/);
+});
+
+test("consecutive incoming messages share the last avatar and retain each bubble",()=>{
+  const app=setup(undefined,true);app.server();
+  app.publish([0,1000,2000].map(at=>({number:"+13322500550",at})));
+  app.select("remote:module-01:line-module-01-0:+13322500550");
+  const html=app.node("#msg-transcript").innerHTML;
+  assert.equal((html.match(/class="msg-avatar /g)||[]).length,1);
+  assert.equal((html.match(/class="msg-avatar-space"/g)||[]).length,2);
+  assert.equal((html.match(/class="msg-bubble /g)||[]).length,3);
+});
+
+test("direction changes, five minute gaps and new days break message groups",()=>{
+  for(const messages of [
+    [{at:0},{at:300000}],
+    [{at:0},{at:1,mine:true,state:"accepted"},{at:2}],
+    [{at:new Date(2026,8,26,23,59,59).getTime()},{at:new Date(2026,8,27,0,0,0).getTime()}]
+  ]) {
+    const app=setup(undefined,true);app.server();app.publish(messages.map(m=>({number:"+13322500550",...m})));
+    app.select("remote:module-01:line-module-01-0:+13322500550");
+    assert.doesNotMatch(app.node("#msg-transcript").innerHTML,/msg-avatar-space|incoming grouped/);
+  }
 });

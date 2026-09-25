@@ -146,6 +146,9 @@ if __name__ == "__main__":
         peers = ["+13322500550", "13322500550", "3322500550", "+447598999919", "07598999919", "7598999919", "+85262717066", "852 62717066", "62717066", "#DIYsim", "54623"]
         for i, peer in enumerate(peers):
             Preview.messages.append({"id": f"preview-{i}", "number": peer, "senderId": "module-01", "lineId": "fixture-main", "mine": i % 3 != 0, "text": "这是一条预览信息。" if i % 3 == 0 else "收到，稍后联系。", "image": "", "kind": "sms", "state": ["received", "delivered", "sending"][i % 3], "at": int(time.time()*1000)-(len(peers)-i)*60000, "revision": i+1})
+        for state in ["received", "received", "received", "accepted", "delivered", "failed", "unknown", "sending"]:
+            i = len(Preview.messages)
+            Preview.messages.append({"id": f"preview-{i}", "number": "+13322500550", "senderId": "module-01", "lineId": "fixture-main", "mine": state != "received", "text": "测试" if state == "received" else "收到，稍后联系。", "image": "", "kind": "sms", "state": state, "at": int(time.time()*1000)+i*1000, "revision": i+1})
     if args.modules:
         for n in range(1, 9):
             esim = {"eid": "89049032001001234500012345678901", "pending": 1, "profiles": []}
