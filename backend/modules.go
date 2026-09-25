@@ -33,7 +33,7 @@ func scanModule(row interface{ Scan(...any) error }) (moduleRecord, error) {
 	return v, err
 }
 func moduleID(id int64) string   { return fmt.Sprintf("module-%02d", id) }
-func moduleName(id int64) string { return fmt.Sprintf("妯″潡 %02d", id) }
+func moduleName(id int64) string { return fmt.Sprintf("模块 %02d", id) }
 func labelKey(v string) string   { return cases.Fold().String(norm.NFKC.String(strings.TrimSpace(v))) }
 func validModuleLabel(v string) bool {
 	if !utf8.ValidString(v) || utf8.RuneCountInString(v) < 1 || utf8.RuneCountInString(v) > 20 {

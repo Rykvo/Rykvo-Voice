@@ -277,3 +277,11 @@ func TestModuleViewReturnsEveryESIMProfile(t *testing.T) {
 		})
 	}
 }
+
+func TestModuleDefaultName(t *testing.T) {
+	for id, want := range map[int64]string{1: "模块 01", 16: "模块 16", 100: "模块 100"} {
+		if got := moduleName(id); got != want {
+			t.Fatalf("name %d: %q", id, got)
+		}
+	}
+}
