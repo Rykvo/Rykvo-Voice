@@ -136,3 +136,12 @@ test("wide chat uses bounded side padding rather than a centered fixed-width col
  assert.match(css,/padding: 25px clamp\(20px, 2vw, 36px\) 24px/);
  assert.doesNotMatch(css,/100% - 920px/);
 });
+
+
+test("bubble tail cutout clears the avatar and narrow content reserves the full gutter",()=>{
+ const css=readFileSync(join(dir,"messages.css"),"utf8");
+ const gap=Number(css.match(/\.msg-line \{[^}]*gap: (\d+)px;/)[1]);
+ const tail=Number(css.match(/\.msg-bubble:after \{[^}]*left: -(\d+)px;/)[1]);
+ assert.ok(gap>tail);
+ assert.match(css,new RegExp("max-width: calc\\(100% - "+(30+gap)+"px\\)"));
+});

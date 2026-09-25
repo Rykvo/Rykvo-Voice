@@ -413,3 +413,21 @@ test("direction changes, five minute gaps and new days break message groups",()=
     assert.doesNotMatch(app.node("#msg-transcript").innerHTML,/msg-avatar-space|incoming grouped/);
   }
 });
+
+
+test("empty received SMS has a visible placeholder without changing the stored body",()=>{
+  for(const text of ["", "  "]){
+    const app=setup(undefined,true);app.server();app.publish([{number:"128",text}]);
+    app.select("remote:module-01:line-module-01-0:128");
+    assert.match(app.html(),/class="msg-preview">无文本内容/);
+    assert.match(app.node("#msg-transcript").innerHTML,/class="msg-placeholder">无文本内容/);
+  }
+});
+
+test("empty content label never replaces photos or incomplete and failed reception",()=>{
+  for(const message of [{state:"receiving"},{state:"download_pending"},{state:"decode_error"},{image:"test-photo"},{mine:true,state:"sending"}]){
+    const app=setup(undefined,true);app.server();app.publish([{number:"128",text:"",...message}]);
+    app.select("remote:module-01:line-module-01-0:128");
+    assert.doesNotMatch(app.node("#msg-transcript").innerHTML,/无文本内容/);
+  }
+});

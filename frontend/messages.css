@@ -353,7 +353,7 @@ main[data-page="messages"] #page-content > .page-enter {
 .msg-line {
   display: flex;
   margin: 0 0 12px;
-  gap: 9px;
+  gap: 14px;
   align-items: flex-end;
 }
 .msg-line.outgoing {
@@ -411,6 +411,7 @@ main[data-page="messages"] #page-content > .page-enter {
 .grouped .msg-bubble:before, .grouped .msg-bubble:after { display: none; }
 .msg-avatar-space { flex: 0 0 30px; }
 .msg-line .msg-avatar { width: 30px; height: 30px; font-size: 11px; }
+.msg-placeholder { color: var(--msg-muted); }
 .msg-bubble.with-image {
   padding: 5px;
 }
@@ -694,7 +695,7 @@ main[data-page="messages"] #page-content > .page-enter {
   .msg-transcript {
     padding: 22px 17px;
   }
-  .msg-content { max-width: calc(100% - 39px); }
+  .msg-content { max-width: calc(100% - 44px); }
   .msg-bubble {
     font-size: 14px;
     padding: 9px 12px;

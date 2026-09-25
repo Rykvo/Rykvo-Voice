@@ -149,6 +149,8 @@ if __name__ == "__main__":
         for state in ["received", "received", "received", "accepted", "delivered", "failed", "unknown", "sending"]:
             i = len(Preview.messages)
             Preview.messages.append({"id": f"preview-{i}", "number": "+13322500550", "senderId": "module-01", "lineId": "fixture-main", "mine": state != "received", "text": "测试" if state == "received" else "收到，稍后联系。", "image": "", "kind": "sms", "state": state, "at": int(time.time()*1000)+i*1000, "revision": i+1})
+        i = len(Preview.messages)
+        Preview.messages.append({"id": f"preview-{i}", "number": "128", "senderId": "module-01", "lineId": "fixture-main", "mine": False, "text": "", "image": "", "kind": "sms", "state": "received", "at": int(time.time()*1000)+i*1000, "revision": i+1})
     if args.modules:
         for n in range(1, 9):
             esim = {"eid": "89049032001001234500012345678901", "pending": 1, "profiles": []}

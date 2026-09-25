@@ -19,6 +19,7 @@ const Messages = (() => {
     return `<div class="msg-recipient msg-sender"><label for="msg-from">发件人：</label>${Lines.select("msg-from", "发件人", senderId())}</div>`;
   }
   const title = thread => thread?.name || Countries.format(thread?.number || "", thread?.region);
+  const emptyReceived = message => message && !message.mine && message.state === "received" && !message.image && !message.text?.trim();
   function avatar(thread) {
     const item = MessageIdentity.avatar(thread?.number || "", thread?.name || "");
     return `<span class="msg-avatar avatar-${item.color}" aria-hidden="true">${esc(item.text)}</span>`;
@@ -120,7 +121,7 @@ const Messages = (() => {
             `<h2 class="msg-code-group">${code ? `+${code}` : "未标注区号"}</h2>${items
               .map((t) => {
                 const last = t.messages.at(-1);
-                return `<button class="msg-thread ${active === t.id ? "selected" : ""}" data-msg-thread="${esc(t.id)}" aria-pressed="${active === t.id}"><span class="msg-unread ${t.unread ? "visible" : ""}" aria-label="${t.unread ? "未读" : ""}"></span>${avatar(t)}<span class="msg-thread-copy"><span class="msg-thread-top"><strong>${t.name ? `<span class="msg-thread-name">${esc(t.name)}</span><span class="msg-thread-number">${esc(t.number)}</span>` : esc(title(t))}</strong><time>${last ? time(last.at) : ""}</time><span aria-hidden="true">›</span></span><span class="msg-preview">${esc(last?.text || (last?.image ? "照片" : ""))}</span></span></button>`;
+                return `<button class="msg-thread ${active === t.id ? "selected" : ""}" data-msg-thread="${esc(t.id)}" aria-pressed="${active === t.id}"><span class="msg-unread ${t.unread ? "visible" : ""}" aria-label="${t.unread ? "未读" : ""}"></span>${avatar(t)}<span class="msg-thread-copy"><span class="msg-thread-top"><strong>${t.name ? `<span class="msg-thread-name">${esc(t.name)}</span><span class="msg-thread-number">${esc(t.number)}</span>` : esc(title(t))}</strong><time>${last ? time(last.at) : ""}</time><span aria-hidden="true">›</span></span><span class="msg-preview">${esc(emptyReceived(last) ? "无文本内容" : last?.text || (last?.image ? "照片" : ""))}</span></span></button>`;
               })
               .join("")}`,
         )
@@ -144,7 +145,7 @@ const Messages = (() => {
       next.at - message.at < 300000 && date.toDateString() === new Date(next.at).toDateString();
     const portrait = message.mine ? "" : grouped
       ? '<span class="msg-avatar-space" aria-hidden="true"></span>' : avatar(current());
-    return `${isNewDay ? `<div class="msg-date">${UI.day(message.at)} ${UI.time(message.at)}</div>` : ""}<div class="msg-line ${message.mine ? "outgoing" : "incoming"}${grouped ? " grouped" : ""}">${portrait}<div class="msg-content"><div class="msg-bubble ${message.image ? "with-image" : ""}">${message.image ? `<img src="${esc(message.image)}" alt="信息中的照片">` : ""}${message.text ? `<span>${esc(message.text)}</span>` : ""}</div>${deliveryHTML(message)}</div></div>`;
+    return `${isNewDay ? `<div class="msg-date">${UI.day(message.at)} ${UI.time(message.at)}</div>` : ""}<div class="msg-line ${message.mine ? "outgoing" : "incoming"}${grouped ? " grouped" : ""}">${portrait}<div class="msg-content"><div class="msg-bubble ${message.image ? "with-image" : ""}">${message.image ? `<img src="${esc(message.image)}" alt="信息中的照片">` : ""}${emptyReceived(message) ? '<span class="msg-placeholder">无文本内容</span>' : message.text ? `<span>${esc(message.text)}</span>` : ""}</div>${deliveryHTML(message)}</div></div>`;
   }
   function scrollToLatest() {
     const node = $("#msg-transcript");
