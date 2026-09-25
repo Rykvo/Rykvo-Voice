@@ -111,3 +111,29 @@ or an entirely empty IMPU set, and adds regression coverage. On 2026-09-25 at
 14:06:14 UTC, module 16 registered with `ims_identity_source=isim` and reached
 `sms_ready` using the corrected candidate. This verifies provisioned identity
 selection on a live card, not a real SMS delivery or voice/media test.
+
+
+### Renewal recovery / v1.5.5
+
+At 2026-09-25 15:02:29 UTC, the three previously registered sessions failed
+at their first 48-minute refresh. A diagnostic-only early refresh reproduced
+a valid SIP 401 on the existing protected session. The provider explicitly
+rejected all protected re-challenges, while the bridge treated the failure
+as non-retryable. Hardware remained online and Wi-Fi intent remained enabled.
+
+TS 24.229 section 5.1.1.5.1 describes network-requested re-authentication:
+https://www.etsi.org/deliver/etsi_ts/124200_124299/124229/14.21.00_60/ts_124229v142100p.pdf
+
+The correction emits a typed recovery signal only for a syntactically valid
+AKA challenge on an already registered, protected, positive-expiry runtime
+REGISTER. The lifecycle revokes readiness, cleans IMS/tunnel resources, then
+rebuilds using the existing delayed retry coordinator and unchanged radio
+checkpoint. Initial registration still performs all normal AKA/security checks.
+403, malformed challenges, initial authentication failures and cleanup failures
+are not recast as recoverable renewal requests.
+
+This is fresh-session recovery, NOT seamless overlapping IPsec-SA rotation.
+There can be a short service interruption at re-authentication. An accelerated
+renewal probe is distinct from a full natural-duration soak test and from
+voice/SMS/MMS acceptance. No module index or carrier-specific allowlist selects
+this recovery behavior.

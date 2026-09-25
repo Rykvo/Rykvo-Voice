@@ -276,3 +276,48 @@ func TestVocatReconnectsAfterSevenConsecutiveNetworkFailures(t *testing.T) {
 		t.Fatal(connected, f.calls, err)
 	}
 }
+
+func TestVocatReauthenticationRecoveryIsNarrow(t *testing.T) {
+	base := vowifi.State{Phase: vowifi.PhaseFailed, SIMReady: true, AccessReady: true, LastErrorClass: "ims_reauthentication_required", LastError: "ims: refresh registration: " + vowifi.ErrIMSReauthenticationRequired.Error()}
+	if !vocatTransientFailure(base) || vocatDiagnostic(base) != "diagnostic:ims-reauthentication-required" {
+		t.Fatal("valid recovery lost")
+	}
+	for _, mutate := range []func(*vowifi.State){
+		func(s *vowifi.State) { s.CleanupErrors = []string{"busy"} },
+		func(s *vowifi.State) { s.SIMReady = false }, func(s *vowifi.State) { s.AccessReady = false },
+		func(s *vowifi.State) { s.LastErrorClass = "ims_runtime" },
+		func(s *vowifi.State) { s.LastError = "SIP 403 forbidden" },
+		func(s *vowifi.State) { s.LastError = "SIP 401 authentication rejected" },
+	} {
+		s := base
+		mutate(&s)
+		if vocatTransientFailure(s) {
+			t.Fatal("unsafe retry allowed")
+		}
+	}
+}
+
+type reauthVocatFake struct{ retryVocatFake }
+
+func (f *reauthVocatFake) Enable(context.Context) (vowifi.State, error) {
+	f.calls++
+	if f.calls == 1 {
+		return vowifi.State{Sequence: 1, Phase: vowifi.PhaseFailed, SIMReady: true, AccessReady: true, LastErrorClass: "ims_reauthentication_required", LastError: "ims: refresh registration: " + vowifi.ErrIMSReauthenticationRequired.Error()}, nil
+	}
+	return vowifi.State{Sequence: 2, Phase: vowifi.PhaseIMSReady, IMSReady: true, TunnelReady: true}, nil
+}
+func TestVocatReauthenticationReturnsToConnected(t *testing.T) {
+	f := &reauthVocatFake{retryVocatFake{states: make(chan vowifi.State)}}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	connected := false
+	err := watchVocatRegistration(ctx, f, f.states, func(stage string) {
+		if stage == "connected" {
+			connected = true
+			cancel()
+		}
+	}, []time.Duration{time.Millisecond})
+	if !connected || f.calls != 2 || !errors.Is(err, context.Canceled) {
+		t.Fatal("reauthentication did not recover", f.calls, err)
+	}
+}

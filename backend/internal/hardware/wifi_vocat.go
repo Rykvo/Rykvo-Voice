@@ -350,6 +350,11 @@ func vocatTransientFailure(s vowifi.State) bool {
 	if len(s.CleanupErrors) != 0 {
 		return false
 	}
+	if s.LastErrorClass == "ims_reauthentication_required" {
+		// Emitted only for a validated challenge after successful protected
+		// registration. Do not turn arbitrary 401/403/auth failures into retries.
+		return s.SIMReady && s.AccessReady && s.LastError == "ims: refresh registration: "+vowifi.ErrIMSReauthenticationRequired.Error()
+	}
 	switch s.LastErrorClass {
 	case "tunnel_runtime", "ims_runtime":
 	case "network_timeout", "timeout", "tunnel_ready", "ims_ready":
@@ -445,6 +450,9 @@ func (engine *VocatWiFi) RestoreRadio(ctx context.Context, c Candidate, identity
 }
 
 func vocatDiagnostic(s vowifi.State) string {
+	if s.LastErrorClass == "ims_reauthentication_required" {
+		return "diagnostic:ims-reauthentication-required"
+	}
 	kind := "other"
 	switch s.LastErrorClass {
 	case "ims_runtime", "ims_registration", string(vowifi.PhaseIMSReady):

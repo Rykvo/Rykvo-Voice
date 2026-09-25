@@ -47,3 +47,9 @@ No production engine switch is performed merely by importing this code.
   identities for IMS; keep EAP's default AKA application separate from ISIM.
   Add logical APDU 6C response-length handling and identity parser fuzz/race tests.
   This does not implement TS.43 provisioning or certify all operators.
+
+- Classify valid protected IMS renewal AKA challenges using a typed lifecycle
+  signal; cleanly rebuild authenticated sessions without restoring cellular RF.
+  This is recovery, not seamless overlapping SA rotation. Initial authentication
+  errors and operator policy refusals remain terminal. Add packet/lifecycle/
+  bridge tests and keep diagnostic output free of subscriber credentials.

@@ -925,6 +925,20 @@ func (session *Session) register(ctx context.Context, expires int) (*sipResponse
 		}
 		challenges++
 		if session.securityActive {
+			if session.runtimeStarted && session.evidence.Registered && expires > 0 {
+				// Re-authentication is normal (TS 24.229 5.1.1.5.1), not a
+				// subscriber rejection. We do not yet rotate overlapping SIP
+				// security associations in place. Validate the challenge, then
+				// let the lifecycle cleanly rebuild and authenticate fresh SAs.
+				challenge, err := challengeFromResponse(response)
+				if err != nil {
+					return nil, err
+				}
+				if _, err := decodeAKANonce(challenge.Nonce); err != nil {
+					return nil, err
+				}
+				return nil, vowifi.ErrIMSReauthenticationRequired
+			}
 			return nil, errors.New("ims: protected registration was challenged again")
 		}
 		challenge, err := challengeFromResponse(response)

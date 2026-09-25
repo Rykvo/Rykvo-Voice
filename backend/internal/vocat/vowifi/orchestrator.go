@@ -884,6 +884,10 @@ func (orchestrator *Orchestrator) watchRuntimeFailure(
 			if cause == nil {
 				cause = errors.New("VoWiFi runtime session stopped")
 			}
+			if errorClass == "ims_runtime" && errors.Is(cause, ErrIMSReauthenticationRequired) {
+				errorClass = "ims_reauthentication_required"
+				reason = "runtime_ims_reauthentication"
+			}
 			// Interrupt any still-running IMS setup before waiting for the
 			// serialized lifecycle lock.
 			if resources.cancel != nil {

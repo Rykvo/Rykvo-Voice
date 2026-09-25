@@ -946,3 +946,32 @@ func TestNewRejectsMissingProvidersAndInvalidOptions(t *testing.T) {
 		t.Fatal("New() accepted empty device ID")
 	}
 }
+
+func TestIMSReauthenticationCleansAndRebuildsWithoutRestoringRadio(t *testing.T) {
+	env := newFakeEnvironment()
+	env.imsFailures = make(chan error, 1)
+	o := newTestOrchestrator(t, env, false)
+	if _, err := o.Enable(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	env.imsFailures <- fmt.Errorf("ims: refresh registration: %w", ErrIMSReauthenticationRequired)
+	deadline := time.Now().Add(2 * time.Second)
+	for o.State().Phase != PhaseFailed {
+		if time.Now().After(deadline) {
+			t.Fatal("missing failure event")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	state := o.State()
+	if state.LastErrorClass != "ims_reauthentication_required" || !state.Enabled || !state.SIMReady || !state.AccessReady || state.IMSReady {
+		t.Fatalf("bad recovery state: %+v", state)
+	}
+	if len(state.CleanupErrors) != 0 || env.callCount("ims.close") != 1 || env.callCount("tunnel.close") != 1 || env.callCount("radio.restore") != 0 {
+		t.Fatal("unclean recovery or radio restored")
+	}
+	state, err := o.Enable(context.Background())
+	if err != nil || !state.IMSReady || !state.SMSReady || env.callCount("radio.restore") != 0 || env.callCount("tunnel.start") != 2 {
+		t.Fatalf("fresh authenticated lifecycle failed: %v", err)
+	}
+	_, _ = o.Disable(context.Background())
+}

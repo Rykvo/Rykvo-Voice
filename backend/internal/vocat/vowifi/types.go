@@ -61,6 +61,10 @@ var (
 	// rejected SIP deregistration). Reconnect treats it as best-effort and
 	// still rebuilds the runtime instead of wedging in the failed state.
 	ErrCleanupIncomplete = errors.New("vowifi: cleanup incomplete")
+	// Only a valid AKA challenge on an already registered protected session may
+	// request a fresh authenticated session. Initial authentication failures are
+	// not recoverable through this signal.
+	ErrIMSReauthenticationRequired = errors.New("vowifi: IMS reauthentication requires a fresh session")
 )
 
 // SecurityAudit is safe to expose through a status API. It contains no keying
