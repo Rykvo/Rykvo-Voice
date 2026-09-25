@@ -19,6 +19,11 @@ Changes:
 - Extracted SIM FCP sizing, CRSM response, SPN and GID codecs from device
   snapshot/phone sources; exported four thin metadata wrappers.
 - Rykvo-specific device/lifecycle code lives outside this directory.
+- Preserve valid carrier IKE hostnames without requiring an `epdg` label. The
+  Hutchison HK profile uses `wlan.three.com.hk`, as specified by
+  `TechSettings.IKE.RemoteAddress` in the mirrored Apple carrier bundle:
+  https://github.com/dwilliamsuk/ios-carrier-bundles/blob/latest/Carrier%20Bundles/Hutchison_hk.bundle/carrier.plist
+  The fix does not import certificate-validation or entitlement bypass settings.
 
 The installed service explicitly selects RYKVO_WIFI_ENGINE=vocat. Empty/legacy
 keeps the existing engine for manual binary invocation; there is no automatic

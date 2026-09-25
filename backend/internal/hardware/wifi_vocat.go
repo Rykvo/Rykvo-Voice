@@ -446,14 +446,20 @@ func (engine *VocatWiFi) RestoreRadio(ctx context.Context, c Candidate, identity
 
 func vocatDiagnostic(s vowifi.State) string {
 	kind := "other"
-	if s.LastErrorClass == "ims_runtime" {
+	switch s.LastErrorClass {
+	case "ims_runtime", "ims_registration", string(vowifi.PhaseIMSReady):
 		kind = "ims"
-	}
-	if s.LastErrorClass == "tunnel_runtime" {
+	case "tunnel_runtime", "tunnel", "eap_authentication_rejected", "responder_auth", string(vowifi.PhaseTunnelReady):
 		kind = "tunnel"
 	}
 	reason := "other"
 	message := strings.ToLower(s.LastError)
+	// Keep registration stage/status, never provider text or subscriber identifiers.
+	for _, stage := range []string{"initial", "authenticated"} {
+		if strings.Contains(message, stage+" register was rejected: sip 403") {
+			return "diagnostic:" + kind + "-" + stage + "-403"
+		}
+	}
 	for _, v := range []struct{ pattern, code string }{{"timeout", "timeout"}, {"timed out", "timeout"}, {"closed", "closed"}, {"expired", "expired"}, {"eof", "eof"}, {"refresh", "refresh"}, {"403", "rejected"}, {"401", "auth"}, {"503", "throttled"}, {"connection reset", "reset"}} {
 		if strings.Contains(message, v.pattern) {
 			reason = v.code

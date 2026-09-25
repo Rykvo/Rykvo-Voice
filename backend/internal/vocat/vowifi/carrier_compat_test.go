@@ -6,6 +6,21 @@ import (
 	"testing"
 )
 
+func TestResolveCarrierProfileHutchisonHKGateway(t *testing.T) {
+	for _, mnc := range []string{"03", "04"} {
+		profile := ResolveCarrierProfile(SIMIdentity{
+			HomeMCC: "454", HomeMNC: mnc, ICCID: "8985203000000000001",
+		})
+		if profile.ID != "ipcc-hutchison-hk-45403" || profile.EPDG != "wlan.three.com.hk" || profile.IKEProposal != IKEProposalModern {
+			t.Fatalf("3 Hong Kong profile for 454%s = %#v", mnc, profile)
+		}
+	}
+	profile := ResolveCarrierProfile(SIMIdentity{HomeMCC: "454", HomeMNC: "03", ICCID: "8985299000000000001"})
+	if profile.ID == "ipcc-hutchison-hk-45403" || profile.EPDG == "wlan.three.com.hk" {
+		t.Fatalf("unrelated SIM received 3 Hong Kong gateway: %#v", profile)
+	}
+}
+
 func TestResolveCarrierProfileUsesStandardDefault(t *testing.T) {
 	profile := ResolveCarrierProfile(SIMIdentity{
 		IMSI: "999010000000001", HomeMCC: "999", HomeMNC: "01",

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path"
 	"path/filepath"
@@ -886,7 +887,11 @@ func asciiLowerOrDigit(item rune) bool {
 }
 
 func validEPDGHostname(value string) bool {
-	if len(value) < 4 || len(value) > 253 || !strings.Contains(strings.ToLower(value), "epdg") {
+	// Carrier gateways need not contain "epdg" (3 Hong Kong uses wlan.three.com.hk).
+	if len(value) < 4 || len(value) > 253 || !strings.Contains(value, ".") || net.ParseIP(value) != nil {
+		return false
+	}
+	if value == "localhost" || strings.HasSuffix(value, ".localhost") {
 		return false
 	}
 	for _, label := range strings.Split(value, ".") {

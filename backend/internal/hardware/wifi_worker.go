@@ -180,7 +180,7 @@ func wifiWorkerStage(s string) bool {
 	}
 	if strings.HasPrefix(s, "diagnostic:") {
 		for _, kind := range []string{"ims", "tunnel", "other"} {
-			for _, reason := range []string{"other", "timeout", "closed", "expired", "eof", "refresh", "rejected", "auth", "throttled", "reset"} {
+			for _, reason := range []string{"other", "timeout", "closed", "expired", "eof", "refresh", "rejected", "auth", "throttled", "reset", "initial-403", "authenticated-403"} {
 				if s == "diagnostic:"+kind+"-"+reason {
 					return true
 				}

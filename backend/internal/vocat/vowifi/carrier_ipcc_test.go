@@ -16,6 +16,52 @@ type testIPCCPlist struct {
 	format int
 }
 
+func TestImportCarrierIPCCHutchisonGatewayWithoutEPDGLabel(t *testing.T) {
+	archivePath := writeTestIPCC(t, map[string]testIPCCPlist{
+		"Payload/Hutchison_hk.bundle/carrier.plist": {
+			format: plist.XMLFormat,
+			value: map[string]any{
+				"CarrierName":   "Hutchison HK",
+				"SupportedSIMs": []any{"45403", "45404"},
+				"TechSettings": map[string]any{
+					"IKE": map[string]any{
+						"RemoteAddress": "wlan.three.com.hk",
+					},
+				},
+			},
+		},
+	})
+	result, err := ImportCarrierIPCC(archivePath, IPCCImportOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document carrierProfileDocument
+	if err := json.Unmarshal(result.Document, &document); err != nil {
+		t.Fatal(err)
+	}
+	if len(document.Profiles) != 1 || document.Profiles[0].EPDG.Hostname != "wlan.three.com.hk" {
+		t.Fatalf("carrier gateway lost during import: %#v", document.Profiles)
+	}
+	for _, code := range []string{"unsupported_epdg_address", "epdg_not_explicit"} {
+		if hasIPCCWarning(result.Warnings, code) {
+			t.Errorf("unexpected warning %q: %#v", code, result.Warnings)
+		}
+	}
+}
+
+func TestValidEPDGHostname(t *testing.T) {
+	for _, value := range []string{"wlan.three.com.hk", "epdg.epc.mnc003.mcc454.pub.3gppnetwork.org", "wifi-gateway.carrier.example"} {
+		if !validEPDGHostname(value) {
+			t.Errorf("valid carrier hostname rejected: %q", value)
+		}
+	}
+	for _, value := range []string{"", "localhost", "epdg.localhost", "epdg", "127.0.0.1", "124.217.186.49", "::1", "https://wlan.three.com.hk", "wlan.three.com.hk:500", "wlan..three.com.hk", "-wlan.three.com.hk", "wlan-.three.com.hk", "wlan_three.com.hk", "wlan.three.com.hk/path"} {
+		if validEPDGHostname(value) {
+			t.Errorf("invalid carrier hostname accepted: %q", value)
+		}
+	}
+}
+
 func TestImportCarrierIPCCConvertsBinaryAndXMLPlistsSafely(t *testing.T) {
 	archivePath := writeTestIPCC(t, map[string]testIPCCPlist{
 		"Payload/O2_Giffgaff_UK.bundle/carrier.plist": {

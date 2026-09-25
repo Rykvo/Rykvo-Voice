@@ -3797,6 +3797,9 @@
           "8985203"
         ]
       },
+      "epdg": {
+        "hostname": "wlan.three.com.hk"
+      },
       "ike": {
         "proposal": "modern"
       }

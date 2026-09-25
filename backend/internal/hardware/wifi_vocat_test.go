@@ -49,6 +49,22 @@ func TestVocatLifecycleCancelsAndCleansBeforeReturning(t *testing.T) {
 		t.Fatal(err, stages)
 	}
 }
+func TestVocatDiagnosticIncludesSetupStageWithoutProviderText(t *testing.T) {
+	for _, tt := range []struct{ class, message, want string }{
+		{"ims_ready", "ims: initial REGISTER was rejected: SIP 403 Forbidden; private subscriber identity", "diagnostic:ims-initial-403"},
+		{"ims_ready", "ims: authenticated REGISTER was rejected: SIP 403 Forbidden", "diagnostic:ims-authenticated-403"},
+		{"tunnel_ready", "private peer connection reset", "diagnostic:tunnel-reset"},
+		{"ims_registration", "SIP 503", "diagnostic:ims-throttled"},
+	} {
+		if got := vocatDiagnostic(vowifi.State{LastErrorClass: tt.class, LastError: tt.message}); got != tt.want {
+			t.Errorf("diagnostic = %q, want %q", got, tt.want)
+		}
+		if !wifiWorkerStage(tt.want) || wifiWorkerStage(tt.want+"; private subscriber identity") {
+			t.Errorf("worker diagnostic allowlist mismatch: %q", tt.want)
+		}
+	}
+}
+
 func TestVocatLifecycleDoesNotLeakProviderErrorsOrHideCleanup(t *testing.T) {
 	for _, cleanup := range []error{nil, errors.New("private cleanup info")} {
 		f := &vocatLifecycleFake{states: make(chan vowifi.State), enableErr: errors.New("secret subscriber identity"), cleanupErr: cleanup}
