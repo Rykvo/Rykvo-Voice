@@ -181,3 +181,25 @@ func TestWiFiWorkerCarrierConfigIPC(t *testing.T) {
 		t.Fatal("private event exposed")
 	}
 }
+
+func TestWiFiWorkerForwardsOnlySafeReauthenticationDiagnostic(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+	done := make(chan error, 1)
+	go func() {
+		done <- serveWiFiWorker(context.Background(), server, server, workerFake(func(_ context.Context, _ Candidate, _, _ string, emit func(string)) error {
+			emit("diagnostic:ims-reauthentication-required")
+			emit("diagnostic:ims-reauthentication-required private-identity")
+			return nil
+		}))
+	}()
+	var stages []string
+	err := wifiWorkerExchange(context.Background(), client, workerRequest(), func(stage string) { stages = append(stages, stage) })
+	if err != nil || len(stages) != 1 || stages[0] != "diagnostic:ims-reauthentication-required" {
+		t.Fatal("diagnostic lost or private data forwarded", stages, err)
+	}
+	if err = <-done; err != nil {
+		t.Fatal(err)
+	}
+}

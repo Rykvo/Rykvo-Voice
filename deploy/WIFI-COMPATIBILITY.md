@@ -113,7 +113,7 @@ or an entirely empty IMPU set, and adds regression coverage. On 2026-09-25 at
 selection on a live card, not a real SMS delivery or voice/media test.
 
 
-### Renewal recovery / v1.5.5
+### Renewal recovery / v1.5.6
 
 At 2026-09-25 15:02:29 UTC, the three previously registered sessions failed
 at their first 48-minute refresh. A diagnostic-only early refresh reproduced
@@ -137,3 +137,11 @@ There can be a short service interruption at re-authentication. An accelerated
 renewal probe is distinct from a full natural-duration soak test and from
 voice/SMS/MMS acceptance. No module index or carrier-specific allowlist selects
 this recovery behavior.
+
+Candidate acceptance: diagnostic-only 35-second renewals on module 03 reached
+three successive protected 401 challenges at 22:41:01, 22:41:43 and 22:42:25 UTC
+on 2026-09-25. Each rebuilt and registered after about six seconds; radio-off
+and user intent remained confirmed. The accelerated timer is not in release
+code. The worker IPC allowlist explicitly carries the fixed, non-sensitive
+reauthentication diagnostic and rejects suffixes containing private text.
+v1.5.5 publication was cancelled before release to include this IPC correction.

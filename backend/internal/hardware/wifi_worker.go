@@ -175,7 +175,7 @@ func wifiWorkerStage(s string) bool {
 	case "sms-ready", "sms-unavailable", "connected", "reconnecting", "ims-cleaned", "radio-restored", "radio-off":
 		return true
 	}
-	if s == "diagnostic:ims-deregistration-unconfirmed" || s == "diagnostic:network-retry-scheduled" {
+	if s == "diagnostic:ims-deregistration-unconfirmed" || s == "diagnostic:network-retry-scheduled" || s == "diagnostic:ims-reauthentication-required" {
 		return true
 	}
 	if strings.HasPrefix(s, "diagnostic:") {
