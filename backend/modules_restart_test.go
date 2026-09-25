@@ -54,12 +54,19 @@ func testRestartDatabase(t *testing.T, s *server, v moduleRecord, cookie, csrf s
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	v, loadErr := scanModule(s.db.QueryRow(ctx, "SELECT "+moduleColumns+" FROM modules WHERE id=$1", v.ID))
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
 	fake := &restartFake{}
 	m := newModuleManager(s.db, fake)
 	m.ctx, m.ready, m.lastScan = ctx, true, time.Now()
 	sample := wifiModuleFixture()
 	sample.Candidate.Key = v.Endpoint
-	sample.Reading.IMEI = strings.TrimPrefix(v.Identity, "imei:")
+	sample.Reading.IMEI = "123456789012300"
+	if sample.Candidate.Identity(sample.Reading) != v.Identity {
+		t.Fatal("fixture identity mismatch")
+	}
 	m.values[v.ID], m.seen[v.Endpoint] = sample, sample.Candidate
 	m.wifi[v.ID] = &moduleWiFi{Enabled: true, State: "off", ICCID: sample.Reading.ICCID}
 	previous := s.modules

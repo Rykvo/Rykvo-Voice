@@ -58,7 +58,7 @@ func (m *moduleManager) restartModules(ctx context.Context, records []moduleReco
 		if previous != scope {
 			return nil, errors.New("REQUEST_CONFLICT")
 		}
-		rows, e := tx.Query(ctx, "SELECT "+jobColumns+" FROM module_jobs WHERE left(id,length($1)+1)=$1||'-' ORDER BY module_id", request)
+		rows, e := tx.Query(ctx, "SELECT "+jobColumns+" FROM module_jobs WHERE action='restart' AND id=$1||'-'||module_id::text ORDER BY module_id", request)
 		if e != nil {
 			return nil, e
 		}
