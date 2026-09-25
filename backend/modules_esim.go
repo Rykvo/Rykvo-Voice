@@ -314,6 +314,7 @@ func (s *server) moduleControl(ctx context.Context, w http.ResponseWriter, r *ht
 		return
 	}
 	var input struct {
+		Roaming      *bool   `json:"roaming,omitempty"`
 		WiFiCalling  *bool   `json:"wifiCalling,omitempty"`
 		RequestID    string  `json:"requestId"`
 		EID          string  `json:"eid"`
@@ -328,6 +329,18 @@ func (s *server) moduleControl(ctx context.Context, w http.ResponseWriter, r *ht
 	}
 	if !jobIDPattern.MatchString(input.RequestID) {
 		fail(w, 400, "INVALID_ESIM_REQUEST")
+		return
+	}
+	if input.Roaming != nil {
+		if action != "line" || input.WiFiCalling != nil || input.Label != nil || input.Enabled != nil || input.Activation != "" || input.Confirmation != "" || input.IMEI != "" {
+			fail(w, 400, "INVALID_REQUEST")
+			return
+		}
+		if err := s.modules.setRoaming(ctx, v, parts[2], input.RequestID, *input.Roaming); err != nil {
+			fail(w, 409, err.Error())
+			return
+		}
+		reply(w, http.StatusOK, map[string]any{"data": s.moduleView(v)})
 		return
 	}
 	if input.WiFiCalling != nil {

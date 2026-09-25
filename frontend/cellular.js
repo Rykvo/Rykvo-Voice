@@ -6,6 +6,7 @@ const Cellular = (() => {
   const dismissedJobs = new Set();
   const editable = (item) => !item.managed || (item.capabilities?.esim && !submitting);
   const wifiEditable = (item) => !submitting && (!item.managed || item.capabilities?.wifiCalling === true) && item.wifi?.state !== "stopping";
+  const roamingEditable = (item) => !submitting && (!item.managed || item.capabilities?.roaming === true) && item.wifi?.enabled !== true && item.wifi?.state !== "stopping" && !(item.sims || []).some((sim) => sim.enabled && sim.wifiCalling === true);
   const downloadable = (item) => !item.managed || item.capabilities?.esimDownload === true;
   function active() {
     if (activeID) activeLine = module?.sims?.findIndex((sim) => sim.id === activeID) ?? -1;
@@ -43,7 +44,7 @@ const Cellular = (() => {
     else if (action) content.querySelector(`[data-cellular-action="${action}"]`)?.focus({ preventScroll: true });
   }
   async function control(item, operation, body, lineId, requestId) {
-    if (typeof body.wifiCalling === "boolean" ? !wifiEditable(item) : !editable(item)) return false;
+    if (typeof body.wifiCalling === "boolean" ? !wifiEditable(item) : typeof body.roaming === "boolean" ? !roamingEditable(item) : !editable(item)) return false;
     submitting = true;
     try {
       await ModuleData.control(item, operation, body, lineId, requestId);
@@ -109,8 +110,8 @@ const Cellular = (() => {
     const identity = ModuleData.identity(sim.number, sim.iccid);
     const realESIM = item.managed && sim.esim;
     const disabled = item.managed && (!realESIM || !editable(item));
-    const settingsDisabled = item.managed || !sim.enabled;
-    const pending = item.managed ? "待接入" : "";
+    const settingsDisabled = !sim.enabled || !roamingEditable(item);
+    const pending = item.managed && item.capabilities?.roaming !== true ? "待接入" : "";
     const remove = realESIM
       ? `<div class="cellular-group cellular-settings"><button type="button" class="cellular-setting danger-button" data-cellular-delete ${disabled || sim.enabled || !sim.canDelete ? "disabled" : ""}>删除 eSIM</button></div>`
       : "";
@@ -239,6 +240,12 @@ const Cellular = (() => {
     if (module.managed) {
       const enabled = input.checked;
       input.checked = Boolean(sim[key]);
+      if (key === "roaming") {
+        if (!roamingEditable(module)) return;
+        input.disabled = true;
+        control(module, "updateLine", { roaming: enabled }, sim.id);
+        return;
+      }
       if (key === "wifiCalling") {
         if (!wifiEditable(module)) return;
         input.disabled = true;

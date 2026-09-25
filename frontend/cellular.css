@@ -282,3 +282,9 @@ dialog:has(.cellular-page) .dialog-close {
     gap: 7px;
   }
 }
+
+.cellular-setting input[data-cellular-setting="roaming"]:disabled + span {
+  background: var(--border);
+  cursor: not-allowed;
+  opacity: 0.65;
+}

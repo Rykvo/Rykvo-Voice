@@ -117,3 +117,16 @@ CREATE TABLE IF NOT EXISTS card_carrier_configs (
  configuration jsonb NOT NULL,
  updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS card_data_policies (
+ iccid text PRIMARY KEY CHECK (iccid ~ '^[0-9]{18,20}$'),
+ roaming boolean NOT NULL DEFAULT false,
+ updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS card_data_policy_requests (
+ id text PRIMARY KEY,
+ module_id bigint NOT NULL REFERENCES modules(id),
+ iccid text NOT NULL CHECK (iccid ~ '^[0-9]{18,20}$'),
+ roaming boolean NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT now()
+);

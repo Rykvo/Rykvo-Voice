@@ -202,6 +202,7 @@ func testModuleDatabase(t *testing.T, s *server, cookie, csrf string) {
 	testAPNDatabase(t, s, moved, cookie, csrf)
 	testPhoneDatabase(t, s)
 	testCarrierDatabase(t, s)
+	testRoamingDatabase(t, s, moved, cookie, csrf)
 }
 
 func TestRetiredNetworkRequestsDoNotReachHardware(t *testing.T) {

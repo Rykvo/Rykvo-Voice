@@ -31,6 +31,8 @@ const ModuleData = (() => {
     APN_SYSTEM_CONTEXT: "当前数据上下文用于 IMS / SOS，已保留原配置",
     APN_APPLY_UNCONFIRMED: "APN 写入结果待确认，请重新读取，勿连续重复应用",
     NOT_CONNECTED: "服务尚未接入",
+    WIFI_CALLING_ACTIVE: "请先关闭 Wi-Fi 通话，再设置数据漫游",
+    REQUEST_CONFLICT: "操作已变化，请刷新后重试",
     WIFI_MODEM_UNSUPPORTED: "模块暂未支持 Wi-Fi 通话",
     WIFI_DATA_ACTIVE: "请先断开该模块的主机数据连接", WIFI_DATA_STATE_UNKNOWN: "蜂窝数据状态待确认",
     WIFI_IMS_SERVICE_UNAVAILABLE: "运营商 IMS 暂不可用，等待重试", WIFI_IMS_CONTACT_UNCONFIRMED: "IMS 联系地址未确认", WIFI_IMS_TIMEOUT: "IMS 注册响应超时", WIFI_TCP_CONNECT_FAILED: "IMS TCP 连接失败", WIFI_TCP_CLOSED: "IMS TCP 连接中断", WIFI_TCP_WRITE_FAILED: "IMS TCP 发送失败", WIFI_IMS_PROTECTED_FAILED: "IMS 加密注册失败", WIFI_CARRIER_CONFIG_INVALID: "运营商配置无效", WIFI_CARRIER_UNSUPPORTED: "运营商鉴权方式待适配", WIFI_IMS_ADDRESS_MISSING: "IMS 地址不可用", WIFI_IMS_PEER_AUTH_FAILED: "IMS 对端校验失败",
@@ -144,7 +146,7 @@ const ModuleData = (() => {
         body: { ...body, eid: item.hardware?.esim?.eid, requestId },
         idempotencyKey: requestId,
       });
-      if (typeof body.wifiCalling === "boolean") Object.assign(item, job);
+      if (typeof body.wifiCalling === "boolean" || typeof body.roaming === "boolean") Object.assign(item, job);
       else {
         item.job = job;
         if (item.capabilities) item.capabilities.esim = false;

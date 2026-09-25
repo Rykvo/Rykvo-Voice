@@ -297,9 +297,14 @@ func (s *server) moduleView(v moduleRecord) map[string]any {
 		supported = ok && hardware.WiFiSupported(sample.Candidate) && present && reading.SIM == "READY" && reading.ICCID != ""
 		s.modules.mu.RUnlock()
 	}
+	roamingReady := false
 	for _, line := range sims {
 		sim := line.(map[string]any)
 		sim["wifiCalling"] = wifi["enabled"] == true && sim["iccid"] == reading.ICCID
+		if s.modules != nil {
+			card, _ := sim["iccid"].(string)
+			sim["roaming"], roamingReady = s.modules.roamingView(card)
+		}
 	}
 	signal := "none"
 	if reading.Registration == "home" || reading.Registration == "roaming" || reading.Registration == "registered" {
@@ -312,5 +317,5 @@ func (s *server) moduleView(v moduleRecord) map[string]any {
 	if s.modules != nil && present {
 		carrier = s.modules.carrierView(reading.ICCID)
 	}
-	return map[string]any{"carrierConfiguration": carrier, "wifi": wifi, "id": moduleID(v.ID), "name": moduleName(v.ID), "label": v.Label, "labelCustom": v.Custom, "number": reading.Number, "status": status, "signal": signal, "sims": sims, "kind": v.Kind, "hardware": reading, "issue": issue, "managed": true, "cardReading": cardReading, "job": job, "capabilities": map[string]bool{"read": true, "sms": false, "calls": false, "lineControl": false, "wifiCalling": supported, "esim": esim && !job.active(), "esimDownload": esim}}
+	return map[string]any{"carrierConfiguration": carrier, "wifi": wifi, "id": moduleID(v.ID), "name": moduleName(v.ID), "label": v.Label, "labelCustom": v.Custom, "number": reading.Number, "status": status, "signal": signal, "sims": sims, "kind": v.Kind, "hardware": reading, "issue": issue, "managed": true, "cardReading": cardReading, "job": job, "capabilities": map[string]bool{"read": true, "roaming": roamingReady && present && reading.SIM == "READY", "sms": false, "calls": false, "lineControl": false, "wifiCalling": supported, "esim": esim && !job.active(), "esimDownload": esim}}
 }

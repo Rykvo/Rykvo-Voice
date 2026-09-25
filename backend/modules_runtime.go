@@ -15,6 +15,8 @@ type moduleSample struct {
 	Reading   hardware.Reading
 }
 type moduleManager struct {
+	roaming         map[string]bool
+	roamingReady    bool
 	carrierConfigs  map[string]carrierconfig.Selection
 	phoneNumbers    map[string]string
 	wifi            map[int64]*moduleWiFi
@@ -47,7 +49,7 @@ func newModuleManager(pool *pgxpool.Pool, source hardware.Source) *moduleManager
 
 // Select one engine at construction; never switch protocols inside a live session.
 func newModuleManagerWithWiFi(pool *pgxpool.Pool, source hardware.Source, engine wifiSource) *moduleManager {
-	return &moduleManager{carrierConfigs: map[string]carrierconfig.Selection{}, phoneNumbers: map[string]string{}, wifi: map[int64]*moduleWiFi{}, db: pool, source: source, wifiEngine: engine, seen: map[string]hardware.Candidate{}, values: map[int64]moduleSample{}, done: make(chan struct{}), gates: map[string]chan struct{}{}, jobs: map[int64]moduleJob{}, operationSlots: make(chan struct{}, 4), recoveryProof: map[string]moduleSample{}, recoveryPending: map[int64]bool{}, recovery: map[string]recoveryStreak{}, recoveryUntil: map[string]time.Time{}}
+	return &moduleManager{roaming: map[string]bool{}, carrierConfigs: map[string]carrierconfig.Selection{}, phoneNumbers: map[string]string{}, wifi: map[int64]*moduleWiFi{}, db: pool, source: source, wifiEngine: engine, seen: map[string]hardware.Candidate{}, values: map[int64]moduleSample{}, done: make(chan struct{}), gates: map[string]chan struct{}{}, jobs: map[int64]moduleJob{}, operationSlots: make(chan struct{}, 4), recoveryProof: map[string]moduleSample{}, recoveryPending: map[int64]bool{}, recovery: map[string]recoveryStreak{}, recoveryUntil: map[string]time.Time{}}
 }
 func (m *moduleManager) run(ctx context.Context) {
 	defer close(m.done)
@@ -58,6 +60,7 @@ func (m *moduleManager) run(ctx context.Context) {
 	m.loadRecovery(ctx)
 	m.loadPhoneNumbers(ctx)
 	m.loadCarrierConfigs(ctx)
+	m.loadRoaming(ctx)
 	m.loadWiFi(ctx)
 	defer m.operations.Wait()
 	jobs := make(chan hardware.Candidate, 4)

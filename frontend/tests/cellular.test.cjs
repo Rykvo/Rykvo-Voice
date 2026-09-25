@@ -470,3 +470,24 @@ test('emergency address entry is available on physical SIM without toggling Wi-F
  action('emergency-address');await new Promise(resolve=>setImmediate(resolve));
  assert.equal(f.notices.at(-1),'紧急联系地址服务尚未接入');assert.equal(item.sims[0].wifiCalling,true);
 });
+
+test('Wi-Fi intent locks roaming even while disconnected and preserves its value',()=>{
+ const f=setup();
+ for(const state of ['connected','connecting','failed']){
+  const item={...structuredClone(fixture),managed:true,capabilities:{roaming:true},wifi:{enabled:true,state},sims:[{id:'line-01',enabled:true,roaming:true,wifiCalling:true}]};
+  assert.match(f.cellular.detail(item,0),/data-cellular-setting="roaming"[^>]*checked[^>]*disabled/);
+  f.cellular.open(item);clickLine(f.events,0);
+  const input={dataset:{cellularSetting:'roaming'},checked:false,closest:()=>({})};
+  f.events.change({target:input});assert.equal(input.checked,true);assert.equal(item.sims[0].roaming,true);
+ }
+});
+test('roaming becomes editable only after Wi-Fi closes and posts a SIM-scoped setting',async()=>{
+ const f=setup(),calls=[];
+ const item={...structuredClone(fixture),managed:true,capabilities:{roaming:true,esim:false},wifi:{enabled:false,state:'off'},sims:[{id:'line-01',enabled:true,roaming:false,wifiCalling:false}]};
+ const html=f.cellular.detail(item,0);assert.match(html,/data-cellular-setting="roaming"/);assert.doesNotMatch(html,/data-cellular-setting="roaming"[^>]*disabled|待接入<\/span><span class="form-switch"><input[^>]*roaming/);
+ f.data.control=async(...args)=>calls.push(args);f.cellular.open(item);clickLine(f.events,0);
+ const input={dataset:{cellularSetting:'roaming'},checked:true,closest:()=>({})};
+ f.events.change({target:input});await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(calls.length,1);assert.equal(calls[0][1],'updateLine');assert.equal(calls[0][2].roaming,true);assert.equal(calls[0][3],'line-01');assert.equal(item.sims[0].roaming,false);
+ item.wifi.state='stopping';assert.match(f.cellular.detail(item,0),/data-cellular-setting="roaming"[^>]*disabled/);
+});
