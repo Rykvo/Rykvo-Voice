@@ -121,7 +121,7 @@ func playCellularPCM(ctx context.Context, read func(context.Context) ([]int16, e
 }
 
 // Drain ringback immediately; never replay pre-answer USB audio after the ACK.
-func forwardCellularPCM(ctx context.Context, active *atomic.Bool, read func(context.Context) ([]int16, error), write func([]int16) error) error {
+func forwardCallPCM(ctx context.Context, active *atomic.Bool, read func(context.Context) ([]int16, error), write func([]int16) error) error {
 	for {
 		pcm, err := read(ctx)
 		if err != nil {

@@ -210,7 +210,7 @@ func TestSIPGatewayPCMPreAnswerDrain(t *testing.T) {
 		var output []int16
 		done := make(chan error, 1)
 		go func() {
-			done <- forwardCellularPCM(ctx, &active, func(ctx context.Context) ([]int16, error) {
+			done <- forwardCallPCM(ctx, &active, func(ctx context.Context) ([]int16, error) {
 				select {
 				case p := <-input:
 					return p, nil

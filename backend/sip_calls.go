@@ -33,7 +33,7 @@ type sipCalls struct {
 	modules       map[string]bool
 	active        map[telephony.ID]*sipOutgoing
 	ctx           context.Context
-	open          func(context.Context, moduleSample) (cellularVoice, error)
+	open          func(context.Context, sipVoiceSample) (moduleVoice, error)
 	wait          sync.WaitGroup
 }
 type sipOutgoing struct {
@@ -58,7 +58,7 @@ type sipOutgoing struct {
 	record     string
 }
 
-type cellularVoice interface {
+type moduleVoice interface {
 	Dial(context.Context, string) error
 	State(context.Context) (string, error)
 	Hangup(context.Context) error
@@ -69,7 +69,18 @@ type cellularVoice interface {
 
 func newSIPCalls(g *sipGateway) *sipCalls {
 	c := &sipCalls{g: g, router: telephony.New(), registrations: map[string]telephony.Registration{}, keys: map[string]string{}, policies: map[string]bool{}, modules: map[string]bool{}, active: map[telephony.ID]*sipOutgoing{}, ctx: context.Background()}
-	c.open = func(ctx context.Context, sample moduleSample) (cellularVoice, error) {
+	c.open = func(ctx context.Context, sample sipVoiceSample) (moduleVoice, error) {
+		if sample.wifi {
+			adapter, ok := g.server.modules.wifiEngine.(wifiVoiceAdapter)
+			if !ok {
+				return nil, errors.New("Wi-Fi voice adapter unavailable")
+			}
+			device, err := adapter.OpenWiFiCall(ctx, sample.Candidate, sample.Reading.ICCID)
+			if device == nil {
+				return nil, err
+			}
+			return device, err
+		}
 		system, ok := g.server.modules.source.(*hardware.System)
 		if !ok {
 			return nil, errors.New("voice adapter unavailable")
@@ -178,22 +189,39 @@ func (c *sipCalls) syncLocked(ctx context.Context, accounts []sipregistrar.Accou
 	c.actionsLocked(c.router.Tick())
 	return true
 }
-func (m *moduleManager) cellularVoiceSamples() map[string]moduleSample {
+
+type sipVoiceSample struct {
+	moduleSample
+	wifi bool
+}
+type wifiVoiceAdapter interface {
+	WiFiVoiceReady(hardware.Candidate, string) bool
+	OpenWiFiCall(context.Context, hardware.Candidate, string) (*hardware.WiFiCall, error)
+}
+
+func (m *moduleManager) moduleVoiceSamples() map[string]sipVoiceSample {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	out := map[string]moduleSample{}
+	out := map[string]sipVoiceSample{}
 	if m.ctx == nil || m.ctx.Err() != nil || time.Since(m.lastScan) > 20*time.Second {
 		return out
 	}
 	for id, sample := range m.values {
 		current, ok := m.seen[sample.Candidate.Key]
 		w := m.wifi[id]
-		if !ok || !sameEndpoint(current, sample.Candidate) || m.jobs[id].active() || (w != nil && (w.Enabled || w.running)) || !hardware.CellularVoiceSupported(current) {
+		if !ok || !sameEndpoint(current, sample.Candidate) || m.jobs[id].active() {
 			continue
 		}
 		r := sample.Reading
-		if r.Responsive && r.SIM == "READY" && r.Issue == "" && (r.Registration == "home" || r.Registration == "roaming") {
-			out[moduleID(id)] = sample
+		if w != nil && (w.Enabled || w.running) {
+			adapter, supported := m.wifiEngine.(wifiVoiceAdapter)
+			if supported && w.Enabled && w.running && w.Registered && w.State == "connected" && w.RadioOff && w.Issue == "" && w.ICCID == r.ICCID && sameEndpoint(w.candidate, current) && r.Responsive && r.SIM == "READY" && r.Issue == "" && adapter.WiFiVoiceReady(current, r.ICCID) {
+				out[moduleID(id)] = sipVoiceSample{moduleSample: sample, wifi: true}
+			}
+			continue
+		}
+		if hardware.CellularVoiceSupported(current) && r.Responsive && r.SIM == "READY" && r.Issue == "" && (r.Registration == "home" || r.Registration == "roaming") {
+			out[moduleID(id)] = sipVoiceSample{moduleSample: sample}
 		}
 	}
 	return out
@@ -223,7 +251,7 @@ func (c *sipCalls) inviteLocked(req *sip.Request, tx sip.ServerTransaction, port
 		_ = tx.Respond(sip.NewResponseFromRequest(req, 503, "Service Unavailable", nil))
 		return nil
 	}
-	samples := c.g.server.modules.cellularVoiceSamples()
+	samples := c.g.server.modules.moduleVoiceSamples()
 	for id := range c.modules {
 		if _, ok := samples[id]; !ok {
 			c.actionsLocked(c.router.SetModuleReady(id, false))
@@ -339,25 +367,28 @@ func (c *sipOutgoing) respond(code int, reason string, body []byte) error {
 	}
 	return c.tx.Respond(r)
 }
-func (c *sipOutgoing) run(sample moduleSample, network sipAccountNetwork, bind, public net.IP) {
+func (c *sipOutgoing) run(sample sipVoiceSample, network sipAccountNetwork, bind, public net.IP) {
 	g := c.owner.g
 	m := g.server.modules
-	gate := m.gate(sample.Candidate.Key)
-	gateTimer := time.NewTimer(8 * time.Second)
-	defer gateTimer.Stop()
-	select {
-	case gate <- struct{}{}:
-	case <-c.ctx.Done():
-		c.endPeer()
-		c.finish(true)
-		return
-	case <-gateTimer.C:
-		_ = c.respond(503, "Module Busy", nil)
-		c.finish(true)
-		return
+	// The Wi-Fi worker owns the hardware gate for its entire registration.
+	if !sample.wifi {
+		gate := m.gate(sample.Candidate.Key)
+		gateTimer := time.NewTimer(8 * time.Second)
+		defer gateTimer.Stop()
+		select {
+		case gate <- struct{}{}:
+		case <-c.ctx.Done():
+			c.endPeer()
+			c.finish(true)
+			return
+		case <-gateTimer.C:
+			_ = c.respond(503, "Module Busy", nil)
+			c.finish(true)
+			return
+		}
+		defer func() { <-gate }()
 	}
-	defer func() { <-gate }()
-	var device cellularVoice
+	var device moduleVoice
 	var audio sync.WaitGroup
 	var playback cellularPCMStats
 	defer func() {
@@ -368,8 +399,16 @@ func (c *sipOutgoing) run(sample moduleSample, network sipAccountNetwork, bind, 
 			if d, ok := device.(interface{ DroppedPCMSamples() uint64 }); ok {
 				flowDropped = d.DroppedPCMSamples()
 			}
-			log.Printf("SIP call %s audio: RTP=%+v USB={Warmup:%d Missing:%d Dropped:%d LateWrites:%d FlowDropped:%d}",
-				c.record, c.rtp.ReceiveStats(), playback.warmup.Load(), playback.missing.Load(), playback.dropped.Load(), playback.lateWrites.Load(), flowDropped)
+			if sample.wifi {
+				code := 0
+				if d, ok := device.(interface{ SIPCode() int }); ok {
+					code = d.SIPCode()
+				}
+				log.Printf("SIP call %s Wi-Fi audio: RTP=%+v CarrierCode=%d", c.record, c.rtp.ReceiveStats(), code)
+			} else {
+				log.Printf("SIP call %s audio: RTP=%+v USB={Warmup:%d Missing:%d Dropped:%d LateWrites:%d FlowDropped:%d}",
+					c.record, c.rtp.ReceiveStats(), playback.warmup.Load(), playback.missing.Load(), playback.dropped.Load(), playback.lateWrites.Load(), flowDropped)
+			}
 		}
 		peerDone := make(chan struct{})
 		go func() { defer close(peerDone); c.endPeer() }()
@@ -450,7 +489,10 @@ func (c *sipOutgoing) run(sample moduleSample, network sipAccountNetwork, bind, 
 	audio.Add(1)
 	go func() {
 		defer audio.Done()
-		if err := forwardCellularPCM(c.ctx, &mediaActive, device.ReadPCM, c.rtp.WritePCM); err != nil {
+		if err := forwardCallPCM(c.ctx, &mediaActive, device.ReadPCM, c.rtp.WritePCM); err != nil {
+			if errors.Is(err, hardware.ErrVoiceEnded) {
+				return
+			} // State polling relays the carrier response.
 			c.mediaFailed("downlink", err)
 		}
 	}()
@@ -483,7 +525,24 @@ func (c *sipOutgoing) run(sample moduleSample, network sipAccountNetwork, bind, 
 			}
 			switch state {
 			case "idle":
-				_ = c.respond(486, "Call Ended", nil)
+				code, reason := 486, "Call Ended"
+				if d, ok := device.(interface{ SIPCode() int }); ok {
+					switch d.SIPCode() {
+					case 403:
+						code, reason = 403, "Carrier Rejected"
+					case 404:
+						code, reason = 404, "Number Not Found"
+					case 480:
+						code, reason = 480, "Temporarily Unavailable"
+					case 488:
+						code, reason = 488, "Unsupported Carrier Audio"
+					case 503:
+						code, reason = 503, "Carrier Unavailable"
+					case 603:
+						code, reason = 603, "Decline"
+					}
+				}
+				_ = c.respond(code, reason, nil)
 				return
 			case "ringing":
 				if !ringing {
@@ -536,7 +595,13 @@ media:
 	audio.Add(1)
 	go func() {
 		defer audio.Done()
-		if err := playCellularPCM(c.ctx, c.rtp.ReadPCM, device.WritePCM, &playback); err != nil {
+		var err error
+		if sample.wifi {
+			err = forwardCallPCM(c.ctx, &mediaActive, c.rtp.ReadPCM, device.WritePCM)
+		} else {
+			err = playCellularPCM(c.ctx, c.rtp.ReadPCM, device.WritePCM, &playback)
+		}
+		if err != nil {
 			c.mediaFailed("uplink", err)
 		}
 	}()

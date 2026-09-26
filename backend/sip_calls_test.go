@@ -9,6 +9,7 @@ import (
 	"github.com/emiago/sipgo/sip"
 	"io"
 	"net"
+	"rykvo.local/auth/internal/hardware"
 	"rykvo.local/auth/internal/telephony"
 	"strings"
 	"sync/atomic"
@@ -27,7 +28,7 @@ func TestSIPGatewayCallTransactionSurvivesAnswer(t *testing.T) {
 				c := g.calls
 				c.ctx = ctx
 				device := &voiceTestDevice{}
-				c.open = func(context.Context, moduleSample) (cellularVoice, error) { return device, nil }
+				c.open = func(context.Context, sipVoiceSample) (moduleVoice, error) { return device, nil }
 				c.router.PutPolicy(telephony.Policy{Account: "a", Revision: 1, All: true})
 				c.router.SetModuleReady("module-01", true)
 				reg, _, _ := c.router.Register("a", 1, time.Minute)
@@ -55,7 +56,7 @@ func TestSIPGatewayCallTransactionSurvivesAnswer(t *testing.T) {
 					c.active[call.ID] = leg
 					go func() {
 						defer close(done)
-						leg.run(moduleSample{}, sipAccountNetwork{Start: 20000, End: 30000}, net.ParseIP("127.0.0.1"), net.ParseIP("127.0.0.1"))
+						leg.run(sipVoiceSample{}, sipAccountNetwork{Start: 20000, End: 30000}, net.ParseIP("127.0.0.1"), net.ParseIP("127.0.0.1"))
 					}()
 					return done
 				}))
@@ -207,13 +208,26 @@ func (*voiceTestTX) Err() error                         { return nil }
 func (*voiceTestTX) Acks() <-chan *sip.Request          { return nil }
 func (*voiceTestTX) OnCancel(sip.FnTxCancel) bool       { return true }
 
-type voiceTestDevice struct{ dialed, closed, hangups, nonzeroWrites atomic.Int32 }
+type voiceTestDevice struct {
+	dialed, closed, hangups, nonzeroWrites atomic.Int32
+	writeSamples                           int
+	rejectCode                             int
+}
 
-func (v *voiceTestDevice) Dial(context.Context, string) error    { v.dialed.Add(1); return nil }
-func (v *voiceTestDevice) State(context.Context) (string, error) { return "active", nil }
-func (v *voiceTestDevice) Hangup(context.Context) error          { v.hangups.Add(1); return nil }
-func (v *voiceTestDevice) Close()                                { v.closed.Add(1) }
+func (v *voiceTestDevice) Dial(context.Context, string) error { v.dialed.Add(1); return nil }
+func (v *voiceTestDevice) State(context.Context) (string, error) {
+	if v.rejectCode != 0 {
+		return "idle", nil
+	}
+	return "active", nil
+}
+func (v *voiceTestDevice) SIPCode() int                 { return v.rejectCode }
+func (v *voiceTestDevice) Hangup(context.Context) error { v.hangups.Add(1); return nil }
+func (v *voiceTestDevice) Close()                       { v.closed.Add(1) }
 func (v *voiceTestDevice) WritePCM(p []int16) error {
+	if v.writeSamples > 0 && len(p) != v.writeSamples {
+		return fmt.Errorf("unexpected block size: %d", len(p))
+	}
 	for _, sample := range p {
 		if sample != 0 {
 			v.nonzeroWrites.Add(1)
@@ -228,9 +242,17 @@ func (v *voiceTestDevice) ReadPCM(ctx context.Context) ([]int16, error) {
 		return nil, ctx.Err()
 	case <-time.After(20 * time.Millisecond):
 	}
+	if v.rejectCode != 0 {
+		return nil, hardware.ErrVoiceEnded
+	}
 	return make([]int16, 160), nil
 }
 func TestSIPGatewayCellularDialogAndBidirectionalMedia(t *testing.T) {
+	testSIPGatewayMedia(t, false, 0)
+}
+func TestSIPGatewayWiFiDialogAndBidirectionalMedia(t *testing.T) { testSIPGatewayMedia(t, true, 0) }
+func TestSIPGatewayWiFiCarrierCodecRejection(t *testing.T)       { testSIPGatewayMedia(t, true, 488) }
+func testSIPGatewayMedia(t *testing.T, wifi bool, reject int) {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
 	m := newModuleManager(nil, nil)
@@ -238,8 +260,14 @@ func TestSIPGatewayCellularDialogAndBidirectionalMedia(t *testing.T) {
 	g := newSIPGateway(s)
 	c := g.calls
 	c.ctx = ctx
-	device := &voiceTestDevice{}
-	c.open = func(context.Context, moduleSample) (cellularVoice, error) { return device, nil }
+	device := &voiceTestDevice{rejectCode: reject}
+	if wifi {
+		device.writeSamples = 160
+		gate := m.gate("")
+		gate <- struct{}{}
+		defer func() { <-gate }()
+	}
+	c.open = func(context.Context, sipVoiceSample) (moduleVoice, error) { return device, nil }
 	c.router.PutPolicy(telephony.Policy{Account: "a", Revision: 1, All: true})
 	c.router.SetModuleReady("module-01", true)
 	reg, _, err := c.router.Register("a", 1, time.Minute)
@@ -272,7 +300,7 @@ func TestSIPGatewayCellularDialogAndBidirectionalMedia(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		leg.run(moduleSample{}, sipAccountNetwork{Start: 20000, End: 30000}, net.ParseIP("127.0.0.1"), net.ParseIP("127.0.0.1"))
+		leg.run(sipVoiceSample{wifi: wifi}, sipAccountNetwork{Start: 20000, End: 30000}, net.ParseIP("127.0.0.1"), net.ParseIP("127.0.0.1"))
 	}()
 	defer func() {
 		leg.peerClosed.Store(true)
@@ -288,6 +316,20 @@ func TestSIPGatewayCellularDialogAndBidirectionalMedia(t *testing.T) {
 	case answer = <-tx.responses:
 	case <-ctx.Done():
 		t.Fatal("no response")
+	}
+	if reject != 0 {
+		if answer.StatusCode != reject {
+			t.Fatalf("carrier rejection %d became %d", reject, answer.StatusCode)
+		}
+		select {
+		case <-done:
+		case <-ctx.Done():
+			t.Fatal("failed carrier call leaked")
+		}
+		if device.hangups.Load() == 0 || device.closed.Load() == 0 {
+			t.Fatal("rejected call was not cleaned")
+		}
+		return
 	}
 	if answer.StatusCode != 200 {
 		t.Fatal(answer.StatusCode)

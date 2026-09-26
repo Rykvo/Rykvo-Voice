@@ -14,7 +14,7 @@ import (
 	"rykvo.local/auth/internal/vocat/vowifi/ims"
 )
 
-// Control only. IMS registration does not imply that a client audio path exists.
+// Private call control; registration alone is not proof of negotiated audio.
 type VoiceCall struct {
 	ID         string `json:"id"`
 	Number     string `json:"number,omitempty"`
@@ -32,9 +32,11 @@ type voiceCommand struct {
 	Number string `json:"number,omitempty"`
 }
 type voiceReply struct {
-	ID    string      `json:"id"`
-	Calls []VoiceCall `json:"calls,omitempty"`
-	Code  string      `json:"code,omitempty"`
+	ID       string         `json:"id"`
+	Calls    []VoiceCall    `json:"calls,omitempty"`
+	Code     string         `json:"code,omitempty"`
+	Media    *voiceEndpoint `json:"media,omitempty"`
+	StreamID string         `json:"streamID,omitempty"`
 }
 type voiceController interface {
 	Calls() ([]vowifi.Call, error)
@@ -48,6 +50,7 @@ type voiceWorker struct {
 	mu         sync.Mutex
 	controller voiceController
 	busy       bool
+	stream     *voiceStream
 	used       map[string]bool
 	wait       sync.WaitGroup
 }
@@ -58,6 +61,9 @@ func newVoiceWorker(ctx context.Context, emit func(wifiWorkerEvent)) *voiceWorke
 func (w *voiceWorker) setController(c voiceController) {
 	w.mu.Lock()
 	w.controller = c
+	if c == nil && w.stream != nil {
+		w.stream.stop()
+	}
 	w.mu.Unlock()
 }
 func validVoiceID(id string) bool {
@@ -68,7 +74,7 @@ func (c voiceCommand) valid() bool {
 		return false
 	}
 	switch c.Op {
-	case "voice-list":
+	case "voice-list", "voice-open":
 		return c.Call == "" && c.Number == ""
 	case "voice-dial":
 		return c.Call == "" && smsRecipient.MatchString(c.Number)
@@ -137,7 +143,7 @@ func (w *voiceWorker) command(raw []byte) bool {
 	code := ""
 	if w.ctx.Err() != nil || controller == nil {
 		code = "VOICE_NOT_READY"
-	} else if w.busy {
+	} else if w.busy || (w.stream != nil && c.Op != "voice-list") {
 		code = "VOICE_BUSY"
 	} else if c.Op != "voice-list" && (w.used[c.ID] || len(w.used) >= 10000) {
 		code = "VOICE_DUPLICATE_REQUEST"
@@ -159,8 +165,47 @@ func (w *voiceWorker) command(raw []byte) bool {
 		ctx, cancel := context.WithTimeout(w.ctx, 15*time.Second)
 		defer cancel()
 		calls, err := controller.Calls()
+		var endpoint *voiceEndpoint
 		if err == nil {
 			switch c.Op {
+			case "voice-open":
+				for _, call := range calls {
+					if call.EndedAt == nil {
+						code = "VOICE_BUSY"
+						break
+					}
+				}
+				mc, ok := controller.(voiceMediaController)
+				if !ok {
+					code = "VOICE_NOT_READY"
+				}
+				if code == "" {
+					var stream *voiceStream
+					stream, err = newVoiceStream(w.ctx, c.ID, mc)
+					if err == nil {
+						w.mu.Lock()
+						if w.controller == nil {
+							stream.stop()
+							stream.listener.Close()
+							err = vowifi.ErrNotRunning
+						} else {
+							w.stream = stream
+							endpoint = &stream.endpoint
+							w.wait.Add(1)
+							go func() {
+								defer w.wait.Done()
+								stream.run()
+								w.mu.Lock()
+								if w.stream == stream {
+									w.stream = nil
+								}
+								w.mu.Unlock()
+							}()
+						}
+						w.mu.Unlock()
+					}
+				}
+				calls = nil
 			case "voice-dial":
 				for _, call := range calls {
 					if call.EndedAt == nil {
@@ -187,7 +232,12 @@ func (w *voiceWorker) command(raw []byte) bool {
 		if code == "" {
 			code = voiceCode(err)
 		}
-		r := voiceReply{ID: c.ID, Code: code}
+		r := voiceReply{ID: c.ID, Code: code, Media: endpoint}
+		w.mu.Lock()
+		if w.stream != nil {
+			r.StreamID = w.stream.id
+		}
+		w.mu.Unlock()
 		if code == "" {
 			if len(calls) > 64 {
 				r.Code = "VOICE_OUTCOME_UNKNOWN"
@@ -209,7 +259,7 @@ func (w *voiceWorker) command(raw []byte) bool {
 }
 
 func (s *smsClientSession) voiceEvent(r voiceReply) bool {
-	if !smsRequestID.MatchString(r.ID) || !validVoiceCode(r.Code) || len(r.Calls) > 64 || (r.Code != "" && len(r.Calls) > 0) {
+	if !smsRequestID.MatchString(r.ID) || !validVoiceCode(r.Code) || len(r.Calls) > 64 || (r.StreamID != "" && !smsRequestID.MatchString(r.StreamID)) || (r.Code != "" && (len(r.Calls) > 0 || r.Media != nil)) || (r.Media != nil && (!r.Media.valid() || len(r.Calls) != 0 || r.StreamID != r.ID)) {
 		return false
 	}
 	for _, c := range r.Calls {
@@ -229,31 +279,37 @@ func (s *smsClientSession) voiceEvent(r voiceReply) bool {
 	}
 	return true
 }
+func (client *VocatWorkerClient) voiceSession(c Candidate, card string) *smsClientSession {
+	client.smsMu.Lock()
+	defer client.smsMu.Unlock()
+	return client.smsSessions[smsSessionKey(c, card)]
+}
 func (client *VocatWorkerClient) exchangeVoice(ctx context.Context, c Candidate, card string, request voiceCommand) ([]VoiceCall, error) {
+	r, err := client.voiceSession(c, card).exchangeVoice(ctx, request)
+	return r.Calls, err
+}
+func (s *smsClientSession) exchangeVoice(ctx context.Context, request voiceCommand) (voiceReply, error) {
 	if !request.valid() {
-		return nil, errors.New("VOICE_INVALID_REQUEST")
+		return voiceReply{}, errors.New("VOICE_INVALID_REQUEST")
 	}
 	if ctx.Err() != nil {
-		return nil, ctx.Err()
+		return voiceReply{}, ctx.Err()
 	}
-	client.smsMu.Lock()
-	s := client.smsSessions[smsSessionKey(c, card)]
-	client.smsMu.Unlock()
 	if s == nil {
-		return nil, errors.New("VOICE_NOT_READY")
+		return voiceReply{}, errors.New("VOICE_NOT_READY")
 	}
 	select {
 	case <-s.ready:
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return voiceReply{}, ctx.Err()
 	case <-s.closed:
-		return nil, errors.New("VOICE_NOT_READY")
+		return voiceReply{}, errors.New("VOICE_NOT_READY")
 	}
 	ch := make(chan voiceReply, 1)
 	s.mu.Lock()
 	if len(s.voicePending) != 0 {
 		s.mu.Unlock()
-		return nil, errors.New("VOICE_BUSY")
+		return voiceReply{}, errors.New("VOICE_BUSY")
 	}
 	if s.voicePending == nil {
 		s.voicePending = map[string]chan voiceReply{}
@@ -264,24 +320,24 @@ func (client *VocatWorkerClient) exchangeVoice(ctx context.Context, c Candidate,
 	s.writeMu.Lock()
 	if ctx.Err() != nil {
 		s.writeMu.Unlock()
-		return nil, ctx.Err()
+		return voiceReply{}, ctx.Err()
 	}
 	_ = s.conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	err := json.NewEncoder(s.conn).Encode(request)
 	s.writeMu.Unlock()
 	if err != nil {
-		return nil, errors.New("VOICE_OUTCOME_UNKNOWN")
+		return voiceReply{}, errors.New("VOICE_OUTCOME_UNKNOWN")
 	}
 	select {
 	case r := <-ch:
 		if r.Code != "" {
-			return nil, errors.New(r.Code)
+			return voiceReply{}, errors.New(r.Code)
 		}
-		return r.Calls, nil
+		return r, nil
 	case <-ctx.Done():
-		return nil, errors.New("VOICE_OUTCOME_UNKNOWN")
+		return voiceReply{}, errors.New("VOICE_OUTCOME_UNKNOWN")
 	case <-s.closed:
-		return nil, errors.New("VOICE_OUTCOME_UNKNOWN")
+		return voiceReply{}, errors.New("VOICE_OUTCOME_UNKNOWN")
 	}
 }
 func (client *VocatWorkerClient) WiFiCalls(ctx context.Context, c Candidate, card, id string) ([]VoiceCall, error) {

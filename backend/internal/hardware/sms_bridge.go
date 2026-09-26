@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -77,6 +78,7 @@ type smsClientSession struct {
 	pending      map[string]chan SMSReply
 	mmsPending   map[string]chan mmsReply
 	voicePending map[string]chan voiceReply
+	voiceClean   atomic.Bool
 	closed       chan struct{}
 	ready        chan struct{}
 	once         sync.Once

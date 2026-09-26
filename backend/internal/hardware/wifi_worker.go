@@ -161,6 +161,9 @@ func wifiWorkerExchangeSMS(ctx context.Context, conn net.Conn, request wifiWorke
 			continue
 		}
 		if event.Done {
+			if sms != nil && (event.Code == "" || event.Code == "CANCELLED") {
+				sms.voiceClean.Store(true)
+			}
 			if event.Code == "" {
 				return nil
 			}
