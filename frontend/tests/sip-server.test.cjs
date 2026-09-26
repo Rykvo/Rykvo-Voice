@@ -15,9 +15,9 @@ function setup(operation=async()=>({state:'configuring'})) {
  return {page,fields,button,note,disconnect,calls,reports,timers,setStatus:x=>snapshot=x,ready:()=>new Promise(r=>setImmediate(r)),tick:async()=>{const [id,fn]=timers.entries().next().value||[];if(fn){timers.delete(id);await fn()}},submit:()=>events.submit({type:'submit',preventDefault(){}}),stop:()=>events.click({type:'click',preventDefault(){}})};
 }
 test('single HTTPS form and backend-verified network status',async()=>{
- const f=setup();await f.ready();const html=f.page.render();assert.ok(html.includes("sip.example.com/api/connect"));assert.match(html,/"type":"password"/);
+ const f=setup();await f.ready();const html=f.page.render();assert.ok(html.includes("https://sip.example.com/api/connect"));assert.match(html,/"type":"password"/);
  f.fields.address.value='sip.example.com/api/connect';f.fields.accessCode.value='A'.repeat(43);await f.submit();
- assert.equal(f.calls[0].body.address,'https://sip.example.com/api/connect');
+ assert.equal(f.calls[0].body.address,'https://sip.example.com/api/connect');assert.equal(f.fields.address.value,'https://sip.example.com/api/connect');
  assert.equal(f.calls.length,1);assert.equal(f.fields.accessCode.value,'');assert.equal(f.note.textContent,'配置中');assert.doesNotMatch(f.note.textContent,/已连接/);
  f.setStatus({state:'connected',configured:true,enabled:true,address:f.fields.address.value});await f.tick();assert.equal(f.note.textContent,'VPN 已连接');assert.equal(f.note.dataset.failed,'false');assert.equal(f.disconnect.hidden,false);f.page.unmount();assert.equal(f.timers.size,0);
 });

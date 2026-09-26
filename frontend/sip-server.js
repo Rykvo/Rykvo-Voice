@@ -13,7 +13,7 @@ const SIPServer = (() => {
     return `<section class="form-page server-page">${ServerNavigation.header("sipServer")}
       <form id="sip-server-form" class="settings-form" novalidate>
         <div class="form-fields">
-          ${Forms.field({ prefix: "sip-server", name: "address", label: "接入地址", placeholder: "sip.example.com/api/connect", maxLength: 512, required: true })}
+          ${Forms.field({ prefix: "sip-server", name: "address", label: "接入地址", placeholder: "https://sip.example.com/api/connect", maxLength: 512, required: true })}
           ${Forms.field({ prefix: "sip-server", name: "accessCode", label: "接入码", type: "password", placeholder: "输入接入码", maxLength: 43 })}
         </div>
         <p class="sip-network-status" role="status" aria-live="polite" hidden></p>
@@ -43,7 +43,7 @@ const SIPServer = (() => {
       const value = await Backend.sipServer.get({signal:request.signal});
       if (current === form && !request.signal.aborted) show(value);
     } catch (error) {
-      if (current === form && !request.signal.aborted) show({state:"failed",issue:error.code});
+      if (current === form && !request.signal.aborted) show({...status,state:"failed",issue:error.code});
     } finally {
       if (controller === request) controller = null;
       if (current === form && (status?.enabled || status?.state === "configuring"))
@@ -62,6 +62,7 @@ const SIPServer = (() => {
     try { const u = new URL(address); validAddress = u.protocol === "https:" && u.pathname === "/api/connect" && !u.username && !u.password && !u.search && !u.hash && (!u.port || u.port === "443"); } catch {}
     if (!disconnect && !reconnect && Forms.report(current, !validAddress ? {field:"address",message:labels.SIP_INVALID_ADDRESS}
       : !/^[A-Za-z0-9_-]{43}$/.test(accessCode) ? {field:"accessCode",message:"请输入完整接入码"} : null)) return;
+    if (!disconnect) current.elements.namedItem("address").value = address;
     clearTimeout(timer);
     const request = new AbortController(); controller = request;
     codeInput.value = "";
