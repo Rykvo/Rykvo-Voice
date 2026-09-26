@@ -230,3 +230,21 @@ func TestSecondIncomingDoesNotReplaceOccupiedModule(t *testing.T) {
 		t.Fatal("occupied module accepted second call")
 	}
 }
+
+func TestCancelKeepsOriginalInviteTargetToAndRoute(t *testing.T) {
+	s, c, _ := terminationSession(t, "ringing", 200, nil)
+	s.callMu.Lock()
+	c.inviteTo = "<sip:original@example.test>"
+	c.inviteTarget = "sip:original@example.test"
+	c.inviteRoutes = []string{"<sip:original-proxy.example.test;lr>"}
+	c.to = "<sip:original@example.test>;tag=early-dialog"
+	c.target = "sip:redirected@example.test"
+	c.routes = []string{"<sip:early-proxy.example.test;lr>"}
+	s.callMu.Unlock()
+	packet := string(s.buildDialogRequest(c, "CANCEL", 1))
+	for _, want := range []string{"CANCEL sip:original@example.test SIP/2.0", "To: <sip:original@example.test>\r\n", "Route: <sip:original-proxy.example.test;lr>\r\n", "branch=z9hG4bKoriginal;rport"} {
+		if !strings.Contains(packet, want) {
+			t.Fatalf("missing %s in %s", want, packet)
+		}
+	}
+}

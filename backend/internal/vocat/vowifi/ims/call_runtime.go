@@ -36,6 +36,8 @@ type imsCall struct {
 	branch         string
 	cseq           uint32
 	inviteTarget   string
+	inviteTo       string
+	inviteRoutes   []string
 	invite         *sipRequest
 	respond        func([]byte) error
 	responses      chan *sipResponse
@@ -147,7 +149,7 @@ func (session *Session) DialCall(ctx context.Context, number string) (vowifi.Cal
 	call := &imsCall{
 		public: vowifi.Call{ID: callID, Number: number, Direction: "outgoing", State: "dialing", StartedAt: time.Now().UTC()},
 		callID: callID, target: target, inviteTarget: target, from: from, to: to, branch: branch, cseq: cseq, responses: responses,
-		routes: routes, media: media, pracked: make(map[string]bool),
+		routes: routes, inviteTo: to, inviteRoutes: append([]string(nil), routes...), media: media, pracked: make(map[string]bool),
 	}
 	session.callMu.Lock()
 	for _, current := range session.calls {
@@ -184,7 +186,9 @@ func (session *Session) DialCall(ctx context.Context, number string) (vowifi.Cal
 		session.callMu.Unlock()
 		return vowifi.Call{}, fmt.Errorf("ims: send SIP INVITE: %w", err)
 	}
+	session.callMu.Lock()
 	result := call.public
+	session.callMu.Unlock()
 	go session.watchOutgoingCall(call, key)
 	return result, nil
 }
@@ -921,6 +925,11 @@ func (session *Session) buildDialogRequest(call *imsCall, method string, cseq ui
 		target = call.inviteTarget
 	}
 	to := call.to
+	routes := call.routes
+	if method == "CANCEL" && call.inviteTo != "" {
+		to = call.inviteTo
+		routes = call.inviteRoutes
+	}
 	if to == "" {
 		to = "<" + call.target + ">"
 	}
@@ -933,7 +942,7 @@ func (session *Session) buildDialogRequest(call *imsCall, method string, cseq ui
 	securityHeaders := runtimeSecurityHeaders(session.securityActive, session.securityAgreement.verifyValue)
 	session.mu.Unlock()
 	lines = append(lines, securityHeaders...)
-	for _, route := range call.routes {
+	for _, route := range routes {
 		lines = append(lines, "Route: "+route)
 	}
 	lines = append(lines,
