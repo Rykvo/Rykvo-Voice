@@ -107,6 +107,10 @@ func (s *System) Read(ctx context.Context, c Candidate) Reading {
 		if r.Responsive && r.IMEI != "" && CellularVoiceSupported(c) {
 			if err := s.recoverVoiceAudio(ctx, c, c.Identity(r)); err != nil {
 				r.Issue = "VOICE_AUDIO_RESTORE_PENDING"
+			} else if r.Issue == "" {
+				if err := s.ensureVoiceMic(ctx, c, c.Identity(r)); err != nil {
+					r.Issue = "VOICE_MIC_CONFIG_FAILED"
+				}
 			}
 		}
 	}

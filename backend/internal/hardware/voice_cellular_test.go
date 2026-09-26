@@ -38,7 +38,7 @@ func TestCellularHangupPreservesDataAndRestoresPCM(t *testing.T) {
 	if err := c.Hangup(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	want := "AT+CHUP\r|AT+CLCC\r|AT+QPCMV?\r|AT+QPCMV=0,0\r|AT+QPCMV?\r|AT+QGPSCFG=\"outport\"\r|AT+QGPSCFG=\"outport\",\"usbnmea\"\r|AT+QGPSCFG=\"outport\"\r|AT+QMIC?\r|AT+QMIC=20577,14567\r|AT+QMIC?\r"
+	want := "AT+CHUP\r|AT+CLCC\r|AT+QPCMV?\r|AT+QPCMV=0,0\r|AT+QPCMV?\r|AT+QGPSCFG=\"outport\"\r|AT+QGPSCFG=\"outport\",\"usbnmea\"\r|AT+QGPSCFG=\"outport\"\r|AT+QMIC?\r"
 	if got := strings.Join(p.commands, "|"); got != want {
 		t.Fatal(got)
 	}

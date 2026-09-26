@@ -85,10 +85,6 @@ func (s *System) OpenCellularCall(ctx context.Context, c Candidate, identity, ca
 	if err != nil {
 		return nil, errors.New("VOICE_GPS_STATE_UNKNOWN")
 	}
-	v.audio.Mic, err = readVoiceAudio(ctx, a, "mic")
-	if err != nil {
-		return nil, errors.New("VOICE_MIC_STATE_UNKNOWN")
-	}
 	v.pcm, err = openAT(c.Audio)
 	if err != nil || v.pcm == nil {
 		return nil, errors.New("VOICE_AUDIO_BUSY")

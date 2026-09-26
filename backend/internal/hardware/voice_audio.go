@@ -19,7 +19,6 @@ type voiceAudioState struct {
 	Key      string `json:"key"`
 	PCM      string `json:"pcm"`
 	GPS      string `json:"gps"`
-	Mic      string `json:"mic"`
 }
 
 func voiceIdentityValid(identity string) bool {
@@ -122,7 +121,41 @@ func setVoiceAudio(ctx context.Context, a *atSession, kind, value string) error 
 
 func (v voiceAudioState) valid() bool {
 	return voiceIdentityValid(v.Identity) && v.Key != "" && voiceAudioValue("pcm", v.PCM) &&
-		strings.HasPrefix(v.PCM, "0") && voiceAudioValue("gps", v.GPS) && voiceAudioValue("mic", v.Mic)
+		strings.HasPrefix(v.PCM, "0") && voiceAudioValue("gps", v.GPS)
+}
+
+// Analog input stays off; never change the module's digital gain.
+func muteVoiceMic(ctx context.Context, a *atSession) error {
+	mic, err := readVoiceAudio(ctx, a, "mic")
+	if err != nil || strings.HasPrefix(mic, "0,") {
+		return err
+	}
+	return setVoiceAudio(ctx, a, "mic", "0,"+strings.Split(mic, ",")[1])
+}
+
+func muteIdleVoiceMic(ctx context.Context, a *atSession) error {
+	lines, err := a.exchange(ctx, "AT+CLCC", 3*time.Second)
+	if err != nil {
+		return err
+	}
+	state, err := cellularCallState(lines)
+	if err != nil || state != "idle" {
+		return err // Do not reconfigure an existing call.
+	}
+	return muteVoiceMic(ctx, a)
+}
+
+// Called under the module gate, including after a module or service restart.
+func (s *System) ensureVoiceMic(ctx context.Context, c Candidate, identity string) error {
+	if !CellularVoiceSupported(c) || !voiceIdentityValid(identity) {
+		return nil
+	}
+	a, err := openWiFiSession(ctx, c, identity)
+	if err != nil {
+		return err
+	}
+	defer a.port.Close()
+	return muteIdleVoiceMic(ctx, a)
 }
 
 func (s *System) voiceStatePath(identity string) string {
@@ -141,7 +174,7 @@ func syncVoiceStateDir(path string) error {
 	return f.Sync()
 }
 
-// Save before changing persistent QMIC. Never overwrite unfinished recovery.
+// Save before changing PCM/GPS. Never overwrite unfinished recovery.
 func (s *System) saveVoiceState(state voiceAudioState) (string, error) {
 	if s.VoiceStateDir == "" || !state.valid() {
 		return "", errors.New("VOICE_AUDIO_STATE_UNAVAILABLE")
@@ -196,9 +229,10 @@ func (s *System) prepareVoiceAudio(ctx context.Context, v *CellularCall) error {
 		return err
 	}
 	v.journal = path
-	// USB supplies the voice; isolate analog input, preserving digital gain.
-	mic := "0," + strings.Split(v.audio.Mic, ",")[1]
-	for _, p := range []struct{ kind, value string }{{"mic", mic}, {"gps", "none"}, {"pcm", "1,0"}} {
+	if err = muteVoiceMic(ctx, v.at); err != nil {
+		return err
+	}
+	for _, p := range []struct{ kind, value string }{{"gps", "none"}, {"pcm", "1,0"}} {
 		if err = setVoiceAudio(ctx, v.at, p.kind, p.value); err != nil {
 			return err
 		}
@@ -207,10 +241,13 @@ func (s *System) prepareVoiceAudio(ctx context.Context, v *CellularCall) error {
 }
 
 func (v *CellularCall) restoreAudio(ctx context.Context) error {
-	for _, p := range []struct{ kind, value string }{{"pcm", v.audio.PCM}, {"gps", v.audio.GPS}, {"mic", v.audio.Mic}} {
+	for _, p := range []struct{ kind, value string }{{"pcm", v.audio.PCM}, {"gps", v.audio.GPS}} {
 		if err := setVoiceAudio(ctx, v.at, p.kind, p.value); err != nil {
 			return err
 		}
+	}
+	if err := muteVoiceMic(ctx, v.at); err != nil {
+		return err
 	}
 	if v.journal != "" {
 		if err := os.Remove(v.journal); err != nil && !errors.Is(err, os.ErrNotExist) {

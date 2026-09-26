@@ -186,6 +186,9 @@ func (engine *VocatWiFi) WiFi(ctx context.Context, c Candidate, identity, iccid 
 	if err := at.verify(ctx); err != nil {
 		return err
 	}
+	if err := muteIdleVoiceMic(ctx, session); err != nil {
+		return errors.New("VOICE_MIC_CONFIG_FAILED")
+	}
 	adapter, err := vowifi.NewEC20Adapter(at, vowifi.EC20AdapterOptions{PureAirplanePolicy: func(string) bool { return true }})
 	if err != nil {
 		return errors.New("WIFI_MODEM_UNSUPPORTED")

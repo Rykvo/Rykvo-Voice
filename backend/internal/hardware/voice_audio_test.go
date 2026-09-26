@@ -2,6 +2,7 @@ package hardware
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -13,7 +14,7 @@ import (
 )
 
 func testVoiceAudio() voiceAudioState {
-	return voiceAudioState{Identity: "imei:" + Digest("voice-test"), Key: "usb:test", PCM: "0,0", GPS: "usbnmea", Mic: "20577,14567"}
+	return voiceAudioState{Identity: "imei:" + Digest("voice-test"), Key: "usb:test", PCM: "0,0", GPS: "usbnmea"}
 }
 
 func voiceTestModem() (*mmsTestPort, map[string]string) {
@@ -96,7 +97,7 @@ func TestVoiceAudioPreparationCheckpointsBeforeMutation(t *testing.T) {
 			s := &System{VoiceStateDir: t.TempDir()}
 			p, state := voiceTestModem()
 			original := testVoiceAudio()
-			state["pcm"], state["gps"], state["mic"] = original.PCM, original.GPS, original.Mic
+			state["pcm"], state["gps"], state["mic"] = original.PCM, original.GPS, "20577,14567"
 			write := p.onWrite
 			p.onWrite = func(b []byte) string {
 				if strings.Contains(string(b), "=") {
@@ -119,7 +120,7 @@ func TestVoiceAudioPreparationCheckpointsBeforeMutation(t *testing.T) {
 			if err := v.Hangup(context.Background()); err != nil {
 				t.Fatal(err)
 			}
-			if state["mic"] != original.Mic || state["pcm"] != original.PCM || state["gps"] != original.GPS {
+			if state["mic"] != "0,14567" || state["pcm"] != original.PCM || state["gps"] != original.GPS {
 				t.Fatal(state)
 			}
 		})
@@ -183,7 +184,7 @@ func TestVoiceAudioJournalSurvivesRestartAndRepeatedHangup(t *testing.T) {
 	if _, err = os.Stat(path); !errors.Is(err, os.ErrNotExist) || v.journal != "" {
 		t.Fatal("completed journal retained", err)
 	}
-	if state["mic"] != original.Mic || state["pcm"] != original.PCM || state["gps"] != original.GPS {
+	if state["mic"] != "0,14567" || state["pcm"] != original.PCM || state["gps"] != original.GPS {
 		t.Fatal(state)
 	}
 	if strings.Count(strings.Join(p.commands, "|"), "AT+QPCMV=0,0") != 1 {
@@ -192,14 +193,15 @@ func TestVoiceAudioJournalSurvivesRestartAndRepeatedHangup(t *testing.T) {
 }
 
 func TestVoiceAudioRestoreFailureKeepsRecovery(t *testing.T) {
-	for _, failure := range []string{"AT+QPCMV=0,0", `AT+QGPSCFG="outport","usbnmea"`, "AT+QMIC=20577,14567"} {
+	for _, failure := range []string{"AT+QPCMV=0,0", `AT+QGPSCFG="outport","usbnmea"`, "AT+QMIC=0,14567"} {
 		t.Run(failure, func(t *testing.T) {
 			s := &System{VoiceStateDir: t.TempDir()}
 			path, err := s.saveVoiceState(testVoiceAudio())
 			if err != nil {
 				t.Fatal(err)
 			}
-			p, _ := voiceTestModem()
+			p, state := voiceTestModem()
+			state["mic"] = "20577,14567"
 			write := p.onWrite
 			p.onWrite = func(b []byte) string {
 				if string(b) == failure+"\r" {
@@ -219,6 +221,100 @@ func TestVoiceAudioRestoreFailureKeepsRecovery(t *testing.T) {
 				t.Fatal("retry", err)
 			}
 		})
+	}
+}
+
+func TestVoiceMicPermanentPolicy(t *testing.T) {
+	for _, mic := range []string{"20577,14567", "0,73", "65535,65535", "1,0"} {
+		t.Run(mic, func(t *testing.T) {
+			p, state := voiceTestModem()
+			state["mic"] = mic
+			a := &atSession{port: p}
+			want := "0," + strings.Split(mic, ",")[1]
+			if err := muteIdleVoiceMic(context.Background(), a); err != nil || state["mic"] != want {
+				t.Fatal(err, state)
+			}
+			p.commands = nil
+			for i := 0; i < 3; i++ {
+				if err := muteIdleVoiceMic(context.Background(), a); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, command := range p.commands {
+				if strings.Contains(command, "=") {
+					t.Fatal("polling rewrote persistent settings", p.commands)
+				}
+			}
+			// A reset must be detected rather than trusted from a cached flag.
+			state["mic"] = "20577," + strings.Split(mic, ",")[1]
+			if err := muteIdleVoiceMic(context.Background(), a); err != nil || state["mic"] != want {
+				t.Fatal("reset left analog input on", err, state)
+			}
+		})
+	}
+}
+
+func TestVoiceMicPolicyDoesNotTouchLiveOrUnknownCalls(t *testing.T) {
+	for _, reply := range []string{`+CLCC: 1,0,0,0,0,"12345",129`, `+CLCC: 1,0,2,0,0,"12345",129`, `+CLCC: 1,1,4,0,0,"12345",129`, "+CLCC: malformed", "ERROR"} {
+		p := &mmsTestPort{onWrite: func([]byte) string { return reply + "\r\nOK\r\n" }}
+		_ = muteIdleVoiceMic(context.Background(), &atSession{port: p})
+		if len(p.commands) != 1 || p.commands[0] != "AT+CLCC\r" {
+			t.Fatal("reconfigured busy or unknown module", p.commands)
+		}
+	}
+}
+
+func TestVoiceMicPolicyRejectsUnknownGainAndFailedReadback(t *testing.T) {
+	for _, mic := range []string{"", "20577", "1,2,3", "65536,1", "0,invalid", "1,14567"} {
+		p, state := voiceTestModem()
+		state["mic"] = mic
+		write := p.onWrite
+		p.onWrite = func(b []byte) string {
+			if strings.HasPrefix(string(b), "AT+QMIC=") {
+				return "OK\r\n" // Ignored hardware write.
+			}
+			return write(b)
+		}
+		if muteVoiceMic(context.Background(), &atSession{port: p}) == nil {
+			t.Fatal("unverified mute accepted", mic)
+		}
+		if state["mic"] != mic {
+			t.Fatal("unknown digital gain changed")
+		}
+	}
+}
+
+func TestVoiceAudioOldJournalNeverReopensAnalogMic(t *testing.T) {
+	s := &System{VoiceStateDir: t.TempDir()}
+	original := testVoiceAudio()
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Migration from the previous per-call microphone restore journal.
+	data = append(data[:len(data)-1], []byte(`,"mic":"20577,14567"}`)...)
+	path := s.voiceStatePath(original.Identity)
+	if err = os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := loadVoiceState(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, state := voiceTestModem()
+	state["mic"] = "20577,99"
+	v := &CellularCall{at: &atSession{port: p}, audio: loaded, journal: path}
+	if err = v.Hangup(context.Background()); err != nil || state["mic"] != "0,99" {
+		t.Fatal("old journal reopened mic or reset digital gain", err, state)
+	}
+	for _, command := range p.commands {
+		if strings.HasPrefix(command, "AT+QMIC=") && command != "AT+QMIC=0,99\r" {
+			t.Fatal(command)
+		}
+	}
+	data, err = json.Marshal(loaded)
+	if err != nil || strings.Contains(string(data), `"mic"`) {
+		t.Fatal("obsolete mic restore state retained", err)
 	}
 }
 
