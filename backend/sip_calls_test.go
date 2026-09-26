@@ -208,6 +208,68 @@ func (*voiceTestTX) Err() error                         { return nil }
 func (*voiceTestTX) Acks() <-chan *sip.Request          { return nil }
 func (*voiceTestTX) OnCancel(sip.FnTxCancel) bool       { return true }
 
+type cancelledVoiceTX struct {
+	voiceTestTX
+	cancelHandler sip.FnTxCancel
+	closed        bool
+}
+
+func (t *cancelledVoiceTX) OnCancel(f sip.FnTxCancel) bool {
+	t.cancelHandler = f
+	return !t.closed
+}
+func (t *cancelledVoiceTX) Err() error {
+	if t.closed {
+		return sip.ErrTransactionCanceled
+	}
+	return nil
+}
+
+func TestSIPGatewayCancelledBeforeHardwareOpen(t *testing.T) {
+	for _, closed := range []bool{false, true} {
+		t.Run(fmt.Sprint(closed), func(t *testing.T) {
+			g := newSIPGateway(&server{modules: newModuleManager(nil, nil)})
+			c := g.calls
+			c.router.PutPolicy(telephony.Policy{Account: "a", Revision: 1, All: true})
+			c.router.SetModuleReady("module-01", true)
+			reg, _, _ := c.router.Register("a", 1, time.Minute)
+			call, _, _ := c.router.Dial(reg)
+			c.open = func(context.Context, sipVoiceSample) (moduleVoice, error) {
+				t.Fatal("cancelled call opened hardware")
+				return nil, nil
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			req := sip.NewRequest(sip.INVITE, sip.Uri{})
+			req.SetSource("127.0.0.1:20001")
+			req.SetTransport("UDP")
+			tx := &cancelledVoiceTX{closed: closed}
+			leg := &sipOutgoing{owner: c, call: call, reg: reg, ctx: ctx, cancel: cancel, request: req, tx: tx}
+			c.active[call.ID] = leg
+			leg.bindCancel()
+			if !closed {
+				other := req.Clone()
+				other.SetSource("127.0.0.2:20001")
+				tx.cancelHandler(other)
+				other.SetSource(req.Source())
+				other.SetTransport("TCP")
+				tx.cancelHandler(other)
+				if ctx.Err() != nil {
+					t.Fatal("different source/transport cancelled call")
+				}
+				tx.cancelHandler(req)
+			}
+			if ctx.Err() == nil || leg.outcome != "cancelled" {
+				t.Fatal("CANCEL was lost")
+			}
+			leg.run(sipVoiceSample{}, sipAccountNetwork{}, nil, nil)
+			if len(c.active) != 0 || c.router.Status("a") != telephony.Online {
+				t.Fatal("cancelled reservation leaked")
+			}
+		})
+	}
+}
+
 type voiceTestDevice struct {
 	dialed, closed, hangups, nonzeroWrites atomic.Int32
 	writeSamples                           int

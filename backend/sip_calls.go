@@ -318,13 +318,7 @@ func (c *sipCalls) inviteLocked(req *sip.Request, tx sip.ServerTransaction, port
 	leg := &sipOutgoing{record: record, owner: c, call: call, reg: reg, request: copy, tx: tx, client: client, ctx: callCtx, cancel: stop, ack: make(chan struct{}), contact: sip.ContactHeader{Address: sip.Uri{Scheme: "sip", Host: public, Port: port}}}
 	recordHanded = true
 	c.active[call.ID] = leg
-	tx.OnCancel(func(r *sip.Request) {
-		if r.Source() == req.Source() {
-			leg.result("cancelled")
-			leg.peerClosed.Store(true)
-			leg.stop()
-		}
-	})
+	leg.bindCancel()
 	_ = tx.Respond(sip.NewResponseFromRequest(copy, 100, "Trying", nil))
 	done := make(chan struct{})
 	c.wait.Add(1)
@@ -334,6 +328,25 @@ func (c *sipCalls) inviteLocked(req *sip.Request, tx sip.ServerTransaction, port
 		leg.run(samples[call.Module], network, net.ParseIP(bind), net.ParseIP(public))
 	}()
 	return done
+}
+func (c *sipOutgoing) bindCancel() {
+	if c.tx.OnCancel(func(r *sip.Request) {
+		if r.Source() == c.request.Source() && r.Transport() == c.request.Transport() {
+			c.result("cancelled")
+			c.peerClosed.Store(true)
+			c.stop()
+		}
+	}) {
+		return
+	}
+	// CANCEL may finish the transaction while policy/database checks run.
+	if errors.Is(c.tx.Err(), sip.ErrTransactionCanceled) {
+		c.result("cancelled")
+		c.peerClosed.Store(true)
+	} else {
+		c.result("service_unavailable")
+	}
+	c.stop()
 }
 func validDialNumber(v string) bool {
 	if len(v) < 3 || len(v) > 16 {
@@ -394,6 +407,11 @@ func (c *sipOutgoing) respond(code int, reason string, body []byte) error {
 func (c *sipOutgoing) run(sample sipVoiceSample, network sipAccountNetwork, bind, public net.IP) {
 	g := c.owner.g
 	m := g.server.modules
+	if c.ctx.Err() != nil {
+		c.endPeer()
+		c.finish(true)
+		return
+	}
 	c.recordState("dialing")
 	// The Wi-Fi worker owns the hardware gate for its entire registration.
 	if !sample.wifi {

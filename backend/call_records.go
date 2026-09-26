@@ -294,27 +294,28 @@ func (c *sipCalls) unavailableResult(ctx context.Context, account string, dialEr
 	if errors.Is(dialErr, telephony.ErrModuleBusy) {
 		reason = "module_busy"
 	}
+	fallback := reason
+	if fallback == "" {
+		fallback = "no_available_module"
+	}
 	if c.g.server.db == nil || c.g.server.modules == nil {
-		if reason != "" {
-			return "", reason
-		}
-		return "", "no_available_module"
+		return "", fallback
 	}
 	rows, err := c.g.server.db.Query(ctx, `SELECT m.id FROM modules m JOIN sip_accounts a ON a.id=$1 WHERE a.allocation='all' OR EXISTS(SELECT 1 FROM sip_account_modules am WHERE am.account_id=a.id AND am.module_id=m.id) ORDER BY m.id`, account)
 	if err != nil {
-		return "", "no_available_module"
+		return "", fallback
 	}
 	defer rows.Close()
 	var ids []int64
 	for rows.Next() {
 		var id int64
 		if rows.Scan(&id) != nil {
-			return "", "no_available_module"
+			return "", fallback
 		}
 		ids = append(ids, id)
 	}
 	if rows.Err() != nil || len(ids) == 0 {
-		return "", "no_available_module"
+		return "", fallback
 	}
 	if len(ids) == 1 {
 		module = moduleID(ids[0])
