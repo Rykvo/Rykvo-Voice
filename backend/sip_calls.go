@@ -198,19 +198,19 @@ func (m *moduleManager) cellularVoiceSamples() map[string]moduleSample {
 	}
 	return out
 }
-func (c *sipCalls) inviteLocked(req *sip.Request, tx sip.ServerTransaction, port int, address string, ua *sipgo.UserAgent) {
+func (c *sipCalls) inviteLocked(req *sip.Request, tx sip.ServerTransaction, port int, address string, ua *sipgo.UserAgent) <-chan struct{} {
 	a, _, res := c.g.registrar.AuthenticateInvite(req, port)
 	if res != nil {
 		_ = tx.Respond(res)
-		return
+		return nil
 	}
 	if c.ctx.Err() != nil || c.g.server.modules == nil {
 		_ = tx.Respond(sip.NewResponseFromRequest(req, 503, "Voice Unavailable", nil))
-		return
+		return nil
 	}
 	if req.Contact() == nil || req.Contact().Address.Wildcard || req.Contact().Address.Host == "" || req.GetHeader("Record-Route") != nil || req.To().Params.Has("tag") || !validDialNumber(req.Recipient.User) {
 		_ = tx.Respond(sip.NewResponseFromRequest(req, 400, "Bad Call Request", nil))
-		return
+		return nil
 	}
 	ctx, cancel := context.WithTimeout(c.ctx, 3*time.Second)
 	accounts, err := c.g.readAccounts(ctx)
@@ -221,7 +221,7 @@ func (c *sipCalls) inviteLocked(req *sip.Request, tx sip.ServerTransaction, port
 	cancel()
 	if err != nil || netErr != nil {
 		_ = tx.Respond(sip.NewResponseFromRequest(req, 503, "Service Unavailable", nil))
-		return
+		return nil
 	}
 	samples := c.g.server.modules.cellularVoiceSamples()
 	for id := range c.modules {
@@ -239,7 +239,7 @@ func (c *sipCalls) inviteLocked(req *sip.Request, tx sip.ServerTransaction, port
 	c.actionsLocked(actions)
 	if err != nil {
 		_ = tx.Respond(sip.NewResponseFromRequest(req, 503, "No Available Voice Module", nil))
-		return
+		return nil
 	}
 	callCtx, stop := context.WithCancel(c.ctx)
 	copy := req.Clone()
@@ -249,7 +249,7 @@ func (c *sipCalls) inviteLocked(req *sip.Request, tx sip.ServerTransaction, port
 		c.router.ModuleClosed(call.ID)
 		c.router.ClientClosed(call.ID, reg.ID)
 		_ = tx.Respond(sip.NewResponseFromRequest(req, 500, "Server Error", nil))
-		return
+		return nil
 	}
 	copy.To().Params.Add("tag", hex.EncodeToString(seed))
 	bind, _, _ := net.SplitHostPort(address)
@@ -263,7 +263,7 @@ func (c *sipCalls) inviteLocked(req *sip.Request, tx sip.ServerTransaction, port
 		c.router.ModuleClosed(call.ID)
 		c.router.ClientClosed(call.ID, reg.ID)
 		_ = tx.Respond(sip.NewResponseFromRequest(req, 503, "Media Network Unavailable", nil))
-		return
+		return nil
 	}
 	leg := &sipOutgoing{owner: c, call: call, reg: reg, request: copy, tx: tx, client: client, ctx: callCtx, cancel: stop, ack: make(chan struct{}), contact: sip.ContactHeader{Address: sip.Uri{Scheme: "sip", Host: public, Port: port}}}
 	c.active[call.ID] = leg
@@ -274,11 +274,14 @@ func (c *sipCalls) inviteLocked(req *sip.Request, tx sip.ServerTransaction, port
 		}
 	})
 	_ = tx.Respond(sip.NewResponseFromRequest(copy, 100, "Trying", nil))
+	done := make(chan struct{})
 	c.wait.Add(1)
 	go func() {
+		defer close(done)
 		defer c.wait.Done()
 		leg.run(samples[call.Module], network, net.ParseIP(bind), net.ParseIP(public))
 	}()
+	return done
 }
 func validDialNumber(v string) bool {
 	if len(v) < 3 || len(v) > 16 {
@@ -340,13 +343,15 @@ func (c *sipOutgoing) run(sample moduleSample, network sipAccountNetwork, bind, 
 	g := c.owner.g
 	m := g.server.modules
 	gate := m.gate(sample.Candidate.Key)
+	gateTimer := time.NewTimer(8 * time.Second)
+	defer gateTimer.Stop()
 	select {
 	case gate <- struct{}{}:
 	case <-c.ctx.Done():
 		c.endPeer()
 		c.finish(true)
 		return
-	default:
+	case <-gateTimer.C:
 		_ = c.respond(503, "Module Busy", nil)
 		c.finish(true)
 		return
@@ -479,7 +484,8 @@ func (c *sipOutgoing) run(sample moduleSample, network sipAccountNetwork, bind, 
 	defer ackTimer.Stop()
 	repeat := time.NewTicker(time.Second)
 	defer repeat.Stop()
-	if c.respond(200, "OK", body) != nil {
+	if err := c.respond(200, "OK", body); err != nil {
+		log.Printf("SIP call %s: answer transaction failed: %v", c.record, err)
 		return
 	}
 	for {
@@ -491,6 +497,12 @@ func (c *sipOutgoing) run(sample moduleSample, network sipAccountNetwork, bind, 
 		case <-repeat.C:
 			if c.respond(200, "OK", body) != nil {
 				return
+			}
+		case ack := <-c.tx.Acks():
+			if ack != nil {
+				g.server.sipAccountsMu.Lock()
+				c.owner.dialogLocked(ack, nil)
+				g.server.sipAccountsMu.Unlock()
 			}
 		case <-c.ack:
 			goto media
@@ -509,11 +521,11 @@ media:
 		for {
 			pcm, e := device.ReadPCM(c.ctx)
 			if e != nil {
-				c.stop()
+				c.mediaFailed("modem-read", e)
 				return
 			}
 			if e = c.rtp.WritePCM(pcm); e != nil {
-				c.stop()
+				c.mediaFailed("rtp-write", e)
 				return
 			}
 		}
@@ -523,11 +535,11 @@ media:
 		for {
 			pcm, e := c.rtp.ReadPCM(c.ctx)
 			if e != nil {
-				c.stop()
+				c.mediaFailed("rtp-read", e)
 				return
 			}
 			if e = device.WritePCM(pcm); e != nil {
-				c.stop()
+				c.mediaFailed("modem-write", e)
 				return
 			}
 		}
@@ -536,6 +548,8 @@ media:
 		select {
 		case <-c.ctx.Done():
 			return
+		case <-c.tx.Acks():
+			// Drain retransmitted same-branch ACKs while media is active.
 		case <-poll.C:
 			check, done := context.WithTimeout(c.ctx, 3*time.Second)
 			state, e := device.State(check)
@@ -545,6 +559,12 @@ media:
 			}
 		}
 	}
+}
+func (c *sipOutgoing) mediaFailed(stage string, err error) {
+	if c.ctx.Err() == nil {
+		log.Printf("SIP call %s: %s failed: %v", c.record, stage, err)
+	}
+	c.stop()
 }
 func (c *sipOutgoing) endPeer() {
 	if !c.accepted.Load() {

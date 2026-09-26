@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/emiago/sipgo"
 	"github.com/emiago/sipgo/sip"
+	"io"
 	"net"
 	"rykvo.local/auth/internal/telephony"
 	"strings"
@@ -12,6 +15,187 @@ import (
 	"testing"
 	"time"
 )
+
+// Exercise sipgo's real handler/transaction lifetime, not only a fake Respond.
+func TestSIPGatewayCallTransactionSurvivesAnswer(t *testing.T) {
+	for _, transport := range []string{"udp", "tcp"} {
+		for _, sameBranch := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/same-branch-%t", transport, sameBranch), func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+				defer cancel()
+				g := newSIPGateway(&server{modules: newModuleManager(nil, nil)})
+				c := g.calls
+				c.ctx = ctx
+				device := &voiceTestDevice{}
+				c.open = func(context.Context, moduleSample) (cellularVoice, error) { return device, nil }
+				c.router.PutPolicy(telephony.Policy{Account: "a", Revision: 1, All: true})
+				c.router.SetModuleReady("module-01", true)
+				reg, _, _ := c.router.Register("a", 1, time.Minute)
+				call, _, _ := c.router.Dial(reg)
+				ua, err := sipgo.NewUA()
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer ua.Close()
+				srv, err := sipgo.NewServer(ua)
+				if err != nil {
+					t.Fatal(err)
+				}
+				done := make(chan struct{})
+				srv.OnInvite(g.callHandler(func(req *sip.Request, tx sip.ServerTransaction) <-chan struct{} {
+					client, err := sipgo.NewClient(ua)
+					if err != nil {
+						t.Error(err)
+						return nil
+					}
+					copy := req.Clone()
+					copy.To().Params.Add("tag", "server")
+					callCtx, stop := context.WithCancel(ctx)
+					leg := &sipOutgoing{owner: c, call: call, reg: reg, request: copy, tx: tx, client: client, ctx: callCtx, cancel: stop, ack: make(chan struct{})}
+					c.active[call.ID] = leg
+					go func() {
+						defer close(done)
+						leg.run(moduleSample{}, sipAccountNetwork{Start: 20000, End: 30000}, net.ParseIP("127.0.0.1"), net.ParseIP("127.0.0.1"))
+					}()
+					return done
+				}))
+				dialog := func(req *sip.Request, tx sip.ServerTransaction) {
+					g.server.sipAccountsMu.Lock()
+					defer g.server.sipAccountsMu.Unlock()
+					c.dialogLocked(req, tx)
+				}
+				srv.OnAck(dialog)
+				srv.OnBye(dialog)
+				var address string
+				if transport == "udp" {
+					listener, err := net.ListenPacket("udp", "127.0.0.1:0")
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer listener.Close()
+					address = listener.LocalAddr().String()
+					go srv.ServeUDP(listener)
+				} else {
+					listener, err := net.Listen("tcp", "127.0.0.1:0")
+					if err != nil {
+						t.Fatal(err)
+					}
+					defer listener.Close()
+					address = listener.Addr().String()
+					go srv.ServeTCP(listener)
+				}
+				conn, err := net.Dial(transport, address)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer conn.Close()
+				conn.SetDeadline(time.Now().Add(6 * time.Second))
+				media, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1")})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer media.Close()
+				body := fmt.Sprintf("v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\ns=test\r\nc=IN IP4 127.0.0.1\r\nt=0 0\r\nm=audio %d RTP/AVP 8\r\n", media.LocalAddr().(*net.UDPAddr).Port)
+				send := func(method, branch, tag string, seq int, body string) {
+					raw := fmt.Sprintf("%s sip:12345@%s SIP/2.0\r\nVia: SIP/2.0/%s %s;branch=z9hG4bK-%s;rport\r\nFrom: <sip:1001@localhost>;tag=phone\r\nTo: <sip:12345@localhost>%s\r\nCall-ID: wire-call\r\nCSeq: %d %s\r\nContact: <sip:1001@%s>\r\nContent-Type: application/sdp\r\nContent-Length: %d\r\n\r\n%s", method, address, strings.ToUpper(transport), conn.LocalAddr(), branch, tag, seq, method, conn.LocalAddr(), len(body), body)
+					if _, err := io.WriteString(conn, raw); err != nil {
+						t.Fatal(err)
+					}
+				}
+				reader := bufio.NewReader(conn)
+				read := func() *sip.Response {
+					var wire []byte
+					if transport == "udp" {
+						wire = make([]byte, 8192)
+						n, err := conn.Read(wire)
+						if err != nil {
+							t.Fatal(err)
+						}
+						wire = wire[:n]
+					} else {
+						size := 0
+						for {
+							line, err := reader.ReadString('\n')
+							if err != nil {
+								t.Fatal(err)
+							}
+							wire = append(wire, line...)
+							fmt.Sscanf(line, "Content-Length: %d", &size)
+							if line == "\r\n" {
+								break
+							}
+						}
+						body := make([]byte, size)
+						if _, err := io.ReadFull(reader, body); err != nil {
+							t.Fatal(err)
+						}
+						wire = append(wire, body...)
+					}
+					msg, err := sip.ParseMessage(wire)
+					if err != nil {
+						t.Fatal(err)
+					}
+					res, ok := msg.(*sip.Response)
+					if !ok {
+						t.Fatalf("unexpected server request: %T", msg)
+					}
+					return res
+				}
+				send("INVITE", "invite", "", 1, body)
+				defer func() {
+					g.server.sipAccountsMu.Lock()
+					for _, leg := range c.active {
+						leg.peerClosed.Store(true)
+						leg.stop()
+					}
+					g.server.sipAccountsMu.Unlock()
+					cancel()
+					select {
+					case <-done:
+					case <-time.After(2 * time.Second):
+						t.Error("worker leaked")
+					}
+				}()
+				answer := read()
+				for answer.StatusCode < 200 {
+					answer = read()
+				}
+				if answer.StatusCode != 200 {
+					t.Fatal(answer.StatusCode)
+				}
+				branch := "ack"
+				if sameBranch {
+					branch = "invite"
+				}
+				send("ACK", branch, ";tag=server", 1, "")
+				media.SetReadDeadline(time.Now().Add(2 * time.Second))
+				packet := make([]byte, 2048)
+				for i := 0; i < 15; i++ {
+					n, peer, err := media.ReadFromUDP(packet)
+					if err != nil || n < 172 {
+						t.Fatalf("media ended after answer: %d %v", n, err)
+					}
+					media.WriteToUDP(packet[:n], peer)
+				}
+				if device.writes.Load() == 0 || device.hangups.Load() != 0 {
+					t.Fatal("audio not bridged")
+				}
+				send("BYE", "bye", ";tag=server", 2, "")
+				if res := read(); res.StatusCode != 200 {
+					t.Fatal(res.StatusCode)
+				}
+				select {
+				case <-done:
+				case <-ctx.Done():
+					t.Fatal("cleanup timed out")
+				}
+				if device.hangups.Load() != 1 || c.router.Status("a") != telephony.Online {
+					t.Fatal("cleanup incomplete")
+				}
+			})
+		}
+	}
+}
 
 type voiceTestTX struct{ responses chan *sip.Response }
 

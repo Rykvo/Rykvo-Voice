@@ -220,11 +220,9 @@ func (g *sipGateway) listen(address string, port int) (*sipListener, error) {
 	srv.OnBye(dialog)
 	srv.OnRegister(handle)
 	srv.OnOptions(handle)
-	srv.OnInvite(func(req *sip.Request, tx sip.ServerTransaction) {
-		g.server.sipAccountsMu.Lock()
-		defer g.server.sipAccountsMu.Unlock()
-		g.calls.inviteLocked(req, tx, port, address, ua)
-	})
+	srv.OnInvite(g.callHandler(func(req *sip.Request, tx sip.ServerTransaction) <-chan struct{} {
+		return g.calls.inviteLocked(req, tx, port, address, ua)
+	}))
 	srv.OnNoRoute(func(req *sip.Request, tx sip.ServerTransaction) {
 		_ = tx.Respond(sip.NewResponseFromRequest(req, 405, "Method Not Allowed", nil))
 	})
@@ -271,4 +269,16 @@ func (g *sipGateway) checkPort(port int, network sipAccountNetwork) error {
 		tcp.Close()
 	}
 	return nil
+}
+
+// Keep the INVITE transaction alive without blocking account changes or ACK/BYE.
+func (g *sipGateway) callHandler(start func(*sip.Request, sip.ServerTransaction) <-chan struct{}) sipgo.RequestHandler {
+	return func(req *sip.Request, tx sip.ServerTransaction) {
+		g.server.sipAccountsMu.Lock()
+		done := start(req, tx)
+		g.server.sipAccountsMu.Unlock()
+		if done != nil {
+			<-done
+		}
+	}
 }
