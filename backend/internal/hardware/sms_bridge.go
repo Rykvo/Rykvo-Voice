@@ -254,6 +254,8 @@ func (w *smsWorker) command(b []byte) bool {
 		code := ""
 		if errors.Is(err, vowifi.ErrSMSNotReady) {
 			code = "SMS_NOT_READY"
+		} else if errors.Is(err, ims.ErrSMSCUnavailable) {
+			code = "SMS_SMSC_UNAVAILABLE"
 		} else if errors.Is(err, ims.ErrSMSRejected) {
 			code = "SMS_REJECTED"
 		} else if err != nil {

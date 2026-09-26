@@ -330,6 +330,8 @@ func (m *moduleManager) processMessage(parent context.Context) {
 		status, issue := "unknown", "SMS_OUTCOME_UNKNOWN"
 		if err != nil && (err.Error() == "SMS_NOT_READY" || err.Error() == "SMS_BUSY") {
 			status, issue = "waiting_network", err.Error()
+		} else if err != nil && err.Error() == "SMS_SMSC_UNAVAILABLE" {
+			status, issue = "failed", err.Error()
 		} else if result.AllPartsAccepted && result.PartsTotal > 0 {
 			status, issue = "accepted", ""
 		} else if result.PartsAccepted > 0 {

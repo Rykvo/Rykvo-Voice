@@ -199,18 +199,55 @@ func (adapter *EC20Adapter) ReadIdentity(
 // AT+CSCA? is read-only and remains available while cellular RF is disabled
 // for a Wi-Fi Calling session.
 func (adapter *EC20Adapter) ReadSMSCenter(ctx context.Context, deviceID string) (string, error) {
-	response, err := adapter.execute(ctx, strings.TrimSpace(deviceID), "AT+CSCA?")
+	adapter.apduMu.Lock()
+	defer adapter.apduMu.Unlock()
+	if locker, ok := adapter.executor.(EC20UICCLocker); ok {
+		locker.LockUICC()
+		defer locker.UnlockUICC()
+	}
+	deviceID = strings.TrimSpace(deviceID)
+	charset, err := adapter.execute(ctx, deviceID, "AT+CSCS?")
+	if err != nil {
+		return "", fmt.Errorf("read EC20 character set: %w", err)
+	}
+	response, err := adapter.execute(ctx, deviceID, "AT+CSCA?")
 	if err != nil {
 		return "", fmt.Errorf("read EC20 SMS service centre: %w", err)
 	}
-	fields := parseCSV(valueAfterATPrefix(response, "+CSCA:"))
-	if len(fields) == 0 {
-		return "", errors.New("vocat: EC20 returned no SMS service-centre address")
+	if charset.Final != "OK" || response.Final != "OK" {
+		return "", errors.New("vocat: incomplete SMS service-centre response")
 	}
-	value := strings.Trim(strings.TrimSpace(fields[0]), `"`)
+	fields := parseCSV(valueAfterATPrefix(response, "+CSCA:"))
+	if len(fields) != 2 {
+		return "", errors.New("vocat: invalid SMS service-centre response")
+	}
+	value := strings.TrimSpace(fields[0])
+	encoding := strings.ToUpper(strings.Trim(strings.TrimSpace(valueAfterATPrefix(charset, "+CSCS:")), `"`))
+	switch encoding {
+	case "UCS2":
+		// CSCA uses the selected TE charset, not the SMS payload encoding.
+		data, err := hex.DecodeString(value)
+		if err != nil || len(data)%2 != 0 || len(data) > 42 {
+			return "", errors.New("vocat: invalid UCS2 service-centre address")
+		}
+		decoded := make([]byte, 0, len(data)/2)
+		for i := 0; i < len(data); i += 2 {
+			if data[i] != 0 || data[i+1] > 127 {
+				return "", errors.New("vocat: non-numeric UCS2 service-centre address")
+			}
+			decoded = append(decoded, data[i+1])
+		}
+		value = string(decoded)
+	case "GSM", "IRA", "ASCII", "8859-1":
+	default:
+		return "", errors.New("vocat: unsupported service-centre character set")
+	}
 	digits := strings.TrimPrefix(value, "+")
 	if !validDigits(digits, 3, 20) {
 		return "", errors.New("vocat: EC20 returned an invalid SMS service-centre address")
+	}
+	if fields[1] == "145" && !strings.HasPrefix(value, "+") {
+		value = "+" + value
 	}
 	return value, nil
 }

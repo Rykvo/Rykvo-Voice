@@ -955,3 +955,40 @@ func TestEC20ReadSMSCenterPSITranscript(t *testing.T) {
 	}
 	transcript.assertDone()
 }
+
+func TestReadSMSCenterCharacterSets(t *testing.T) {
+	for _, tt := range []struct{ name, charset, value, toa, want string }{
+		{"plain", "GSM", "+12025550123", "145", "+12025550123"},
+		{"ucs2", "UCS2", "002B00310032003000320035003500350030003100320033", "145", "+12025550123"},
+		{"ucs2-national", "UCS2", "003100320033", "129", "123"},
+		{"plain-hex-like", "IRA", "003100320033", "129", "003100320033"},
+		{"international-toa", "GSM", "12025550123", "145", "+12025550123"},
+		{"national-toa", "GSM", "12345", "129", "12345"},
+		{"empty", "UCS2", "", "145", ""},
+		{"odd-hex", "UCS2", "003", "145", ""},
+		{"odd-bytes", "UCS2", "003100", "145", ""},
+		{"bad-hex", "UCS2", "003Z", "145", ""},
+		{"non-ascii", "UCS2", "4E2D00310032", "145", ""},
+		{"control", "UCS2", "000D003100320033", "145", ""},
+		{"not-number", "GSM", "abc123", "145", ""},
+		{"unknown-charset", "HEX", "313233", "145", ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			transcript := &ec20Transcript{t: t, steps: []ec20TranscriptStep{
+				{command: "AT+CSCS?", lines: []string{`+CSCS: "` + tt.charset + `"`}, final: "OK"},
+				{command: "AT+CSCA?", lines: []string{`+CSCA: "` + tt.value + `",` + tt.toa}, final: "OK"},
+			}}
+			adapter, err := NewEC20Adapter(transcript, EC20AdapterOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := adapter.ReadSMSCenter(context.Background(), "device")
+			if got != tt.want || (err != nil) != (tt.want == "") {
+				t.Fatalf("got %q, %v; want %q", got, err, tt.want)
+			}
+			if transcript.next != 2 {
+				t.Fatal("must only read charset and SMSC; never change settings")
+			}
+		})
+	}
+}

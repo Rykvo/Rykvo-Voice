@@ -927,7 +927,7 @@ func (session *Session) SendUSSI(ctx context.Context, request vowifi.USSISubmitR
 	if result.Status == "" {
 		result.Status = "final"
 	}
-	result.SubmissionStatus = "accepted_by_smsc"
+	result.SubmissionStatus = "accepted_by_ims"
 	return result, nil
 }
 
