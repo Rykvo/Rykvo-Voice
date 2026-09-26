@@ -401,10 +401,14 @@ func (c *sipOutgoing) run(sample sipVoiceSample, network sipAccountNetwork, bind
 			}
 			if sample.wifi {
 				code := 0
+				fault := ""
 				if d, ok := device.(interface{ SIPCode() int }); ok {
 					code = d.SIPCode()
 				}
-				log.Printf("SIP call %s Wi-Fi audio: RTP=%+v CarrierCode=%d", c.record, c.rtp.ReceiveStats(), code)
+				if d, ok := device.(interface{ MediaFault() string }); ok {
+					fault = d.MediaFault()
+				}
+				log.Printf("SIP call %s Wi-Fi audio: RTP=%+v CarrierCode=%d MediaFault=%s", c.record, c.rtp.ReceiveStats(), code, fault)
 			} else {
 				log.Printf("SIP call %s audio: RTP=%+v USB={Warmup:%d Missing:%d Dropped:%d LateWrites:%d FlowDropped:%d}",
 					c.record, c.rtp.ReceiveStats(), playback.warmup.Load(), playback.missing.Load(), playback.dropped.Load(), playback.lateWrites.Load(), flowDropped)

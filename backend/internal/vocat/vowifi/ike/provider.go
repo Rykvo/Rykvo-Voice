@@ -1088,6 +1088,16 @@ func (session *Session) Network() NetworkEvidence {
 	return network
 }
 
+func (session *Session) OpenMediaRoute(ctx context.Context, local, remote *net.UDPAddr) (io.Closer, error) {
+	session.mu.Lock()
+	child, closed := session.child, session.closed
+	session.mu.Unlock()
+	if router, ok := child.(vowifi.MediaRouter); ok && !closed {
+		return router.OpenMediaRoute(ctx, local, remote)
+	}
+	return nil, errors.New("ike: media route unavailable")
+}
+
 func (session *Session) Failures() <-chan error {
 	session.mu.Lock()
 	defer session.mu.Unlock()

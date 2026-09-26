@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"strings"
 	"time"
 )
@@ -407,6 +409,11 @@ type TunnelProvider interface {
 type TunnelSession interface {
 	Evidence() TunnelEvidence
 	Close(context.Context) error
+}
+
+// Media routes are leased to a negotiated call, not the host's default network.
+type MediaRouter interface {
+	OpenMediaRoute(context.Context, *net.UDPAddr, *net.UDPAddr) (io.Closer, error)
 }
 
 // RuntimeFailureNotifier is an optional long-lived session capability. A

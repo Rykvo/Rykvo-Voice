@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +30,12 @@ type mmsIMSLease struct {
 }
 
 func (l *mmsIMSLease) Close(ctx context.Context) error { l.cancel(); return l.TunnelSession.Close(ctx) }
+func (l *mmsIMSLease) OpenMediaRoute(ctx context.Context, local, remote *net.UDPAddr) (io.Closer, error) {
+	if router, ok := l.TunnelSession.(vowifi.MediaRouter); ok {
+		return router.OpenMediaRoute(ctx, local, remote)
+	}
+	return nil, errors.New("VOICE_MEDIA_ROUTE_UNAVAILABLE")
+}
 func (l *mmsIMSLease) Failures() <-chan error {
 	if n, ok := l.TunnelSession.(vowifi.RuntimeFailureNotifier); ok {
 		return n.Failures()

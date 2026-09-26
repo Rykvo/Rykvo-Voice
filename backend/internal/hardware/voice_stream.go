@@ -45,9 +45,15 @@ type voiceStreamState struct {
 	Call  string `json:"call,omitempty"`
 	Codec string `json:"codec,omitempty"`
 	Code  int    `json:"code,omitempty"`
+	Fault string `json:"fault,omitempty"`
 }
 
 func (s voiceStreamState) valid() bool {
+	switch s.Fault {
+	case "", "stream_read", "media_read", "media_write", "media_open", "invalid_pcm", "media_state":
+	default:
+		return false
+	}
 	if s.Code < 0 || s.Code > 699 || (s.Call != "" && !validVoiceID(s.Call)) || (s.Codec != "" && s.Codec != "PCMA" && s.Codec != "PCMU") {
 		return false
 	}
@@ -220,14 +226,14 @@ func (s *voiceStream) serve(wire *voiceStreamIO) {
 		return
 	}
 	frames := make(chan voiceFrame, 2)
-	failed := make(chan struct{}, 2)
+	failed := make(chan string, 2)
 	readDone := make(chan struct{})
 	go func() {
 		defer close(readDone)
 		for {
 			f, err := readVoiceFrame(wire.conn)
 			if err != nil {
-				failed <- struct{}{}
+				failed <- "stream_read"
 				return
 			}
 			select {
@@ -246,7 +252,8 @@ func (s *voiceStream) serve(wire *voiceStreamIO) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-failed:
+		case fault := <-failed:
+			last.Fault = fault
 			return
 		case f := <-frames:
 			switch f.kind {
@@ -279,7 +286,16 @@ func (s *voiceStream) serve(wire *voiceStreamIO) {
 				return
 			case voicePCM:
 				p, err := decodeVoicePCM(f.data)
-				if err != nil || media == nil || media.WritePCM(p) != nil {
+				if err != nil {
+					last.Fault = "invalid_pcm"
+					return
+				}
+				if media == nil {
+					last.Fault = "media_state"
+					return
+				}
+				if media.WritePCM(p) != nil {
+					last.Fault = "media_write"
 					return
 				}
 			default:
@@ -317,12 +333,13 @@ func (s *voiceStream) serve(wire *voiceStreamIO) {
 						if media == nil {
 							media, err = s.controller.CallMedia(ctx, callID)
 							if err != nil {
+								last.Fault = "media_open"
 								return
 							}
 							mediaWait.Add(1)
 							go func(m vowifi.CallMedia) {
 								defer mediaWait.Done()
-								defer func() { failed <- struct{}{} }()
+								defer func() { failed <- "media_read" }()
 								for {
 									pcm, err := m.ReadPCM(ctx)
 									if err != nil || ctx.Err() != nil {

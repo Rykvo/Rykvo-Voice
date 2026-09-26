@@ -289,3 +289,9 @@ func (v *WiFiCall) SIPCode() int {
 	defer v.mu.Unlock()
 	return v.state.Code
 }
+
+func (v *WiFiCall) MediaFault() string {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	return v.state.Fault
+}

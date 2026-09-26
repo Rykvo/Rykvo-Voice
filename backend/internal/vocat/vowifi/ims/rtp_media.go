@@ -20,7 +20,10 @@ const (
 )
 
 type rtpMedia struct {
-	conn *net.UDPConn
+	conn       *net.UDPConn
+	routeMu    sync.Mutex
+	route      func(context.Context, *net.UDPAddr, *net.UDPAddr) (io.Closer, error)
+	routeLease io.Closer
 
 	mu          sync.RWMutex
 	remote      *net.UDPAddr
@@ -163,11 +166,38 @@ func (media *rtpMedia) configureRemote(body []byte) error {
 	if codec == "" {
 		return errors.New("ims: remote SDP has no usable audio format")
 	}
+	media.routeMu.Lock()
+	defer media.routeMu.Unlock()
+	select {
+	case <-media.closed:
+		return io.EOF
+	default:
+	}
+	remote := &net.UDPAddr{IP: address, Port: port}
+	media.mu.RLock()
+	previous := media.remote
+	media.mu.RUnlock()
+	var old io.Closer
+	if media.route != nil && (media.routeLease == nil || previous == nil || !previous.IP.Equal(address) || previous.Port != port) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		lease, err := media.route(ctx, media.conn.LocalAddr().(*net.UDPAddr), remote)
+		cancel()
+		if err != nil {
+			return errors.New("ims: negotiated media route unavailable")
+		}
+		if lease == nil {
+			return errors.New("ims: missing media route lease")
+		}
+		old, media.routeLease = media.routeLease, lease
+	}
 	media.mu.Lock()
-	media.remote = &net.UDPAddr{IP: address, Port: port}
+	media.remote = remote
 	media.codec = codec
 	media.payloadType = payload
 	media.mu.Unlock()
+	if old != nil {
+		_ = old.Close()
+	}
 	return nil
 }
 
@@ -358,6 +388,12 @@ func (media *rtpMedia) Close() error {
 	media.close.Do(func() {
 		close(media.closed)
 		_ = media.conn.Close()
+		media.routeMu.Lock()
+		if media.routeLease != nil {
+			_ = media.routeLease.Close()
+			media.routeLease = nil
+		}
+		media.routeMu.Unlock()
 	})
 	return nil
 }

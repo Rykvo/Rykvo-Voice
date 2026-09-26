@@ -48,6 +48,7 @@ type linuxUserspaceHandle struct {
 	terminalErr   error
 	failures      chan error
 	cleanup       []ipCleanupCommand
+	mediaRoutes   map[string]*mediaHostRoute
 	firewallRules []openWrtFirewallRule
 }
 
@@ -809,6 +810,9 @@ func (handle *linuxUserspaceHandle) cleanupNetwork(ctx context.Context) error {
 	defer cancel()
 	var errs []error
 	if err := handle.cleanupOpenWrtFirewall(ctx); err != nil {
+		errs = append(errs, err)
+	}
+	if err := handle.cleanupMediaRoutes(ctx); err != nil {
 		errs = append(errs, err)
 	}
 	for index := len(handle.cleanup) - 1; index >= 0; index-- {

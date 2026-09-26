@@ -42,6 +42,7 @@ type imsCall struct {
 	respond        func([]byte) error
 	responses      chan *sipResponse
 	remoteTag      string
+	earlyAnswerTag string
 	routes         []string
 	terminated     bool
 	cancelSent     bool
@@ -93,7 +94,7 @@ func (session *Session) DialCall(ctx context.Context, number string) (vowifi.Cal
 	securityHeaders := runtimeSecurityHeaders(session.securityActive, session.securityAgreement.verifyValue)
 	fromIdentity, preferredIdentity, identitySource := session.callOriginatingIdentitiesLocked(carrierProfile)
 	session.mu.Unlock()
-	media, err := newRTPMedia(session.localMediaIP())
+	media, err := session.newCallRTP()
 	if err != nil {
 		return vowifi.Call{}, err
 	}
@@ -231,7 +232,15 @@ func (session *Session) watchOutgoingCall(call *imsCall, key sipTransactionKey) 
 					continue
 				}
 				if len(response.Body) > 0 {
+					session.callMu.Lock()
+					call.earlyAnswerTag = ""
+					session.callMu.Unlock()
 					if mediaErr := call.media.configureRemote(response.Body); mediaErr == nil {
+						if reliableProvisional(response) {
+							session.callMu.Lock()
+							call.earlyAnswerTag = headerParameter(response.value("To"), "tag")
+							session.callMu.Unlock()
+						}
 						session.setCallMediaReady(call.callID)
 						session.setCallState(call.callID, "early_media")
 					}
@@ -259,13 +268,15 @@ func (session *Session) watchOutgoingCall(call *imsCall, key sipTransactionKey) 
 					session.endAcceptedCall(call)
 					continue
 				}
-				mediaErr := call.media.configureRemote(response.Body)
+				mediaErr := session.configureFinalCallAnswer(call, response)
 				_ = session.sendACK(call)
 				if mediaErr != nil {
+					session.setCallDiagnostic(call.callID, 488, "SIP answer has no usable audio")
 					session.stopCallMedia(call.callID)
 					session.endAcceptedCall(call)
 					continue
 				}
+				session.setCallDiagnostic(call.callID, response.StatusCode, diagnostic)
 				session.setCallMediaReady(call.callID)
 				session.setCallState(call.callID, "active")
 				session.startSessionTimer(call, response.value("Session-Expires"))
@@ -292,6 +303,20 @@ func (session *Session) watchOutgoingCall(call *imsCall, key sipTransactionKey) 
 			return
 		}
 	}
+}
+
+func (session *Session) configureFinalCallAnswer(call *imsCall, response *sipResponse) error {
+	if len(response.Body) > 0 {
+		return call.media.configureRemote(response.Body)
+	}
+	// RFC 3262: reuse a reliable early answer only within its original dialog.
+	session.callMu.Lock()
+	tag := call.earlyAnswerTag
+	session.callMu.Unlock()
+	if tag != "" && tag == headerParameter(response.value("To"), "tag") && call.media.ready() {
+		return nil
+	}
+	return errors.New("ims: final answer has no negotiated audio")
 }
 
 func (session *Session) AnswerCall(_ context.Context, id string) (vowifi.Call, error) {
@@ -516,7 +541,7 @@ func (session *Session) handleCallRequest(request *sipRequest, respond func([]by
 		if target == "" {
 			target = request.URI
 		}
-		media, err := newRTPMedia(session.localMediaIP())
+		media, err := session.newCallRTP()
 		if err != nil {
 			if response, buildErr := buildSIPResponseWithBody(request, 488, session.fromTag, nil); buildErr == nil {
 				_ = respond(response)
@@ -972,6 +997,22 @@ func (session *Session) localMediaIP() net.IP {
 		localAddress = session.conn.LocalAddr()
 	}
 	return addressIP(localAddress)
+}
+
+func (session *Session) newCallRTP() (*rtpMedia, error) {
+	media, err := newRTPMedia(session.localMediaIP())
+	if err != nil {
+		return nil, err
+	}
+	if session.request.Tunnel != nil {
+		router, ok := session.request.Tunnel.(vowifi.MediaRouter)
+		if !ok {
+			media.Close()
+			return nil, errors.New("ims: media routing unavailable")
+		}
+		media.route = router.OpenMediaRoute
+	}
+	return media, nil
 }
 
 func buildSIPResponseWithBody(request *sipRequest, status int, tag string, body []byte, extraHeaders ...string) ([]byte, error) {
