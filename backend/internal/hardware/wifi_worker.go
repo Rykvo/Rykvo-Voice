@@ -34,9 +34,10 @@ type wifiWorkerRequest struct {
 	RestoreOnly                              bool `json:"restoreOnly,omitempty"`
 }
 type wifiWorkerEvent struct {
-	MMSResult *mmsReply    `json:"mmsResult,omitempty"`
-	SMS       *SMSDelivery `json:"sms,omitempty"`
-	SMSResult *SMSReply    `json:"smsResult,omitempty"`
+	VoiceResult *voiceReply  `json:"voiceResult,omitempty"`
+	MMSResult   *mmsReply    `json:"mmsResult,omitempty"`
+	SMS         *SMSDelivery `json:"sms,omitempty"`
+	SMSResult   *SMSReply    `json:"smsResult,omitempty"`
 
 	CarrierConfig *carrierconfig.Selection `json:"carrierConfig,omitempty"`
 	PhoneNumber   string                   `json:"phoneNumber,omitempty"`
@@ -128,6 +129,12 @@ func wifiWorkerExchangeSMS(ctx context.Context, conn net.Conn, request wifiWorke
 		var event wifiWorkerEvent
 		if json.Unmarshal(scanner.Bytes(), &event) != nil {
 			break
+		}
+		if event.VoiceResult != nil {
+			if sms == nil || event.SMS != nil || event.SMSResult != nil || event.MMSResult != nil || event.CarrierConfig != nil || event.PhoneNumber != "" || event.Stage != "" || event.Done || event.Code != "" || !sms.voiceEvent(*event.VoiceResult) {
+				break
+			}
+			continue
 		}
 		if event.SMS != nil || event.SMSResult != nil || event.MMSResult != nil {
 			if sms == nil || event.CarrierConfig != nil || event.PhoneNumber != "" || event.Stage != "" || event.Done || event.Code != "" || (event.SMS != nil && event.SMSResult != nil) || (event.MMSResult != nil && (event.SMS != nil || event.SMSResult != nil)) {
@@ -267,12 +274,14 @@ func serveWiFiWorker(parent context.Context, input io.Reader, output io.Writer, 
 		return err
 	}
 	sms := newSMSWorker(ctx, encoder, cancel)
+	voice := newVoiceWorker(ctx, sms.emit)
 	// EOF, explicit stop, or malformed extra input all cancel this one lease.
 	var restore atomic.Bool
 	if actual, ok := engine.(*VocatWiFi); ok {
 		copied := *actual
 		copied.RestoreCellular = restore.Load
 		copied.messaging = sms
+		copied.voice = voice
 		engine = &copied
 	}
 	go func() {
@@ -285,6 +294,15 @@ func serveWiFiWorker(parent context.Context, input io.Reader, output io.Writer, 
 			case "stop":
 				return
 			default:
+				var op struct {
+					Op string `json:"op"`
+				}
+				if json.Unmarshal(scanner.Bytes(), &op) == nil && strings.HasPrefix(op.Op, "voice-") {
+					if !voice.command(scanner.Bytes()) {
+						return
+					}
+					continue
+				}
 				if !sms.command(scanner.Bytes()) {
 					return
 				}

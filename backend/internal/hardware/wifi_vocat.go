@@ -21,6 +21,7 @@ import (
 // Select at service startup; it never falls back to the legacy engine mid-session.
 type VocatWiFi struct {
 	messaging       *smsWorker
+	voice           *voiceWorker
 	System          *System
 	RestoreCellular func() bool
 }
@@ -236,6 +237,10 @@ func (engine *VocatWiFi) WiFi(ctx context.Context, c Candidate, identity, iccid 
 		defer func() { engine.messaging.setMMSHandler(nil); engine.messaging.mmsWait.Wait() }()
 		engine.messaging.setSender(o.SendSMS)
 		defer engine.messaging.setSender(nil)
+	}
+	if engine.voice != nil {
+		engine.voice.setController(o)
+		defer func() { engine.voice.setController(nil); engine.voice.wait.Wait() }()
 	}
 	return runVocatRegistration(ctx, o, emit)
 }

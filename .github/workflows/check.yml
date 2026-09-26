@@ -56,6 +56,9 @@ jobs:
       - name: SIP TCP framing bounds
         working-directory: backend
         run: go test ./internal/hardware -run '^$' -fuzz '^FuzzWiFiSIPStream$' -fuzztime=20s -parallel=2
+      - name: Private voice control bounds
+        working-directory: backend
+        run: go test ./internal/hardware -run '^$' -fuzz '^FuzzVoiceControlBoundary$' -fuzztime=20s -parallel=2
       - name: Isolated IMS and MMS bearer routes
         working-directory: backend
         run: |

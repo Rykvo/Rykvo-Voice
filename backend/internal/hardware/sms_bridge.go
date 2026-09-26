@@ -70,16 +70,17 @@ func (e *smsEventEncoder) Encode(v any) error {
 }
 
 type smsClientSession struct {
-	ctx        context.Context
-	conn       net.Conn
-	writeMu    sync.Mutex
-	mu         sync.Mutex
-	pending    map[string]chan SMSReply
-	mmsPending map[string]chan mmsReply
-	closed     chan struct{}
-	ready      chan struct{}
-	once       sync.Once
-	receive    func(context.Context, SMSDelivery) error
+	ctx          context.Context
+	conn         net.Conn
+	writeMu      sync.Mutex
+	mu           sync.Mutex
+	pending      map[string]chan SMSReply
+	mmsPending   map[string]chan mmsReply
+	voicePending map[string]chan voiceReply
+	closed       chan struct{}
+	ready        chan struct{}
+	once         sync.Once
+	receive      func(context.Context, SMSDelivery) error
 }
 
 func newSMSClientSession(ctx context.Context, c net.Conn, receive func(context.Context, SMSDelivery) error) *smsClientSession {

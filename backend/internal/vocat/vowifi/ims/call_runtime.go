@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"rykvo.local/auth/internal/vocat/vowifi"
@@ -16,6 +17,7 @@ import (
 var (
 	ErrCallNotFound = errors.New("ims: call not found")
 	ErrCallState    = errors.New("ims: call is not in the required state")
+	ErrCallEnding   = errors.New("ims: call termination is not confirmed")
 )
 
 const terminalCallRetention = 30 * time.Second
@@ -40,6 +42,10 @@ type imsCall struct {
 	remoteTag      string
 	routes         []string
 	terminated     bool
+	cancelSent     bool
+	accepted       bool
+	operation      *sync.Mutex
+	lastResponse   []byte
 	media          *rtpMedia
 	pracked        map[string]bool
 	sessionExpires int
@@ -144,6 +150,16 @@ func (session *Session) DialCall(ctx context.Context, number string) (vowifi.Cal
 		routes: routes, media: media, pracked: make(map[string]bool),
 	}
 	session.callMu.Lock()
+	for _, current := range session.calls {
+		if current.public.EndedAt == nil {
+			session.callMu.Unlock()
+			_ = media.Close()
+			session.transactionsMu.Lock()
+			delete(session.transactions, key)
+			session.transactionsMu.Unlock()
+			return vowifi.Call{}, ErrCallState
+		}
+	}
 	session.calls[callID] = call
 	session.callMu.Unlock()
 	if session.provider != nil && session.provider.config.Logger != nil {
@@ -168,12 +184,14 @@ func (session *Session) DialCall(ctx context.Context, number string) (vowifi.Cal
 		session.callMu.Unlock()
 		return vowifi.Call{}, fmt.Errorf("ims: send SIP INVITE: %w", err)
 	}
+	result := call.public
 	go session.watchOutgoingCall(call, key)
-	return call.public, nil
+	return result, nil
 }
 
 func (session *Session) watchOutgoingCall(call *imsCall, key sipTransactionKey) {
 	timer := time.NewTimer(2 * time.Minute)
+	final := false
 	defer timer.Stop()
 	defer func() {
 		session.transactionsMu.Lock()
@@ -185,11 +203,12 @@ func (session *Session) watchOutgoingCall(call *imsCall, key sipTransactionKey) 
 		case <-session.refreshContext.Done():
 			return
 		case <-timer.C:
-			if session.callWasTerminated(call.callID) {
-				session.finishCall(call.callID, "ended", 0, "")
+			if final {
 				return
 			}
-			session.finishCall(call.callID, "failed", 0, "SIP INVITE transaction timed out")
+			// A timeout is not evidence that the carrier released the call.
+			session.stopCallMedia(call.callID)
+			session.setCallDiagnostic(call.callID, 0, "SIP INVITE termination unconfirmed")
 			return
 		case response := <-call.responses:
 			if response == nil {
@@ -198,8 +217,15 @@ func (session *Session) watchOutgoingCall(call *imsCall, key sipTransactionKey) 
 			diagnostic := callResponseDiagnostic(response)
 			session.logCallResponse(response, diagnostic)
 			if response.StatusCode < 200 {
+				if final {
+					continue
+				}
 				session.setCallDiagnostic(call.callID, response.StatusCode, diagnostic)
 				session.updateCallDialogFromResponse(call, response)
+				if session.callWasTerminated(call.callID) {
+					go session.cancelPendingCall(call)
+					continue
+				}
 				if len(response.Body) > 0 {
 					if mediaErr := call.media.configureRemote(response.Body); mediaErr == nil {
 						session.setCallMediaReady(call.callID)
@@ -214,21 +240,32 @@ func (session *Session) watchOutgoingCall(call *imsCall, key sipTransactionKey) 
 				continue
 			}
 			if response.StatusCode >= 200 && response.StatusCode < 300 {
+				if final {
+					session.ackRepeatedAcceptance(call, response)
+					continue
+				}
+				final = true
+				timer.Reset(32 * time.Second)
 				session.updateCallDialogFromResponse(call, response)
+				session.callMu.Lock()
+				call.accepted = true
+				session.callMu.Unlock()
+				if session.callWasTerminated(call.callID) {
+					_ = session.sendACK(call)
+					session.endAcceptedCall(call)
+					continue
+				}
 				mediaErr := call.media.configureRemote(response.Body)
 				_ = session.sendACK(call)
 				if mediaErr != nil {
-					session.finishCall(call.callID, "failed", response.StatusCode, mediaErr.Error())
-					go func() {
-						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-						defer cancel()
-						_ = session.sendDialogRequest(ctx, call, "BYE")
-					}()
-					return
+					session.stopCallMedia(call.callID)
+					session.endAcceptedCall(call)
+					continue
 				}
 				session.setCallMediaReady(call.callID)
 				session.setCallState(call.callID, "active")
 				session.startSessionTimer(call, response.value("Session-Expires"))
+				continue
 			} else {
 				if ackErr := session.sendRejectedInviteACK(call, response); ackErr != nil && session.provider != nil && session.provider.config.Logger != nil {
 					session.provider.config.Logger.Warn("IMS rejected INVITE ACK failed",
@@ -254,13 +291,19 @@ func (session *Session) watchOutgoingCall(call *imsCall, key sipTransactionKey) 
 }
 
 func (session *Session) AnswerCall(_ context.Context, id string) (vowifi.Call, error) {
+	op, err := session.callOperation(id)
+	if err != nil {
+		return vowifi.Call{}, err
+	}
+	op.Lock()
+	defer op.Unlock()
 	session.callMu.Lock()
 	call := session.calls[id]
 	if call == nil {
 		session.callMu.Unlock()
 		return vowifi.Call{}, ErrCallNotFound
 	}
-	if call.public.Direction != "incoming" || call.public.State != "ringing" || call.invite == nil || call.respond == nil {
+	if call.terminated || call.public.Direction != "incoming" || call.public.State != "ringing" || call.invite == nil || call.respond == nil {
 		session.callMu.Unlock()
 		return vowifi.Call{}, ErrCallState
 	}
@@ -279,6 +322,10 @@ func (session *Session) AnswerCall(_ context.Context, id string) (vowifi.Call, e
 	if err := respond(response); err != nil {
 		return vowifi.Call{}, err
 	}
+	session.callMu.Lock()
+	call.lastResponse = append([]byte(nil), response...)
+	call.accepted = true
+	session.callMu.Unlock()
 	session.setCallState(id, "active")
 	session.startSessionTimer(call, request.value("Session-Expires"))
 	if call.media.ready() {
@@ -291,6 +338,12 @@ func (session *Session) AnswerCall(_ context.Context, id string) (vowifi.Call, e
 }
 
 func (session *Session) HangupCall(ctx context.Context, id string) error {
+	op, err := session.callOperation(id)
+	if err != nil {
+		return err
+	}
+	op.Lock()
+	defer op.Unlock()
 	session.callMu.Lock()
 	call := session.calls[id]
 	if call == nil {
@@ -298,10 +351,16 @@ func (session *Session) HangupCall(ctx context.Context, id string) error {
 		return ErrCallNotFound
 	}
 	state := call.public.State
+	if call.public.EndedAt != nil {
+		session.callMu.Unlock()
+		return nil
+	}
 	direction := call.public.Direction
+	accepted := call.accepted
 	request, respond := call.invite, call.respond
 	call.terminated = true
 	session.callMu.Unlock()
+	session.stopCallMedia(id)
 	if direction == "incoming" && state == "ringing" && request != nil && respond != nil {
 		response, err := buildSIPResponseWithBody(request, 486, session.fromTag, nil)
 		if err != nil {
@@ -310,18 +369,99 @@ func (session *Session) HangupCall(ctx context.Context, id string) error {
 		if err := respond(response); err != nil {
 			return err
 		}
+		session.callMu.Lock()
+		call.lastResponse = append([]byte(nil), response...)
+		session.callMu.Unlock()
 		session.finishCall(id, "ended", 0, "")
 		return nil
 	}
-	method := "BYE"
-	if direction == "outgoing" && (state == "dialing" || state == "ringing" || state == "early_media") {
-		method = "CANCEL"
+	if direction == "outgoing" && !accepted {
+		session.callMu.Lock()
+		provisional := call.public.SIPCode >= 100 && call.public.SIPCode < 200
+		session.callMu.Unlock()
+		if provisional {
+			session.cancelPendingCall(call)
+		}
+		return ErrCallEnding
 	}
-	err := session.sendDialogRequest(ctx, call, method)
-	// A remote endpoint may already have removed the dialog and answer BYE with
-	// 481. The local call must still leave the active list after a hang-up.
-	session.finishCall(id, "ended", 0, "")
+	err = session.sendDialogRequest(ctx, call, "BYE")
+	if err == nil {
+		session.finishCall(id, "ended", 0, "")
+	}
 	return err
+}
+
+func (session *Session) callOperation(id string) (*sync.Mutex, error) {
+	session.callMu.Lock()
+	defer session.callMu.Unlock()
+	call := session.calls[id]
+	if call == nil {
+		return nil, ErrCallNotFound
+	}
+	if call.operation == nil {
+		call.operation = &sync.Mutex{}
+	}
+	return call.operation, nil
+}
+
+func (session *Session) stopCallMedia(id string) {
+	session.callMu.Lock()
+	call := session.calls[id]
+	var media *rtpMedia
+	if call != nil {
+		call.terminated = true
+		if call.public.EndedAt == nil {
+			call.public.State = "ending"
+		}
+		call.public.MediaReady = false
+		media = call.media
+		if call.sessionCancel != nil {
+			call.sessionCancel()
+			call.sessionCancel = nil
+		}
+	}
+	session.callMu.Unlock()
+	if media != nil {
+		_ = media.Close()
+	}
+}
+
+func (session *Session) cancelPendingCall(call *imsCall) {
+	session.callMu.Lock()
+	if call.cancelSent || call.public.EndedAt != nil {
+		session.callMu.Unlock()
+		return
+	}
+	call.cancelSent = true
+	session.callMu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	// 200 to CANCEL only acknowledges CANCEL; wait for INVITE's final response.
+	_ = session.sendDialogRequest(ctx, call, "CANCEL")
+}
+
+func (session *Session) endAcceptedCall(call *imsCall) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if session.sendDialogRequest(ctx, call, "BYE") == nil {
+		session.finishCall(call.callID, "ended", 0, "")
+	}
+}
+
+func (session *Session) ackRepeatedAcceptance(call *imsCall, response *sipResponse) {
+	session.callMu.Lock()
+	dialog := *call
+	dialog.routes = append([]string(nil), call.routes...)
+	winner := call.remoteTag
+	session.callMu.Unlock()
+	session.updateCallDialogFromResponse(&dialog, response)
+	_ = session.sendACK(&dialog)
+	if dialog.remoteTag != winner {
+		// Another fork answered after the winner; ACK it, then close only that leg.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = session.sendDialogRequest(ctx, &dialog, "BYE")
+	}
 }
 
 func (session *Session) callWasTerminated(id string) bool {
@@ -340,9 +480,32 @@ func (session *Session) handleCallRequest(request *sipRequest, respond func([]by
 		}
 		session.callMu.Lock()
 		existing := session.calls[callID]
+		active := existing != nil && !existing.terminated && existing.public.State == "active"
+		repeat := existing != nil && existing.invite != nil && existing.invite.value("CSeq") == request.value("CSeq") && existing.invite.value("Via") == request.value("Via")
 		session.callMu.Unlock()
-		if existing != nil && existing.public.State == "active" {
+		if repeat {
+			op, err := session.callOperation(callID)
+			if err != nil {
+				return true
+			}
+			op.Lock()
+			session.callMu.Lock()
+			cached := append([]byte(nil), existing.lastResponse...)
+			session.callMu.Unlock()
+			if len(cached) != 0 {
+				_ = respond(cached)
+			}
+			op.Unlock()
+			return true
+		}
+		if active {
 			return session.handleDialogOffer(request, respond, existing)
+		}
+		if existing != nil {
+			if response, err := buildSIPResponseWithBody(request, 481, session.fromTag, nil); err == nil {
+				_ = respond(response)
+			}
+			return true
 		}
 		number := identityNumber(request.value("From"))
 		target := headerURI(request.value("Contact"))
@@ -371,7 +534,23 @@ func (session *Session) handleCallRequest(request *sipRequest, respond func([]by
 			to: request.value("From"), invite: request, respond: respond, routes: request.values("Record-Route"), media: media,
 			pracked: make(map[string]bool),
 		}
+		response, err := buildSIPResponseWithBody(request, 180, session.fromTag, nil)
+		if err != nil {
+			_ = media.Close()
+			return true
+		}
+		call.lastResponse = append([]byte(nil), response...)
 		session.callMu.Lock()
+		for _, current := range session.calls {
+			if current.public.EndedAt == nil || current.callID == callID {
+				session.callMu.Unlock()
+				_ = media.Close()
+				if busy, err := buildSIPResponseWithBody(request, 486, session.fromTag, nil); err == nil {
+					_ = respond(busy)
+				}
+				return true
+			}
+		}
 		session.calls[callID] = call
 		session.callMu.Unlock()
 		if session.provider != nil && session.provider.config.Logger != nil {
@@ -401,10 +580,7 @@ func (session *Session) handleCallRequest(request *sipRequest, respond func([]by
 				_ = session.provider.config.OnIncomingCall(ctx, receivedCall)
 			}()
 		}
-		response, err := buildSIPResponseWithBody(request, 180, session.fromTag, nil)
-		if err == nil {
-			_ = respond(response)
-		}
+		_ = respond(response)
 		return true
 	case "PRACK":
 		response, err := buildSIPResponseWithBody(request, 200, session.fromTag, nil)
@@ -435,18 +611,48 @@ func (session *Session) handleCallRequest(request *sipRequest, respond func([]by
 		}
 		return true
 	case "CANCEL", "BYE":
+		callID := strings.TrimSpace(request.value("Call-ID"))
+		op, found := session.callOperation(callID)
+		if found != nil {
+			if response, err := buildSIPResponseWithBody(request, 481, session.fromTag, nil); err == nil {
+				_ = respond(response)
+			}
+			return true
+		}
+		op.Lock()
+		defer op.Unlock()
+		session.callMu.Lock()
+		call := session.calls[callID]
+		if call == nil {
+			session.callMu.Unlock()
+			if response, err := buildSIPResponseWithBody(request, 481, session.fromTag, nil); err == nil {
+				_ = respond(response)
+			}
+			return true
+		}
+		cancelMatches := matchesCancelledInvite(call.invite, request)
+		accepted := call.accepted
+		session.callMu.Unlock()
+		if request.Method == "CANCEL" && !cancelMatches {
+			if response, err := buildSIPResponseWithBody(request, 481, session.fromTag, nil); err == nil {
+				_ = respond(response)
+			}
+			return true
+		}
 		response, err := buildSIPResponseWithBody(request, 200, session.fromTag, nil)
 		if err == nil {
 			_ = respond(response)
 		}
-		callID := strings.TrimSpace(request.value("Call-ID"))
 		if request.Method == "CANCEL" {
-			session.callMu.Lock()
-			call := session.calls[callID]
-			session.callMu.Unlock()
+			if accepted {
+				return true
+			}
 			if call != nil && call.invite != nil && call.respond != nil {
 				if terminated, buildErr := buildSIPResponseWithBody(call.invite, 487, session.fromTag, nil); buildErr == nil {
 					_ = call.respond(terminated)
+					session.callMu.Lock()
+					call.lastResponse = append([]byte(nil), terminated...)
+					session.callMu.Unlock()
 				}
 			}
 		}
@@ -455,6 +661,14 @@ func (session *Session) handleCallRequest(request *sipRequest, respond func([]by
 	default:
 		return false
 	}
+}
+
+func matchesCancelledInvite(invite, cancel *sipRequest) bool {
+	if invite == nil || cancel == nil {
+		return false
+	}
+	a, b := strings.Fields(invite.value("CSeq")), strings.Fields(cancel.value("CSeq"))
+	return len(a) == 2 && len(b) == 2 && a[0] == b[0] && a[1] == "INVITE" && b[1] == "CANCEL" && invite.value("Via") != "" && invite.value("Via") == cancel.value("Via")
 }
 
 func (session *Session) sendACK(call *imsCall) error {
@@ -631,6 +845,11 @@ func (session *Session) startSessionTimer(call *imsCall, header string) {
 	}
 	ctx, cancel := context.WithCancel(session.refreshContext)
 	session.callMu.Lock()
+	if call.terminated || call.public.EndedAt != nil {
+		session.callMu.Unlock()
+		cancel()
+		return
+	}
 	if call.sessionCancel != nil {
 		call.sessionCancel()
 	}
@@ -678,6 +897,9 @@ func (session *Session) sendDialogRequest(ctx context.Context, call *imsCall, me
 	if err != nil {
 		return err
 	}
+	if method == "BYE" && response.StatusCode == 481 {
+		return nil
+	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return fmt.Errorf("ims: SIP %s rejected with %d", method, response.StatusCode)
 	}
@@ -685,6 +907,11 @@ func (session *Session) sendDialogRequest(ctx context.Context, call *imsCall, me
 }
 
 func (session *Session) buildDialogRequest(call *imsCall, method string, cseq uint32) []byte {
+	session.callMu.Lock()
+	copy := *call
+	copy.routes = append([]string(nil), call.routes...)
+	session.callMu.Unlock()
+	call = &copy
 	branch, _ := randomHex(12)
 	if method == "CANCEL" {
 		branch = call.branch
@@ -739,7 +966,7 @@ func (session *Session) localMediaIP() net.IP {
 }
 
 func buildSIPResponseWithBody(request *sipRequest, status int, tag string, body []byte, extraHeaders ...string) ([]byte, error) {
-	reasons := map[int]string{180: "Ringing", 200: "OK", 486: "Busy Here", 487: "Request Terminated", 488: "Not Acceptable Here"}
+	reasons := map[int]string{180: "Ringing", 200: "OK", 481: "Call/Transaction Does Not Exist", 486: "Busy Here", 487: "Request Terminated", 488: "Not Acceptable Here"}
 	reason := reasons[status]
 	if reason == "" {
 		return nil, errors.New("ims: unsupported call response status")
@@ -875,7 +1102,7 @@ func (session *Session) logCallResponse(response *sipResponse, diagnostic string
 
 func (session *Session) setCallState(id, state string) {
 	session.callMu.Lock()
-	if call := session.calls[id]; call != nil {
+	if call := session.calls[id]; call != nil && !call.terminated && call.public.EndedAt == nil {
 		call.public.State = state
 		if state == "active" && call.public.AnsweredAt == nil {
 			now := time.Now().UTC()
@@ -899,7 +1126,7 @@ func (session *Session) setCallDiagnostic(id string, code int, reason string) {
 
 func (session *Session) setCallMediaReady(id string) {
 	session.callMu.Lock()
-	if call := session.calls[id]; call != nil && call.media != nil {
+	if call := session.calls[id]; call != nil && !call.terminated && call.public.EndedAt == nil && call.media != nil {
 		call.public.MediaReady = call.media.ready()
 		call.public.Codec = call.media.Codec()
 	}
@@ -913,7 +1140,7 @@ func (session *Session) CallMedia(_ context.Context, id string) (vowifi.CallMedi
 	if call == nil {
 		return nil, ErrCallNotFound
 	}
-	if call.public.State != "active" || call.media == nil || !call.media.ready() {
+	if call.terminated || call.public.State != "active" || call.media == nil || !call.media.ready() {
 		return nil, ErrCallState
 	}
 	return call.media, nil
@@ -925,6 +1152,8 @@ func (session *Session) finishCall(id, state string, code int, reason string) {
 	session.callMu.Lock()
 	if call := session.calls[id]; call != nil {
 		media = call.media
+		call.terminated = true
+		call.public.MediaReady = false
 		call.public.State = state
 		if code != 0 {
 			call.public.SIPCode = code

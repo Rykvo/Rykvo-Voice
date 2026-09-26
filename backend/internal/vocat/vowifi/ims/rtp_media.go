@@ -223,11 +223,21 @@ func (media *rtpMedia) ReadPCM(ctx context.Context) ([]int16, error) {
 	case <-media.closed:
 		return nil, io.EOF
 	case samples := <-media.downlink:
+		select {
+		case <-media.closed:
+			return nil, io.EOF
+		default:
+		}
 		return samples, nil
 	}
 }
 
 func (media *rtpMedia) WritePCM(samples []int16) error {
+	select {
+	case <-media.closed:
+		return io.EOF
+	default:
+	}
 	media.mu.RLock()
 	var remote *net.UDPAddr
 	if media.remote != nil {
