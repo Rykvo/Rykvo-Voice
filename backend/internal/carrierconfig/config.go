@@ -12,7 +12,10 @@ import (
 //go:embed catalog.json
 var catalogJSON []byte
 
-const Version = "aosp-73f904fbeb87-cid-bca387f553a4"
+//go:embed iwlan.json
+var iwlanJSON []byte
+
+const Version = "aosp-73f904fbeb87-cid-bca387f553a4-iwlan-871c11fe48e2"
 
 type Identity struct{ MCC, MNC, SPN, GID1, GID2, IMSI, ICCID string }
 type Profile struct {
@@ -43,12 +46,21 @@ type Selection struct {
 	MNC     string `json:"mnc"`
 	Data    Choice `json:"data"`
 	MMS     Choice `json:"mms"`
+	MMSWiFi Choice `json:"mmsWifi"`
 }
 
 var catalog = func() []Profile {
 	var p []Profile
 	if json.Unmarshal(catalogJSON, &p) != nil {
 		panic("invalid bundled APN catalog")
+	}
+	return p
+}()
+
+var iwlanCatalog = func() []Profile {
+	var p []Profile
+	if json.Unmarshal(iwlanJSON, &p) != nil {
+		panic("invalid bundled IWLAN catalog")
 	}
 	return p
 }()
@@ -65,12 +77,16 @@ func digits(s string, min, max int) bool {
 	return true
 }
 func Match(id Identity) Selection {
-	s := Selection{Version: Version, MCC: id.MCC, MNC: id.MNC, Data: Choice{Status: "identity_required"}, MMS: Choice{Status: "identity_required"}}
+	s := Selection{Version: Version, MCC: id.MCC, MNC: id.MNC, Data: Choice{Status: "identity_required"}, MMS: Choice{Status: "identity_required"}, MMSWiFi: Choice{Status: "identity_required"}}
 	if !digits(id.MCC, 3, 3) || !digits(id.MNC, 2, 3) || !strings.HasPrefix(id.IMSI, id.MCC+id.MNC) {
 		return s
 	}
 	s.Data = choose(catalog, id, "default")
 	s.MMS = choose(catalog, id, "mms")
+	s.MMSWiFi = choose(iwlanCatalog, id, "mms")
+	if s.MMSWiFi.Status == "not_found" {
+		s.MMSWiFi = s.MMS
+	}
 	return s
 }
 func mvno(p Profile, id Identity) (bool, int) {
@@ -195,7 +211,11 @@ func (s Selection) Valid() bool {
 	if s.Version != Version || !digits(s.MCC, 3, 3) || !digits(s.MNC, 2, 3) {
 		return false
 	}
-	for kind, c := range map[string]Choice{"default": s.Data, "mms": s.MMS} {
+	for _, entry := range []struct {
+		kind   string
+		choice Choice
+	}{{"default", s.Data}, {"mms", s.MMS}, {"mms", s.MMSWiFi}} {
+		kind, c := entry.kind, entry.choice
 		switch c.Status {
 		case "matched":
 			if c.Profile == nil || c.Profile.MCC != s.MCC || c.Profile.MNC != s.MNC || !validProfile(*c.Profile, kind) {
@@ -212,7 +232,7 @@ func (s Selection) Valid() bool {
 	return true
 }
 func (s Selection) Public() Selection {
-	for _, c := range []*Choice{&s.Data, &s.MMS} {
+	for _, c := range []*Choice{&s.Data, &s.MMS, &s.MMSWiFi} {
 		if c.Profile != nil {
 			p := *c.Profile
 			p.Password = ""

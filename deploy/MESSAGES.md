@@ -1,4 +1,4 @@
-# SMS / MMS 实现状态（1.5.0）
+# SMS / MMS
 
 ## 已接入
 - 蜂窝短信：AT PDU 发送；逐个读取 SM/ME 存储并恢复原读取存储；不删除模块存储。
@@ -8,11 +8,9 @@
 - APN/MMSC：固定版本 AOSP APN 和 Carrier ID 库，按 SIM 归属网络及 MVNO 条件匹配，不按漫游访问网络匹配。未知或冲突配置不猜测。
 - MMS：有界 MM1 编解码、WAP Push、附件校验、确认响应检查及收件下载流程。
 
-## 尚未完成：MMS 运营商专用承载
-当前 MMS HTTP 传输仅支持公网主机网络；拒绝本地、私有和元数据地址，不接管主机路由。
-运营商 MMSC/代理若只能从蜂窝 MMS APN 或专用 ePDG PDN 到达，显示 `waiting_network / MMS_NETWORK_REQUIRED`；不能视为彩信成功。
-尚未实现专用蜂窝 PDP、MMS ePDG PDN、临时恢复蜂窝及可靠恢复原射频状态。
-Wi-Fi SMS 正常不代表 MMS 承载已就绪。匹配到 APN/MMSC 不代表所有运营商均支持。
+## MMS 运营商专用承载
+蜂窝使用收件 SIM 的 EC20 MMS PDP；Wi-Fi 使用同一 SIM 的独立 MMS APN/ePDG 承载。DNS/TCP 绑定承载，不使用主机普通网络、不切换主机默认路由。Wi-Fi 与蜂窝配置分别匹配，详细流程见 MMS.md。
+2026-09-26 电信蜂窝入站图片已实卡下载并入库；Wi-Fi SMS 正常不代表 MMS 承载已就绪。匹配到 APN/MMSC 不代表所有运营商均支持，Wi-Fi 彩信需单独验收。
 
 ## 行为边界
 - `accepted` 仅代表网络接受；SMS 有可靠回执才标记 `delivered`，不表示已读。

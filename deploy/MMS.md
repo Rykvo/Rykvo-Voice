@@ -29,4 +29,6 @@ EC20 没有原生 QMMSRECV。现有 WAP Push 短信解码/分片重组提取通�
 
 接收通知使用 MMS From 归入原会话，保留 SMS 网关与原始分片。M-Delivery.ind 投递报告保留作协议记录，不显示为空聊天；缺少发送端 Message-ID 关联时不推断已送达。
 
+按承载分别匹配 MMS 配置：固定 AOSP IWLAN（bearer=18）补充条目为 T-Mobile Carrier ID 1 使用 `TMUS` / IPv6，蜂窝仍使用原配置。来源与哈希见 carrierconfig/SOURCE.json；其他 SIM 不套用该条目。没有专用条目时保留该 SIM 原 MMS 配置，运营商接受情况仍需实测。
+
 Wi-Fi 实现参考：[AOSP MMS 网络选择](https://android.googlesource.com/platform/packages/services/Mms/+/f967d44cda77964d27df98e69c1e87687e2ec66f/src/com/android/mms/service/MmsNetworkManager.java)、[AOSP IWLAN 数据服务](https://android.googlesource.com/platform/packages/services/Iwlan/+/5911cf8d35bc0796f58b809f96bb830f7840ba2e/src/com/google/android/iwlan/IwlanDataService.java)。

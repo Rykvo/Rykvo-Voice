@@ -1,0 +1,13 @@
+[
+  {
+    "carrier": "T-Mobile MMS",
+    "carrier_id": "1",
+    "mcc": "310",
+    "mnc": "260",
+    "apn": "TMUS",
+    "mmsc": "http://mms.msg.eng.t-mobile.com/mms/wapenc",
+    "type": "mms",
+    "protocol": "IPV6",
+    "roaming_protocol": "IPV6"
+  }
+]

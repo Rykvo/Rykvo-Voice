@@ -1,4 +1,8 @@
-# v1.5.21
+# v1.5.22
+
+- 按承载区分蜂窝与 Wi-Fi 彩信配置；从 AOSP 明确限定 IWLAN 的条目补充 T-Mobile `TMUS`，不把 LTE `fast.t-mobile.com` 当作 Wi-Fi APN。
+- 保留同 SIM、Carrier ID 与 MVNO 匹配及独立校验，不扩大到其他运营商。
+- 电信蜂窝接收已用真实入站图片验证；Wi-Fi 彩信仍须实卡验收，不用注册成功代替下载成功。
 
 - 彩信按连接方式使用同一 SIM 的独立 Wi-Fi MMS APN/ePDG 承载或 EC20 蜂窝 MMS PDP，删除普通主机网络回退。
 - Wi-Fi 承载的 DNS、TCP 和源地址按 SIM 绑定；不修改通话 IMS APN、主机默认路由或数据漫游设置。

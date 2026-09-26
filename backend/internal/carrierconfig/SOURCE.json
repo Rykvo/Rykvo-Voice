@@ -4,7 +4,14 @@
   "upstream_sha256": "9e44015793ec01d0773123103dca19b181fbc5fdd43cfc1b1d5cfacbda622726",
   "entries": 2779,
   "license": "Apache-2.0",
-  "changes": "Default/MMS profiles including carrier_id; carrier ID AND/OR identity constraints preserved; no subscriber data.",
+  "changes": "Default/MMS profiles including carrier_id; carrier ID AND/OR identity constraints preserved; separate explicitly IWLAN-scoped MMS supplement; no subscriber data.",
+  "iwlan_source": {
+    "source": "https://android.googlesource.com/device/sample/+/871c11fe48e2294734ffe612647f2926128c2a91/etc/apns-full-conf.xml",
+    "revision": "871c11fe48e2294734ffe612647f2926128c2a91",
+    "upstream_sha256": "0f85098f3577354f3e7cb446243820d1b02d6081b24de26b8364c3d950189742",
+    "filter": "bearer=18 and type contains mms; bearer selector represented by separate iwlan.json catalog",
+    "entries": 1
+  },
   "carrier_id_source": {
     "commit": "bca387f553a4493c88e24455172225fd1049c91f",
     "url": "https://android.googlesource.com/platform/packages/providers/TelephonyProvider/+/bca387f553a4493c88e24455172225fd1049c91f/assets/latest_carrier_id/carrier_list.textpb",

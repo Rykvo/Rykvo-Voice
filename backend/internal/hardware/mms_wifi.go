@@ -56,7 +56,7 @@ func (p *mmsTunnelProvider) exchange(ctx context.Context, c mmsCommand, store fu
 		return "", mms.ErrNetwork
 	}
 	selection := matchCarrier(l.request.Identity)
-	if selection.MMS.Status != "matched" || selection.MMS.Profile == nil || *selection.MMS.Profile != c.Profile {
+	if selection.MMSWiFi.Status != "matched" || selection.MMSWiFi.Profile == nil || *selection.MMSWiFi.Profile != c.Profile {
 		return "", errors.New("MMS_CONFIG_REQUIRED")
 	}
 	if !apnNamePattern.MatchString(c.Profile.APN) || strings.EqualFold(c.Profile.APN, "ims") || strings.EqualFold(c.Profile.APN, "sos") {

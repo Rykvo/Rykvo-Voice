@@ -75,3 +75,27 @@ func TestCarrierIDOnlyAPNsResolveAlternateHomePLMN(t *testing.T) {
 		t.Fatal("carrier ID broadened to unrelated PLMN")
 	}
 }
+
+func TestMMSAPNSeparatesCellularAndIWLAN(t *testing.T) {
+	for _, mnc := range []string{"240", "260"} {
+		s := Match(Identity{MCC: "310", MNC: mnc, IMSI: "310" + mnc + "000000001"})
+		if !s.Valid() || s.MMS.Profile == nil || s.MMSWiFi.Profile == nil || s.MMS.Profile.APN != "fast.t-mobile.com" || s.MMSWiFi.Profile.APN != "TMUS" || s.MMSWiFi.Profile.Protocol != "IPV6" {
+			t.Fatalf("bearer-specific APN lost: %+v", s)
+		}
+		if s.MMSWiFi.Profile.MNC != mnc || s.MMSWiFi.Profile.MMSC != s.MMS.Profile.MMSC {
+			t.Fatal("SIM identity or MMSC changed")
+		}
+	}
+	s := Match(Identity{MCC: "234", MNC: "10", IMSI: "234101234567890", SPN: "giffgaff"})
+	if !s.Valid() || *s.MMS.Profile != *s.MMSWiFi.Profile || s.MMSWiFi.Profile.APN == "TMUS" {
+		t.Fatal("IWLAN override leaked to another carrier")
+	}
+	p := s.Public()
+	if p.MMSWiFi.Profile.Password != "" || s.MMSWiFi.Profile.Password == "" {
+		t.Fatal("IWLAN public view exposed or erased credentials")
+	}
+	s.MMSWiFi.Profile = nil
+	if s.Valid() {
+		t.Fatal("missing matched IWLAN profile accepted")
+	}
+}

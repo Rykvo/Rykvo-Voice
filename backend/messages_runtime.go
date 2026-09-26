@@ -267,7 +267,11 @@ func (m *moduleManager) processMessage(parent context.Context) {
 		m.messageState(ctx, id, "waiting_network", "SMS_NOT_READY", nil)
 		return
 	}
-	if kind == "mms" && (profile.MMS.Status != "matched" || profile.MMS.Profile == nil) {
+	choice := profile.MMS
+	if useWiFi {
+		choice = profile.MMSWiFi
+	}
+	if kind == "mms" && (choice.Status != "matched" || choice.Profile == nil) {
 		m.messageState(ctx, id, "waiting_network", "MMS_CONFIG_REQUIRED", nil)
 		return
 	}
@@ -349,7 +353,7 @@ func (m *moduleManager) processMessage(parent context.Context) {
 		m.messageState(finish, id, status, issue, result)
 		return
 	}
-	mmsProfile := *profile.MMS.Profile
+	mmsProfile := *choice.Profile
 	if !useWiFi && sample.Reading.Registration == "roaming" && mmsProfile.RoamingProtocol != "" {
 		mmsProfile.Protocol = mmsProfile.RoamingProtocol
 	}
@@ -415,7 +419,7 @@ func (m *moduleManager) processMessage(parent context.Context) {
 		if native != nil {
 			e = native.ReceiveCellularMMS(ctx, sample.Candidate, sample.Candidate.Identity(sample.Reading), card, mmsProfile, meta.Location, meta.Transaction, persist)
 		} else if transport, ok := m.wifiEngine.(wifiMMSTransport); ok {
-			e = transport.ReceiveWiFiMMS(ctx, sample.Candidate, card, id, *profile.MMS.Profile, meta.Location, meta.Transaction, persist)
+			e = transport.ReceiveWiFiMMS(ctx, sample.Candidate, card, id, mmsProfile, meta.Location, meta.Transaction, persist)
 		} else {
 			e = mms.ErrNetwork
 		}
