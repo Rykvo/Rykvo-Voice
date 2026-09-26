@@ -573,3 +573,12 @@ test("LAN placeholder stays simple while cloud uses its allocated range", async 
  assert.equal(app.node("#sip-port").placeholder,"20000–30000");
  assert.equal(app.sip.validate({...valid,port:"40000"}).field,"port");
 });
+
+test("SIP list omits development notices but retains real errors and status", async () => {
+  const app=setup(); await app.ready;
+  assert.equal(app.node("#sip-service-status").textContent, "");
+  assert.doesNotMatch(app.sip.render(), /电话服务尚未启用|待接入/);
+  app.context.Backend.sip.list=async()=>{throw {code:"NOT_CONNECTED"};};
+  await app.sip.mount();
+  assert.equal(app.node("#sip-service-status").textContent, "服务尚未连接");
+});

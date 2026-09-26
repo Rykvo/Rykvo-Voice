@@ -111,7 +111,7 @@ const Cellular = (() => {
     const realESIM = item.managed && sim.esim;
     const disabled = item.managed && (!realESIM || !editable(item));
     const settingsDisabled = !sim.enabled || !roamingEditable(item);
-    const pending = item.managed && item.capabilities?.roaming !== true ? "待接入" : "";
+    const pending = item.managed && item.capabilities?.roaming !== true ? "不可用" : "";
     const remove = realESIM
       ? `<div class="cellular-group cellular-settings"><button type="button" class="cellular-setting danger-button" data-cellular-delete ${disabled || sim.enabled || !sim.canDelete ? "disabled" : ""}>删除 eSIM</button></div>`
       : "";
@@ -122,7 +122,7 @@ const Cellular = (() => {
       </div>
       <div class="cellular-group cellular-settings">
         ${valueRow(identity.label, identity.value)}
-        ${valueRow("Wi-Fi 通话", !item.managed || item.capabilities?.wifiCalling ? (sim.wifiCalling ? (item.wifi?.registered ? "已连接" : "开启") : "关闭") : "待接入", "wifi", !sim.enabled || !wifiEditable(item))}
+        ${valueRow("Wi-Fi 通话", !item.managed || item.capabilities?.wifiCalling ? (sim.wifiCalling ? (item.wifi?.registered ? "已连接" : "开启") : "关闭") : "不可用", "wifi", !sim.enabled || !wifiEditable(item))}
         ${switchRow("roaming", "数据漫游", sim.roaming, settingsDisabled, pending)}
       </div>${remove}<div data-cellular-job>${showJob ? jobNote(item) : ""}</div></section>`;
   }
@@ -145,10 +145,10 @@ const Cellular = (() => {
         signal: controller.signal,
       });
       if (module === item && active()?.id === lineID && !controller.signal.aborted)
-        UI.toast("紧急联系地址服务尚未接入");
+        UI.toast("紧急联系地址暂不可用");
     } catch (error) {
       if (module === item && active()?.id === lineID && !controller.signal.aborted)
-        UI.toast(error.code === "NOT_CONNECTED" ? "紧急联系地址服务尚未接入" : "请求未完成，请稍后重试");
+        UI.toast(error.code === "NOT_CONNECTED" ? "紧急联系地址暂不可用" : "请求未完成，请稍后重试");
     } finally {
       if (emergencyRequest === controller) emergencyRequest = null;
       if (button.isConnected) button.disabled = !sim.enabled;
@@ -308,7 +308,7 @@ const Cellular = (() => {
       )
     )
       return;
-    if (!module?.managed) { UI.toast("eSIM 服务尚未接入，未添加"); return; }
+    if (!module?.managed) { UI.toast("eSIM 服务暂不可用"); return; }
     if (!downloadable(module) || !editable(module)) return;
     const item = module, form = event.target;
     const button = form.querySelector('[type="submit"]');

@@ -187,7 +187,7 @@ SSE 使用标准 message 事件，`id:` 为事件游标，`data:` 为 `{id,type,
 | ------------------------------------------------------ | -------------------------------------------------------------------- |
 | `module-data.js` items；`modules.js` render/updateRows | 拉取模块，保存标签后合并返回数据；重新计算统计；不要保留空数组快照   |
 | `cellular.js` change / submit                          | 线路开关和 eSIM 改为等待接口结果；失败回滚                 |
-| `phone.js` toggleCall / renderHistory                  | 替换 1300ms 模拟接通；由真实事件驱动状态；挂断记录以后端为准         |
+| `phone.js` toggleCall / renderHistory                  | 已删除模拟接通；真实通话接入前仅按需提示不可用，不生成记录         |
 | `messages.js` send / showThread / removeThreads        | 拉会话和分页消息；接口确认后更新消息状态，失败保留草稿；复用增量插入 |
 | `sip.js` submit / delete / formValues                  | 账号列表与 CRUD 接口，处理 hasPassword，保存固定模块及接电话配置     |
 | `sip-history.js` calls / update                        | 按账号、日期请求分页列表和 stats；总时长取完整范围统计               |
@@ -280,3 +280,7 @@ EC20 连续通信超时恢复期间 `issue=RECOVERING`，页面显示“正在�
 - `GET /messages` 同时返回 `contacts: [{lineId, number, name, revision}]`；客户端仅接受较新备注版本，保留清空记录以防旧备注复活。
 - 会话按原发送模块/SIM 隔离，使用同一 SIM 已出现的国际号码或已保存的备注号码解析无加号、本地格式。英国 +44 同时识别 0 前缀。仅有本地号码或匹配多个国家时不猜测、不合并；短号和字母发件人独立。原始消息、线路绑定不变。
 - 已接收的短信不显示发送状态。排队/发送/等待网络显示转圈；只有真实 `delivered` 回执显示“已送达”；accepted/unknown/partial/failed 等显示“尚未送达”，不代表可以安全重复发送。
+
+## v1.6.1 界面清理
+
+SIP 列表不常驻显示开发阶段说明，读取失败仍显示错误。未接入的操作按需提示不可用，能力开关及真实账号状态保持不变。网页拨号不再使用模拟定时器或生成虚构通话记录。

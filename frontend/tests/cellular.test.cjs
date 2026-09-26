@@ -206,7 +206,7 @@ test("activation validation and submission never claim installation", () => {
       },
     },
   });
-  assert.deepEqual(notices, ["eSIM 服务尚未接入，未添加"]);
+  assert.deepEqual(notices, ["eSIM 服务暂不可用"]);
 });
 
 test("queued and running eSIM download/delete jobs retain progress while Wi-Fi hands off", () => {
@@ -237,7 +237,8 @@ test("managed modules hide hardware diagnostics and retain real eSIM controls", 
   assert.match(detail, /启用此号码/);
   for (const label of ["Wi-Fi 通话", "数据漫游", "删除 eSIM"])
     assert.ok(detail.includes(label));
-  assert.equal((detail.match(/待接入/g) || []).length, 2);
+  assert.doesNotMatch(detail, /待接入/);
+  assert.equal((detail.match(/不可用/g) || []).length, 2);
   assert.doesNotMatch(detail, /网络选择|data-cellular-action="network"/);
   assert.match(detail, /data-cellular-action="wifi" disabled/);
   assert.match(detail, /data-cellular-setting="roaming"[^>]*disabled/);
@@ -482,7 +483,7 @@ test('emergency address entry is available on physical SIM without toggling Wi-F
  const action=name=>f.events.click({target:{closest:selector=>selector==='#dialog-content'?{}:selector==='[data-cellular-action]'?{dataset:{cellularAction:name}}:null}});
  action('wifi');assert.match(f.dialogs.at(-1)[1],/更新紧急联系地址/);
  action('emergency-address');await new Promise(resolve=>setImmediate(resolve));
- assert.equal(f.notices.at(-1),'紧急联系地址服务尚未接入');assert.equal(item.sims[0].wifiCalling,true);
+ assert.equal(f.notices.at(-1),'紧急联系地址暂不可用');assert.equal(item.sims[0].wifiCalling,true);
 });
 
 test('Wi-Fi intent locks roaming even while disconnected and preserves its value',()=>{

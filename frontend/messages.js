@@ -277,7 +277,7 @@ const Messages = (() => {
   }
   async function send() {
     if (sending) return;
-    if (typeof MessageData === "undefined" || !MessageData.enabled()) {toast("信息服务尚未接入");return;}
+    if (typeof MessageData === "undefined" || !MessageData.enabled()) {toast("信息服务暂不可用");return;}
     const input = $("#msg-input"), text = input.value.trim();
     if (!text && !attachment) return;
     const isNew = active === "new", thread = current();

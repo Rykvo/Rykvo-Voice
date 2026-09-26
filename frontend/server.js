@@ -227,7 +227,7 @@ const Server = (() => {
     )
       return;
     if (!enabled()) {
-      UI.toast("服务器接口尚未接入");
+      UI.toast("服务器暂不可用");
       return;
     }
     if (!loaded) {

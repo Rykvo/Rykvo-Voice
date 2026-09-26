@@ -161,7 +161,7 @@ test("static mode does not make requests or pretend to connect", async () => {
   assert.equal(f.indicator.lastElementChild.textContent, "未接入");
   assert.equal(f.button.textContent, "连接");
   assert.equal(f.requests.length, 0);
-  assert.deepEqual(f.notices, ["服务器接口尚未接入"]);
+  assert.deepEqual(f.notices, ["服务器暂不可用"]);
   f.server.unmount();
 });
 test("one button transitions through connect, authorize and disconnect", async () => {

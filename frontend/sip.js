@@ -5,7 +5,7 @@ const SIP = (() => {
     query = "",
     editing = null, editingRevision = 0,
     historyDraft = null, active = false, generation = 0, timer = null,
-    reading = null, writing = null, loadIssue = "", callsReady = false,
+    reading = null, writing = null, loadIssue = "",
     network = null;
   const reservedPorts = [2019, 8080, 51820, 51821, 51822];
   function portHint() {
@@ -95,7 +95,7 @@ const SIP = (() => {
     const body = $("#sip-rows");
     if (body) { const html = rows(); if (body.innerHTML !== html) body.innerHTML = html; }
     const note = $("#sip-service-status");
-    if (note) note.textContent = loadIssue || (callsReady ? "" : "电话服务尚未启用");
+    if (note) note.textContent = loadIssue;
   }
   function render() {
     query = "";
@@ -238,7 +238,7 @@ const SIP = (() => {
       records = data.items.map(({ password, ...item }) => item);
       const candidate = data.network;
       network = data.networkReady !== false && Number.isInteger(candidate?.start) && Number.isInteger(candidate?.end) && candidate.start >= 1024 && candidate.end <= 65535 && candidate.start <= candidate.end ? candidate : null;
-      callsReady = data.callsReady === true; loadIssue = "";
+      loadIssue = "";
     } catch (error) {
       if (!active || epoch !== generation || request.signal.aborted) return;
       network = null;

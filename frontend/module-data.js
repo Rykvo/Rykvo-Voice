@@ -30,7 +30,7 @@ const ModuleData = (() => {
     APN_NOT_FOUND: "APN 配置已变化，请重新读取",
     APN_SYSTEM_CONTEXT: "当前数据上下文用于 IMS / SOS，已保留原配置",
     APN_APPLY_UNCONFIRMED: "APN 写入结果待确认，请重新读取，勿连续重复应用",
-    NOT_CONNECTED: "服务尚未接入",
+    NOT_CONNECTED: "服务暂不可用",
     WIFI_CALLING_ACTIVE: "请先关闭 Wi-Fi 通话，再设置数据漫游",
     REQUEST_CONFLICT: "操作已变化，请刷新后重试",
     WIFI_MODEM_UNSUPPORTED: "模块暂未支持 Wi-Fi 通话",

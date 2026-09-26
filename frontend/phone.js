@@ -3,12 +3,7 @@ const Phone = (() => {
   const lineKey = "rykvo-voice-call-line-v1";
   const savedLine = UI.read(lineKey, "random");
   let selectedLine = Lines.valid(savedLine) ? savedLine : "random";
-  let dialNumber = "",
-    activeLineId,
-    callPhase = "idle",
-    callStarted = 0,
-    callConnectTimer,
-    callClock;
+  let dialNumber = "";
   let phoneView = "dialer";
   let callHistory;
   try {
@@ -28,9 +23,6 @@ const Phone = (() => {
     );
   } catch {
     callHistory = [];
-  }
-  function saveHistory() {
-    return UI.write("rykvo-voice-calls-v1", callHistory);
   }
   function renderHistory() {
     const list = $("#history-list");
@@ -57,7 +49,7 @@ const Phone = (() => {
               };
               const title = Countries.format(item.number);
               const country = Countries.country(item.number);
-              return `${divider}<article class="call-record ${item.kind === "missed" ? "is-missed" : ""}" data-call-id="${escapeHTML(item.id)}" tabindex="0"><span class="history-avatar" aria-hidden="true"><img src="assets/handset.png" alt=""></span><div class="history-person"><strong>${escapeHTML(title)}</strong><p>${country ? escapeHTML(country) + " · " : ""}${item.kind === "incoming" ? "↙" : item.kind === "missed" ? "↙" : "↗"} ${kinds[item.kind]}${item.kind === "incoming" || item.kind === "outgoing" ? " · " + duration(item.duration) : ""}</p></div><time datetime="${new Date(item.at).toISOString()}">${time(item.at)}</time><button class="redial-button" data-redial="${escapeHTML(item.id)}" aria-label="回拨${escapeHTML(title)}" ${callPhase !== "idle" ? "disabled" : ""}><img src="assets/handset.png" alt=""></button></article>`;
+              return `${divider}<article class="call-record ${item.kind === "missed" ? "is-missed" : ""}" data-call-id="${escapeHTML(item.id)}" tabindex="0"><span class="history-avatar" aria-hidden="true"><img src="assets/handset.png" alt=""></span><div class="history-person"><strong>${escapeHTML(title)}</strong><p>${country ? escapeHTML(country) + " · " : ""}${item.kind === "incoming" ? "↙" : item.kind === "missed" ? "↙" : "↗"} ${kinds[item.kind]}${item.kind === "incoming" || item.kind === "outgoing" ? " · " + duration(item.duration) : ""}</p></div><time datetime="${new Date(item.at).toISOString()}">${time(item.at)}</time><button class="redial-button" data-redial="${escapeHTML(item.id)}" aria-label="回拨${escapeHTML(title)}"><img src="assets/handset.png" alt=""></button></article>`;
             })
             .join("")}`;
         })
@@ -132,7 +124,7 @@ const Phone = (() => {
   function phone() {
     return `<div class="page-head phone-heading"><h1>电话</h1><div class="phone-view-switch" role="group" aria-label="电话页面视图"><button data-phone-view="dialer" aria-pressed="${phoneView === "dialer"}">拨号键盘</button><button data-phone-view="history" aria-pressed="${phoneView === "history"}">通话</button></div></div>
 <div class="phone-workspace" data-view="${phoneView}"><section class="dialer-panel" aria-label="拨号"><section class="dialer" aria-label="拨号键盘">
-  <div class="dialer-display"><label class="sr-only" for="dial-number">电话号码</label><input id="dial-number" type="tel" inputmode="tel" autocomplete="off" placeholder="输入号码" aria-describedby="call-status"><p id="call-status" role="status" aria-live="polite"></p><time id="call-duration" aria-label="通话时长" hidden>00:00</time></div>
+  <div class="dialer-display"><label class="sr-only" for="dial-number">电话号码</label><input id="dial-number" type="tel" inputmode="tel" autocomplete="off" placeholder="输入号码" aria-describedby="call-status"><p id="call-status" role="status" aria-live="polite"></p></div>
   <div class="dial-line">${Lines.select("call-line", "拨出号码", selectedLine)}</div>
   <div class="dial-grid">${[
     ["1", ""],
@@ -159,40 +151,17 @@ const Phone = (() => {
   function updateDialer() {
     const input = $("#dial-number");
     if (!input) return;
-    const active = callPhase !== "idle";
     input.value = Countries.format(dialNumber);
     input.style.setProperty("--number-length", Math.max(1, input.value.length));
-    input.readOnly = active;
-    $("#call-line").disabled = active;
     $("#call-line").value = selectedLine;
-    $(".dialer").classList.toggle("is-calling", active);
-    $("#call-status").textContent =
-      callPhase === "dialing"
-        ? "正在呼叫…"
-        : callPhase === "connected"
-          ? "通话中"
-          : Countries.country(dialNumber);
-    $("#call-duration").hidden = callPhase !== "connected";
-    document
-      .querySelectorAll("[data-digit],.dial-plus,.dial-delete")
-      .forEach((b) => (b.disabled = active));
+    $("#call-status").textContent = Countries.country(dialNumber);
     const call = $(".call-button");
-    call.classList.toggle("hangup", active);
-    call.disabled = !active && !dialNumber.replace(/[^0-9]/g, "");
-    call.setAttribute("aria-label", active ? "挂断电话" : "拨打电话");
-    document
-      .querySelectorAll("[data-redial]")
-      .forEach((button) => (button.disabled = active));
-    updateCallClock();
-  }
-  function updateCallClock() {
-    const el = $("#call-duration");
-    if (!el || callPhase !== "connected") return;
-    el.textContent = duration(Math.floor((Date.now() - callStarted) / 1000));
+    call.disabled = !dialNumber.replace(/[^0-9]/g, "");
+    call.setAttribute("aria-label", "拨打电话");
   }
   function editDialNumber(key) {
     const input = $("#dial-number");
-    if (callPhase !== "idle" || !input) return;
+    if (!input) return;
     const next = UI.editDial(
       dialNumber,
       key,
@@ -204,48 +173,8 @@ const Phone = (() => {
     const caret = Countries.displayOffset(input.value, next.caret);
     input.setSelectionRange(caret, caret);
   }
-  function toggleCall() {
-    if (callPhase !== "idle") {
-      const duration =
-        callPhase === "connected"
-          ? Math.floor((Date.now() - callStarted) / 1000)
-          : 0;
-      callHistory.unshift({
-        id: UI.id(),
-        number: dialNumber,
-        lineId: activeLineId,
-        name: "",
-        kind: callPhase === "connected" ? "outgoing" : "cancelled",
-        duration,
-        at: Date.now(),
-      });
-      const saved = saveHistory();
-      clearTimeout(callConnectTimer);
-      clearInterval(callClock);
-      callClock = null;
-      callPhase = "idle";
-      updateDialer();
-      renderHistory();
-      toast(saved ? "通话已结束" : "记录暂未保存");
-      return;
-    }
-    if (!/[0-9]/.test(dialNumber)) {
-      toast("请先输入电话号码");
-      return;
-    }
-    activeLineId = Lines.resolve(selectedLine);
-    if (!activeLineId) {
-      toast("暂无可用模块，请选择在线模块");
-      return;
-    }
-    callPhase = "dialing";
-    updateDialer();
-    callConnectTimer = setTimeout(() => {
-      callPhase = "connected";
-      callStarted = Date.now();
-      updateDialer();
-      if ($("#dial-number")) callClock = setInterval(updateCallClock, 1000);
-    }, 1300);
+  function requestCall() {
+    toast(/[0-9]/.test(dialNumber) ? "通话暂不可用" : "请先输入电话号码");
   }
 
   let heldPress = null,
@@ -256,7 +185,7 @@ const Phone = (() => {
     return null;
   }
   function startPress(control, source) {
-    if (heldPress || callPhase !== "idle") return;
+    if (heldPress) return;
     heldPress = {
       control,
       source,
@@ -279,13 +208,9 @@ const Phone = (() => {
   function mount() {
     updateDialer();
     renderHistory();
-    if (callPhase === "connected" && !callClock)
-      callClock = setInterval(updateCallClock, 1000);
   }
   function unmount() {
     endPress(false);
-    clearInterval(callClock);
-    callClock = null;
   }
   document.addEventListener("pointerdown", (e) => {
     const control = pressControl(e.target);
@@ -322,24 +247,23 @@ const Phone = (() => {
     }
     const redial = e.target.closest("[data-redial]");
     if (redial) {
-      if (callPhase !== "idle") return;
       const record = callHistory.find((r) => r.id === redial.dataset.redial);
       if (record) {
         dialNumber = record.number;
         setPhoneView("dialer");
-        toggleCall();
+        requestCall();
       }
       return;
     }
     const action = e.target.closest("[data-action]")?.dataset.action;
-    if (action === "dial-call") toggleCall();
+    if (action === "dial-call") requestCall();
     if (action === "dial-delete") editDialNumber("delete");
     if (action === "dial-plus") editDialNumber("+");
   });
   document.addEventListener("change", (event) => {
     if (event.target.id !== "call-line") return;
     const value = event.target.value;
-    if (callPhase === "idle" && Lines.valid(value) && UI.write(lineKey, value))
+    if (Lines.valid(value) && UI.write(lineKey, value))
       selectedLine = value;
     event.target.value = selectedLine;
   });
@@ -368,17 +292,12 @@ const Phone = (() => {
     )
       return;
     if (e.isComposing) return;
-    if (e.key === "Escape" && callPhase !== "idle") {
-      e.preventDefault();
-      toggleCall();
-      return;
-    }
     if (
       e.key === "Enter" &&
       (e.target.id === "dial-number" || e.target === document.body)
     ) {
       e.preventDefault();
-      toggleCall();
+      requestCall();
       return;
     }
     if (e.key === "0") {

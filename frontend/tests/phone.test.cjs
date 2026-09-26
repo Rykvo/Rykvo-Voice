@@ -233,54 +233,22 @@ test("Backspace crosses spacing and deletes a selected range", () => {
   assert.equal(app.value(), "");
 });
 
-test("outgoing line persists, locks during calls, and is attached to the call record", () => {
+test("dialing preserves line selection but never simulates calls or records", () => {
   const app = setup();
   app.emit("change", { target: { id: "call-line", value: "module-04" } });
-  assert.equal(
-    JSON.parse(app.storage.get("rykvo-voice-call-line-v1")),
-    "module-04",
-  );
   app.emit("click", { target: app.target("8") });
   const call = {
     dataset: { action: "dial-call" },
     closest(selector) {
-      return [".phone-workspace,.phone-heading", "[data-action]"].includes(
-        selector,
-      )
-        ? this
-        : null;
+      return [".phone-workspace,.phone-heading", "[data-action]"].includes(selector) ? this : null;
     },
   };
-  app.emit("click", { target: call });
-  assert.equal(app.node("#call-line").disabled, true);
-  app.emit("change", { target: { id: "call-line", value: "module-01" } });
-  app.emit("click", { target: call });
-  assert.equal(app.node("#call-line").disabled, false);
-  assert.equal(
-    JSON.parse(app.storage.get("rykvo-voice-calls-v1"))[0].lineId,
-    "module-04",
-  );
+  for (let i=0;i<2;i++) { app.emit("click", {target:call}); app.advance(5000); }
+  assert.equal(app.storage.has("rykvo-voice-calls-v1"), false);
+  assert.doesNotMatch(app.html(), /call-duration|通话中/);
+  assert.notEqual(app.node("#call-status").textContent, "通话中");
   assert.match(app.html(), /value="module-04"/);
-});
-
-test("random call records a concrete module without changing random preference", () => {
-  const app = setup();
-  app.emit("click", { target: app.target("8") });
-  const call = {
-    dataset: { action: "dial-call" },
-    closest(selector) {
-      return [".phone-workspace,.phone-heading", "[data-action]"].includes(
-        selector,
-      )
-        ? this
-        : null;
-    },
-  };
-  app.emit("click", { target: call });
-  app.emit("click", { target: call });
-  assert.match(
-    JSON.parse(app.storage.get("rykvo-voice-calls-v1"))[0].lineId,
-    /^module-\d{2}$/,
-  );
+  assert.equal(JSON.parse(app.storage.get("rykvo-voice-call-line-v1")), "module-04");
+  app.emit("change", { target: { id: "call-line", value: "random" } });
   assert.match(app.html(), /value="random"/);
 });
