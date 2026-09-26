@@ -226,7 +226,7 @@ func (w *smsWorker) mmsCommand(raw []byte) bool {
 			err = nil
 		}
 		// Retry only failures proven to precede HTTP submission.
-		if c.Op == "mms-send" && (errors.Is(err, mms.ErrNetwork) || mmsBridgeCode(err) == "MMS_IWLAN_UNAVAILABLE") {
+		if c.Op == "mms-send" && mms.WaitingNetwork(err) {
 			w.mu.Lock()
 			delete(w.used, c.ID)
 			w.mu.Unlock()

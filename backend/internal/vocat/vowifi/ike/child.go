@@ -191,6 +191,10 @@ func configurationRequest() payload {
 		// initial configuration request, even when the value is empty.
 		configApplicationVersion,
 	}
+	return configurationAttributes(attributes)
+}
+
+func configurationAttributes(attributes []uint16) payload {
 	body := []byte{configRequest, 0, 0, 0}
 	for _, attribute := range attributes {
 		var header [4]byte

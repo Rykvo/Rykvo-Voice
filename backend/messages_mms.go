@@ -50,7 +50,7 @@ func decodeMMSPush(raw, gateway string) (state, peer string, metadata map[string
 
 // Reinterpret preserved raw notifications; never resend or overwrite received content.
 func (m *moduleManager) repairMMSNotifications(ctx context.Context) error {
-	rows, err := m.db.Query(ctx, `SELECT m.id,m.peer,string_agg(p.body,'' ORDER BY p.sequence) FROM messages m JOIN message_parts p ON p.message_id=m.id WHERE NOT m.mine AND m.kind='mms' AND m.deleted_at IS NULL AND m.state IN ('unsupported_push','waiting_network','download_pending') AND m.metadata->>'pushVersion' IS DISTINCT FROM '1' GROUP BY m.id ORDER BY m.created_at DESC LIMIT 200`)
+	rows, err := m.db.Query(ctx, `SELECT m.id,m.peer,string_agg(p.body,'' ORDER BY p.sequence) FROM messages m JOIN message_parts p ON p.message_id=m.id WHERE NOT m.mine AND m.kind='mms' AND m.deleted_at IS NULL AND (m.state IN ('unsupported_push','waiting_network','download_pending') OR (m.state='failed' AND m.issue='MMS_LOCATION_UNSUPPORTED')) AND m.metadata->>'pushVersion' IS DISTINCT FROM '1' GROUP BY m.id ORDER BY m.created_at DESC LIMIT 200`)
 	if err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func (m *moduleManager) repairMMSNotifications(ctx context.Context) error {
 	for _, r := range records {
 		state, peer, meta := decodeMMSPush(r.raw, r.peer)
 		data, _ := json.Marshal(meta)
-		_, err = m.db.Exec(ctx, `UPDATE messages SET state=$2,peer=$3,metadata=$4,issue='' WHERE id=$1 AND NOT mine AND state IN ('unsupported_push','waiting_network','download_pending') AND deleted_at IS NULL`, r.id, state, peer, data)
+		_, err = m.db.Exec(ctx, `UPDATE messages SET state=$2,peer=$3,metadata=$4,issue='' WHERE id=$1 AND NOT mine AND (state IN ('unsupported_push','waiting_network','download_pending') OR (state='failed' AND issue='MMS_LOCATION_UNSUPPORTED')) AND deleted_at IS NULL`, r.id, state, peer, data)
 		if err != nil {
 			return err
 		}

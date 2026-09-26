@@ -66,7 +66,7 @@ func (p *mmsTunnelProvider) exchange(ctx context.Context, c mmsCommand, store fu
 	defer cancel()
 	stop := context.AfterFunc(l.ctx, cancel)
 	defer stop()
-	provider, err := ike.NewProvider(ike.Config{APN: c.Profile.APN, DataNetwork: true, AutoProposalFallback: true, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+	provider, err := ike.NewProvider(ike.Config{APN: c.Profile.APN, DataNetwork: true, DataProtocol: c.Profile.Protocol, AutoProposalFallback: true, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
 	if err != nil {
 		return "", errors.New("MMS_PROFILE_UNSUPPORTED")
 	}
@@ -77,7 +77,7 @@ func (p *mmsTunnelProvider) exchange(ctx context.Context, c mmsCommand, store fu
 		p.mu.Lock()
 		p.nextAttempt = time.Now().Add(5 * time.Minute)
 		p.mu.Unlock()
-		return "", errors.New("MMS_IWLAN_UNAVAILABLE")
+		return "", errors.New(mmsSetupIssue(err))
 	}
 	defer func() {
 		clean, done := context.WithTimeout(context.Background(), 20*time.Second)
@@ -111,10 +111,26 @@ func mmsBridgeCode(err error) string {
 		return ""
 	}
 	switch err.Error() {
-	case "MMS_NETWORK_REQUIRED", "MMS_IWLAN_UNAVAILABLE", "MMS_CONFIG_REQUIRED", "MMS_PROFILE_UNSUPPORTED", "MMS_REJECTED", "MMS_INVALID_PDU", "MMS_STORAGE_UNCONFIRMED", "MMS_BUSY":
+	case "MMS_IWLAN_AUTH_REJECTED", "MMS_IWLAN_TIMEOUT", "MMS_IWLAN_ROUTE_FAILED", "MMS_IWLAN_SECURITY_FAILED", "MMS_NETWORK_REQUIRED", "MMS_IWLAN_UNAVAILABLE", "MMS_CONFIG_REQUIRED", "MMS_PROFILE_UNSUPPORTED", "MMS_REJECTED", "MMS_INVALID_PDU", "MMS_STORAGE_UNCONFIRMED", "MMS_BUSY":
 		return err.Error()
 	}
 	return "MMS_OUTCOME_UNKNOWN"
 }
 
 var _ vowifi.TunnelProvider = (*mmsTunnelProvider)(nil)
+
+func mmsSetupIssue(err error) string {
+	text := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(text, "authentication_failed"), strings.Contains(text, "authentication failed"), strings.Contains(text, "eap failure"):
+		return "MMS_IWLAN_AUTH_REJECTED"
+	case strings.Contains(text, "timeout"), strings.Contains(text, "timed out"):
+		return "MMS_IWLAN_TIMEOUT"
+	case strings.Contains(text, "install child_sa"):
+		return "MMS_IWLAN_ROUTE_FAILED"
+	case strings.Contains(text, "certificate"), strings.Contains(text, "responder auth"):
+		return "MMS_IWLAN_SECURITY_FAILED"
+	default:
+		return "MMS_IWLAN_UNAVAILABLE"
+	}
+}

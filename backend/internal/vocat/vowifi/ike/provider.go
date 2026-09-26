@@ -33,6 +33,7 @@ type Config struct {
 	IdentityType         uint8
 	APN                  string
 	DataNetwork          bool
+	DataProtocol         string
 	AutoProposalFallback bool
 	Logger               *slog.Logger
 }
@@ -341,6 +342,9 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 	tsi := dualStackTrafficSelectors(payloadTSi)
 	tsr := dualStackTrafficSelectors(payloadTSr)
 	firstAuthPayloads := buildInitialEAPAuth(idi, requestedIDr, childOfferBody, tsi, tsr, advertiseEAPOnly)
+	if provider.config.DataNetwork {
+		firstAuthPayloads = dataAuthPayloads(firstAuthPayloads, provider.config.DataProtocol)
+	}
 	authHeader := ikeHeader{
 		InitiatorSPI: initiatorSPI,
 		ResponderSPI: responseHeader.ResponderSPI,

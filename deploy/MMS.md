@@ -17,7 +17,7 @@ EC20 没有原生 QMMSRECV。现有 WAP Push 短信解码/分片重组提取通�
 
 - 需要蜂窝数据注册及运营商彩信业务；漫游遵守该 SIM 的数据漫游开关。
 - Wi-Fi Calling 模式通过已验证 SIM 的 AKA 建立独立 MMS APN/ePDG 承载；不修改 IMS APN、不恢复蜂窝射频、不走主机普通网络。DNS/TCP 同时绑定该 SIM 的内层地址与 TUN，策略路由只作用于该源地址。运营商是否接受此 APN 必须实测。
-- 原生路径当前只支持 HTTP MMSC；不把 HTTPS 静默降级。通知 URL 默认限定与 MMSC 同源，不跟随重定向；T-Mobile US 的已观测 mpc.t-mobile.com 下载入口仅对匹配的 MMSC/归属地区开放。
+- 原生路径当前只支持 HTTP MMSC；不把 HTTPS 静默降级。私有 IPv4 下载通知仅通过该 SIM 的专用承载获取；主机网络没有回退路径。域名通知默认限定与 MMSC 同源，不跟随重定向；T-Mobile US 的已观测 mpc.t-mobile.com 下载入口仅对匹配的 MMSC/归属地区开放。
 - 附件限于已验证的文字和 PNG/JPEG/GIF；运营商大小限制、套餐限制和最终投递仍须实卡验证。只有真实投递回执才可标记已送达。
 - 模块超时后不继续发送可能被当作数据的清理命令；此时保留 RAM 临时文件，避免干扰未完成的模块命令。
 

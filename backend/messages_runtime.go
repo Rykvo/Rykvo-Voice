@@ -424,7 +424,7 @@ func (m *moduleManager) processMessage(parent context.Context) {
 			finish, stop := context.WithTimeout(context.Background(), 5*time.Second)
 			defer stop()
 			state := "failed"
-			if errors.Is(e, mms.ErrNetwork) || e.Error() == "MMS_IWLAN_UNAVAILABLE" || e.Error() == "MMS_BUSY" {
+			if mms.WaitingNetwork(e) {
 				state = "waiting_network"
 			}
 			m.messageState(finish, id, state, e.Error(), nil)
@@ -454,7 +454,7 @@ func (m *moduleManager) processMessage(parent context.Context) {
 	if e != nil {
 		issue = e.Error()
 		status = "unknown"
-		if errors.Is(e, mms.ErrNetwork) || issue == "MMS_IWLAN_UNAVAILABLE" || issue == "MMS_BUSY" {
+		if mms.WaitingNetwork(e) {
 			status = "waiting_network"
 		} else if issue == "MMS_REJECTED" {
 			status = "failed"

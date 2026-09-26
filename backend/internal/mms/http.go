@@ -20,6 +20,11 @@ import (
 var ErrNetwork = errors.New("MMS_NETWORK_REQUIRED")
 var ErrUnknown = errors.New("MMS_OUTCOME_UNKNOWN")
 
+// These failures are known to occur before MMS submission.
+func WaitingNetwork(err error) bool {
+	return err != nil && (errors.Is(err, ErrNetwork) || err.Error() == "MMS_BUSY" || strings.HasPrefix(err.Error(), "MMS_IWLAN_"))
+}
+
 type Client struct {
 	http    *http.Client
 	base    *url.URL
@@ -39,12 +44,15 @@ func safeURL(raw string) (*url.URL, error) {
 }
 
 // The carrier's retrieval gateway can differ from its submission endpoint.
-// Exact observed aliases only, tied to the matched carrier. No wildcard hosts.
+// Names use exact carrier aliases. Private retrieval IPs stay inside the bound bearer.
 func ReceiveURL(p carrierconfig.Profile, raw string) (*url.URL, error) {
 	u, err := safeURL(raw)
 	base, be := safeURL(p.MMSC)
 	if err != nil || be != nil || u.Scheme != base.Scheme {
 		return nil, ErrNetwork
+	}
+	if ip := net.ParseIP(u.Hostname()); ip != nil && ip.To4() != nil && ip.IsPrivate() {
+		return u, nil
 	}
 	if strings.EqualFold(u.Host, base.Host) {
 		return u, nil
