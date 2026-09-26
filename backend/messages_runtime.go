@@ -203,7 +203,9 @@ func (m *moduleManager) runMessages(ctx context.Context) {
 	if _, e := m.db.Exec(ctx, "UPDATE messages SET state='unknown',issue='SEND_INTERRUPTED' WHERE mine AND state='sending'"); e != nil {
 		return
 	}
-	_, _ = m.db.Exec(ctx, "UPDATE messages SET state='download_pending' WHERE NOT mine AND state='downloading'")
+	if m.resumeMMSDownloads(ctx) != nil {
+		return
+	}
 	cursor := 0
 	// A modem MMS transaction must not block SMS inboxes or receipt processing.
 	workerDone := make(chan struct{})
@@ -229,6 +231,7 @@ func (m *moduleManager) runMessages(ctx context.Context) {
 			return
 		case <-ticker.C:
 			m.applySMSReports(ctx)
+			m.applyMMSReports(ctx)
 			m.pollCellularInbox(ctx, &cursor)
 		}
 	}
@@ -267,10 +270,7 @@ func (m *moduleManager) processMessage(parent context.Context) {
 		m.messageState(ctx, id, "waiting_network", "SMS_NOT_READY", nil)
 		return
 	}
-	choice := profile.MMS
-	if useWiFi {
-		choice = profile.MMSWiFi
-	}
+	choice := profile.MMSForBearer(useWiFi, sample.Reading.Registration == "roaming")
 	if kind == "mms" && (choice.Status != "matched" || choice.Profile == nil) {
 		m.messageState(ctx, id, "waiting_network", "MMS_CONFIG_REQUIRED", nil)
 		return
@@ -354,9 +354,6 @@ func (m *moduleManager) processMessage(parent context.Context) {
 		return
 	}
 	mmsProfile := *choice.Profile
-	if !useWiFi && sample.Reading.Registration == "roaming" && mmsProfile.RoamingProtocol != "" {
-		mmsProfile.Protocol = mmsProfile.RoamingProtocol
-	}
 	var native cellularMMSTransport
 	if !useWiFi {
 		native, _ = m.source.(cellularMMSTransport)

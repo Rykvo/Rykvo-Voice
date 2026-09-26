@@ -95,6 +95,8 @@ func testMessagesDatabase(t *testing.T, s *server, v moduleRecord, cookie, csrf 
 		t.Fatal("unknown send retried")
 	}
 	testSMSReportMatching(t, ctx, m, v.ID)
+	testMMSDownloadResume(t, ctx, m, v.ID)
+	testMMSReportMatching(t, ctx, m, v.ID)
 	card := sample.Reading.ICCID
 	line := wifiLine(sample.Reading)
 	part := hardware.SMSDelivery{ID: "part2", From: "12345", Text: "world", TPDU: "0005912143F5000842101021436500020042", Encoding: "ucs2_pdu", Concat: &device.SMSConcatInfo{Reference: 12, Total: 2, Sequence: 2}}

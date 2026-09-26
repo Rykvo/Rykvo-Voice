@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -37,30 +38,51 @@ func safeURL(raw string) (*url.URL, error) {
 	if err != nil || len(raw) > 2048 || u.Hostname() == "" || u.User != nil || u.Fragment != "" || (u.Scheme != "http" && u.Scheme != "https") || strings.ContainsAny(raw, "\x00\r\n") {
 		return nil, ErrNetwork
 	}
-	if port := u.Port(); port != "" && port != "80" && port != "443" && port != "8080" && port != "8002" {
+	if port := u.Port(); port != "" {
+		n, err := strconv.Atoi(port)
+		if err != nil || n < 1 || n > 65535 {
+			return nil, ErrNetwork
+		}
+	}
+	if !BearerHost(u.Hostname()) {
 		return nil, ErrNetwork
 	}
 	return u, nil
 }
 
-// The carrier's retrieval gateway can differ from its submission endpoint.
-// Names use exact carrier aliases. Private retrieval IPs stay inside the bound bearer.
+// Private carrier addresses are valid only inside the SIM-bound bearer.
+func BearerHost(host string) bool {
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.IsGlobalUnicast() && !ip.IsLoopback() && !ip.IsLinkLocalUnicast()
+	}
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	if host == "" || len(host) > 253 || host == "localhost" || strings.HasSuffix(host, ".localhost") || host == "local" || strings.HasSuffix(host, ".local") || host == "home.arpa" || strings.HasSuffix(host, ".home.arpa") {
+		return false
+	}
+	// Reject ambiguous numeric IP spellings and modem command metacharacters.
+	numeric := true
+	for _, label := range strings.Split(host, ".") {
+		if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' || strings.HasPrefix(label, "0x") {
+			return false
+		}
+		for _, c := range label {
+			if c >= 'a' && c <= 'z' || c == '-' {
+				numeric = false
+			} else if c < '0' || c > '9' {
+				return false
+			}
+		}
+	}
+	return !numeric
+}
+
+// Notification gateways need not share the MMSC hostname, port or scheme.
+// Network isolation, not a carrier-name allowlist, confines retrieval.
 func ReceiveURL(p carrierconfig.Profile, raw string) (*url.URL, error) {
-	u, err := safeURL(raw)
-	base, be := safeURL(p.MMSC)
-	if err != nil || be != nil || u.Scheme != base.Scheme {
+	if _, err := safeURL(p.MMSC); err != nil {
 		return nil, ErrNetwork
 	}
-	if ip := net.ParseIP(u.Hostname()); ip != nil && ip.To4() != nil && ip.IsPrivate() {
-		return u, nil
-	}
-	if strings.EqualFold(u.Host, base.Host) {
-		return u, nil
-	}
-	if (p.MCC == "310" || p.MCC == "311") && strings.EqualFold(base.Host, "mms.msg.eng.t-mobile.com") && strings.EqualFold(u.Host, "mpc.t-mobile.com") {
-		return u, nil
-	}
-	return nil, ErrNetwork
+	return safeURL(raw)
 }
 
 // A caller must supply a SIM-bound bearer. There is no host-internet fallback.
@@ -93,12 +115,7 @@ func NewClient(p carrierconfig.Profile, dial DialContext) (*Client, error) {
 			if e != nil {
 				return nil, ErrNetwork
 			}
-			scheme := base.Scheme
-			target := scheme + "://" + net.JoinHostPort(host, port)
-			if (scheme == "http" && port == "80") || (scheme == "https" && port == "443") {
-				target = scheme + "://" + host
-			}
-			if _, e = ReceiveURL(p, target); e != nil {
+			if _, e = safeURL("http://" + net.JoinHostPort(host, port)); e != nil {
 				return nil, ErrNetwork
 			}
 		}

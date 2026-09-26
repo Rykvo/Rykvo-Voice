@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -61,6 +62,59 @@ func mmsReceiveURL(p carrierconfig.Profile, raw string) (*url.URL, error) {
 		return nil, errors.New("MMS_LOCATION_UNSUPPORTED")
 	}
 	return u, nil
+}
+
+// Resolve on this PDP and pin the checked address for QIOPEN.
+func (b *mmsBearer) resolveHost(parent context.Context, host string) (string, error) {
+	if !mms.BearerHost(host) {
+		return "", errors.New("MMS_LOCATION_UNSUPPORTED")
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.String(), nil
+	}
+	ctx, cancel := context.WithTimeout(parent, 60*time.Second)
+	defer cancel()
+	if err := smsATWrite(ctx, b.at, []byte(fmt.Sprintf("AT+QIDNSGIP=%d,%q\r", b.cid, host))); err != nil {
+		b.healthy = false
+		return "", errors.New("MMS_DNS_FAILED")
+	}
+	count, address := -1, ""
+	for {
+		line, err := mmsWait(ctx, b.at, "+QIURC")
+		if err != nil {
+			b.healthy = false
+			return "", errors.New("MMS_DNS_FAILED")
+		}
+		f := fields(line)
+		if len(f) == 0 || f[0] != "dnsgip" {
+			continue
+		}
+		if count < 0 {
+			if len(f) != 4 || f[1] != "0" {
+				return "", errors.New("MMS_DNS_FAILED")
+			}
+			count, err = strconv.Atoi(f[2])
+			if err != nil || count < 1 || count > 16 {
+				b.healthy = false
+				return "", errors.New("MMS_DNS_FAILED")
+			}
+			continue
+		}
+		if len(f) != 2 || net.ParseIP(f[1]) == nil {
+			b.healthy = false
+			return "", errors.New("MMS_DNS_FAILED")
+		}
+		if address == "" && mms.BearerHost(f[1]) {
+			address = net.ParseIP(f[1]).String()
+		}
+		count--
+		if count == 0 {
+			if address == "" {
+				return "", errors.New("MMS_LOCATION_UNSUPPORTED")
+			}
+			return address, nil
+		}
+	}
 }
 
 func mmsReadBytes(ctx context.Context, at *atSession, n int) ([]byte, error) {
@@ -169,6 +223,10 @@ func (b *mmsBearer) http(parent context.Context, p carrierconfig.Profile, method
 	}
 	ctx, cancel := context.WithTimeout(parent, 90*time.Second)
 	defer cancel()
+	host, e = b.resolveHost(ctx, host)
+	if e != nil {
+		return nil, e
+	}
 	lines, e := b.command(ctx, "AT+QISTATE?", 2*time.Second)
 	if e != nil {
 		return nil, e

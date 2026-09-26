@@ -89,6 +89,22 @@ func Match(id Identity) Selection {
 	}
 	return s
 }
+
+// Roaming changes the bearer protocol, never the SIM's carrier or APN.
+func (s Selection) MMSForBearer(wifi, roaming bool) Choice {
+	c := s.MMS
+	if wifi {
+		c = s.MMSWiFi
+	}
+	if c.Profile != nil {
+		p := *c.Profile
+		if !wifi && roaming && p.RoamingProtocol != "" {
+			p.Protocol = p.RoamingProtocol
+		}
+		c.Profile = &p
+	}
+	return c
+}
 func mvno(p Profile, id Identity) (bool, int) {
 	v := strings.TrimSpace(p.MVNOMatch)
 	switch strings.ToLower(p.MVNOType) {

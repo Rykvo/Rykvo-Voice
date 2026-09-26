@@ -235,7 +235,7 @@ func TestMMSHTTPUsesCarrierProxyAndBinaryBoundaries(t *testing.T) {
 	}
 }
 func TestMMSReceiveRejectsUntrustedLocations(t *testing.T) {
-	for _, u := range []string{"http://127.0.0.1/", "https://mmsc.example.test/", "http://mmsc.example.test@other/", "http://mmsc.example.test:8081/", "http://mmsc.example.test/\r\nx"} {
+	for _, u := range []string{"http://127.0.0.1/", "https://mmsc.example.test/", "http://mmsc.example.test@other/", "http://mmsc.example.test:65536/", "http://mmsc.example.test/\r\nx"} {
 		if _, e := mmsReceiveURL(testMMSProfile(), u); e == nil {
 			t.Fatal(u)
 		}
@@ -341,5 +341,26 @@ func TestMMSDataWriteBackpressure(t *testing.T) {
 	p = &mmsBackpressurePort{blocked: true}
 	if err := mmsDataWrite(ctx, &atSession{port: p}, data); err != context.DeadlineExceeded {
 		t.Fatal(err)
+	}
+}
+
+func TestMMSDNSUsesPDPAndRejectsLocalAddresses(t *testing.T) {
+	for _, tc := range []struct{ response, want string }{
+		{"+QIURC: \"dnsgip\",0,2,60\r\n+QIURC: \"dnsgip\",\"127.0.0.1\"\r\n+QIURC: \"dnsgip\",\"10.2.3.4\"\r\n", "10.2.3.4"},
+		{"+QIURC: \"dnsgip\",0,1,60\r\n+QIURC: \"dnsgip\",\"169.254.169.254\"\r\n", ""},
+		{"+QIURC: \"dnsgip\",565\r\n", ""},
+		{"+QIURC: \"dnsgip\",0,999,60\r\n", ""},
+	} {
+		port := &mmsTestPort{onWrite: func(data []byte) string {
+			if string(data) != "AT+QIDNSGIP=4,\"download.example\"\r" {
+				t.Fatal(string(data))
+			}
+			return "OK\r\n" + tc.response
+		}}
+		b := &mmsBearer{at: &atSession{port: port}, cid: 4, healthy: true}
+		got, err := b.resolveHost(context.Background(), "download.example")
+		if got != tc.want || (err == nil) != (tc.want != "") {
+			t.Fatal(got, err, tc)
+		}
 	}
 }

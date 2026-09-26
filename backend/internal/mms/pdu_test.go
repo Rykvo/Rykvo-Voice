@@ -16,6 +16,9 @@ func TestMM1RoundTripAndConfirmation(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
+	if !bytes.Contains(b, []byte{0x8a, 0x80, 0x86, 0x80, 0x84}) {
+		t.Fatal("delivery report not requested")
+	}
 	p, e := Parse(b)
 	if e != nil || p.Type != 0x80 || p.Transaction != "test-request-123" || len(p.Parts) != 2 || string(p.Parts[0].Data) != "中文 MMS" {
 		t.Fatalf("%+v %v", p, e)
@@ -55,7 +58,7 @@ func TestHostTransportRejectsLocalDestinations(t *testing.T) {
 	if _, err := NewClient(carrierconfig.Profile{MMSC: "http://mms.example"}, nil); err == nil {
 		t.Fatal("unbound host transport accepted")
 	}
-	for _, s := range []string{"file:///etc/passwd", "http://a:b@x/", "http://x:22/", "https://x/#token"} {
+	for _, s := range []string{"file:///etc/passwd", "http://a:b@x/", "http://x:65536/", "https://x/#token"} {
 		if _, e := safeURL(s); e == nil {
 			t.Fatal(s)
 		}

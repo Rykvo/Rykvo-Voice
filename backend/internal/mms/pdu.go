@@ -69,7 +69,7 @@ func SendRequest(id, to, text string, image *Part) ([]byte, error) {
 	b = append(b, txt(id)...)
 	b = append(b, 0x8d, 0x92, 0x89, 1, 0x81, 0x97)
 	b = append(b, txt(to+"/TYPE=PLMN")...)
-	b = append(b, 0x8a, 0x80, 0x86, 0x81, 0x84, 0xa3)
+	b = append(b, 0x8a, 0x80, 0x86, 0x80, 0x84, 0xa3) // Request an actual delivery report.
 	b = append(b, uv(len(parts))...)
 	for i, p := range parts {
 		h := txt(p.Type)

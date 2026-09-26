@@ -99,3 +99,48 @@ func TestMMSAPNSeparatesCellularAndIWLAN(t *testing.T) {
 		t.Fatal("missing matched IWLAN profile accepted")
 	}
 }
+
+func TestChinaMMSProfilesUseSIMHomeCarrier(t *testing.T) {
+	for _, tc := range []struct{ mnc, apn, mmsc, proxy string }{
+		{"00", "cmwap", "http://mmsc.monternet.com", "10.0.0.172"},
+		{"07", "cmwap", "http://mmsc.monternet.com", "10.0.0.172"},
+		{"01", "3gwap", "http://mmsc.myuni.com.cn", "10.0.0.172"},
+		{"06", "3gwap", "http://mmsc.myuni.com.cn", "10.0.0.172"},
+		{"03", "ctwap", "http://mmsc.vnet.mobi", "10.0.0.200"},
+		{"11", "ctwap", "http://mmsc.vnet.mobi", "10.0.0.200"},
+	} {
+		s := Match(Identity{MCC: "460", MNC: tc.mnc, IMSI: "460" + tc.mnc + "0000000001"})
+		p := s.MMS.Profile
+		if !s.Valid() || s.MMS.Status != "matched" || p == nil || p.APN != tc.apn || p.MMSC != tc.mmsc || p.MMSProxy != tc.proxy || p.MMSPort != "80" {
+			t.Fatalf("%s: %+v", tc.mnc, s)
+		}
+	}
+}
+
+func TestHongKongSIMKeepsHomeConfigWhenRoaming(t *testing.T) {
+	for _, mnc := range []string{"03", "04", "05"} {
+		s := Match(Identity{MCC: "454", MNC: mnc, IMSI: "454" + mnc + "0000000001"})
+		for _, wifi := range []bool{false, true} {
+			c := s.MMSForBearer(wifi, true)
+			if c.Status != "matched" || c.Profile == nil || c.Profile.MCC != "454" || c.Profile.MNC != mnc || c.Profile.APN != "mobile.three.com.hk" || c.Profile.MMSC != "http://mms.um.three.com.hk:10021/mmsc" || c.Profile.MMSProxy != "mms.three.com.hk" {
+				t.Fatal(mnc, wifi, c)
+			}
+		}
+		// A visited PLMN must not replace the home identity.
+		if Match(Identity{MCC: "460", MNC: "01", IMSI: "454" + mnc + "0000000001"}).MMS.Status != "identity_required" {
+			t.Fatal("visited network selected")
+		}
+	}
+}
+
+func TestMMSBearerSelectionDoesNotMutateSIMProfile(t *testing.T) {
+	s := Selection{MMS: Choice{Status: "matched", Profile: &Profile{APN: "cell", Protocol: "IPV6", RoamingProtocol: "IP"}}, MMSWiFi: Choice{Status: "matched", Profile: &Profile{APN: "wifi", Protocol: "IPV4V6", RoamingProtocol: "IP"}}}
+	if s.MMSForBearer(false, true).Profile.Protocol != "IP" || s.MMSForBearer(false, false).Profile.Protocol != "IPV6" || s.MMSForBearer(true, true).Profile.Protocol != "IPV4V6" {
+		t.Fatal("wrong bearer protocol")
+	}
+	c := s.MMSForBearer(false, true)
+	c.Profile.APN = "changed"
+	if s.MMS.Profile.APN != "cell" || s.MMS.Profile.Protocol != "IPV6" {
+		t.Fatal("cached config mutated")
+	}
+}
