@@ -73,7 +73,10 @@ func messageImage(raw string) (*mms.Part, error) {
 		return nil, errors.New("INVALID_IMAGE")
 	}
 	b, e := base64.StdEncoding.DecodeString(b64)
-	if e != nil || len(b) > 1024*1024 {
+	if len(b) > 1024*1024 {
+		return nil, errors.New("MMS_TOO_LARGE")
+	}
+	if e != nil {
 		return nil, errors.New("INVALID_IMAGE")
 	}
 	config, format, e := image.DecodeConfig(strings.NewReader(string(b)))

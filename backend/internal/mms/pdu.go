@@ -94,7 +94,7 @@ func NotifyResponse(id string, status byte) []byte {
 	return append(b, 0x8d, 0x92, 0x95, status)
 }
 func imageType(s string) bool {
-	return s == "image/jpeg" || s == "image/png" || s == "image/gif" || s == "image/webp"
+	return s == "image/jpeg" || s == "image/png" || s == "image/gif"
 }
 
 type cursor struct {

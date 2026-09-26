@@ -77,13 +77,14 @@ const Messages = (() => {
   } catch {
     threads = [];
   }
-  let unsubscribe = null, sending = false, pendingSubmit = null;
+  let unsubscribe = null, sending = false, pendingSubmit = null, attachmentRead = 0;
   let active = threads[0]?.id || "",
     view = "list",
     query = "",
     drafts = {},
     newNumber = "",
     attachment = null;
+  function clearAttachment() { attachmentRead++; attachment = null; }
   function save() {
     return UI.write(key, threads.filter(t => !t.remote));
   }
@@ -130,7 +131,7 @@ const Messages = (() => {
   }
   function render() {
     const empty = active !== "new" && !current();
-    return `<div class="messages-app" data-view="${view}"><aside class="msg-sidebar" aria-label="会话列表"><header class="msg-list-header"><h1>信息</h1><button class="msg-icon-button" data-msg-action="compose" aria-label="新建信息"><img src="assets/compose.png" alt=""></button></header><label class="msg-search"><span aria-hidden="true"><svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m13 13 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><input id="msg-search" type="search" placeholder="搜索" aria-label="搜索信息" value="${esc(query)}"></label><div class="msg-thread-list scroll-area" id="msg-thread-list">${listHTML()}</div></aside><section class="msg-chat" aria-label="信息对话">${empty ? '<div class="msg-empty-state">暂无信息</div>' : `<header class="msg-chat-header" id="msg-chat-header">${headerHTML()}</header><div class="msg-recipient" id="msg-recipient" ${active === "new" ? "" : "hidden"}><label for="msg-to">收件人：</label><input id="msg-to" type="tel" inputmode="tel" placeholder="手机号码" aria-label="收件人手机号" value="${esc(newNumber)}" maxlength="21"></div>${senderHTML()}<div class="msg-transcript" id="msg-transcript" role="log" aria-label="聊天内容" aria-live="polite"></div><div class="msg-composer-area"><div class="msg-attachment" id="msg-attachment" hidden></div><form class="msg-composer" id="ipad-message-form"><button type="button" class="msg-attach-button" data-msg-action="attach" aria-label="添加照片"><img src="assets/message-plus.png" alt=""></button><input hidden id="msg-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><div class="msg-input-wrap"><textarea id="msg-input" aria-label="信息内容" placeholder="短信" rows="1" maxlength="2000">${esc(drafts[active] || "")}</textarea><button class="msg-send" type="submit" aria-label="发送信息" disabled><img src="assets/message-send.png" alt=""><span class="msg-spinner" aria-hidden="true"></span></button></div></form></div>`}</section></div>`;
+    return `<div class="messages-app" data-view="${view}"><aside class="msg-sidebar" aria-label="会话列表"><header class="msg-list-header"><h1>信息</h1><button class="msg-icon-button" data-msg-action="compose" aria-label="新建信息"><img src="assets/compose.png" alt=""></button></header><label class="msg-search"><span aria-hidden="true"><svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m13 13 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><input id="msg-search" type="search" placeholder="搜索" aria-label="搜索信息" value="${esc(query)}"></label><div class="msg-thread-list scroll-area" id="msg-thread-list">${listHTML()}</div></aside><section class="msg-chat" aria-label="信息对话">${empty ? '<div class="msg-empty-state">暂无信息</div>' : `<header class="msg-chat-header" id="msg-chat-header">${headerHTML()}</header><div class="msg-recipient" id="msg-recipient" ${active === "new" ? "" : "hidden"}><label for="msg-to">收件人：</label><input id="msg-to" type="tel" inputmode="tel" placeholder="手机号码" aria-label="收件人手机号" value="${esc(newNumber)}" maxlength="21"></div>${senderHTML()}<div class="msg-transcript" id="msg-transcript" role="log" aria-label="聊天内容" aria-live="polite"></div><div class="msg-composer-area"><div class="msg-attachment" id="msg-attachment" hidden></div><form class="msg-composer" id="ipad-message-form"><button type="button" class="msg-attach-button" data-msg-action="attach" aria-label="添加照片"><img src="assets/message-plus.png" alt=""></button><input hidden id="msg-file" type="file" accept=".jpg,.jpeg,.png,.gif"><div class="msg-input-wrap"><textarea id="msg-input" aria-label="信息内容" placeholder="短信" rows="1" maxlength="2000">${esc(drafts[active] || "")}</textarea><button class="msg-send" type="submit" aria-label="发送信息" disabled><img src="assets/message-send.png" alt=""><span class="msg-spinner" aria-hidden="true"></span></button></div></form></div>`}</section></div>`;
   }
   function bubbleHTML(message, previous, next) {
     const date = new Date(message.at);
@@ -244,7 +245,7 @@ const Messages = (() => {
     }
     if (previous !== JSON.stringify(current()?.messages || []) || old?.name !== current()?.name) transcript();
   }
-  function unmount() { unsubscribe?.(); unsubscribe = null; }
+  function unmount() { attachmentRead++; unsubscribe?.(); unsubscribe = null; }
   function mount() {
     if (typeof MessageData !== "undefined" && !unsubscribe && MessageData.enabled()) {
       unsubscribe = () => {};
@@ -258,7 +259,7 @@ const Messages = (() => {
   function showThread(id) {
     active = id;
     view = "chat";
-    attachment = null;
+    clearAttachment();
     const t = current();
     if (t) {
       t.unread = false;
@@ -296,10 +297,10 @@ const Messages = (() => {
       pendingSubmit = null;
       if (active !== originalActive) return;
       const id = threads.find(t => t.messages.some(m => m.id === result.id))?.id || MessageIdentity.threadId(result);
-      active = id; newNumber = ""; delete drafts.new; drafts[id] = ""; attachment = null;
+      active = id; newNumber = ""; delete drafts.new; drafts[id] = ""; clearAttachment();
       if (isNew) refresh(); else {input.value="";renderAttachment();transcript();}
     } catch (error) {
-      const labels = {INVALID_IMAGE:"请选择不超过 1 MB 的 JPG、PNG 或 GIF 图片",MMS_TOO_LARGE:"图片需小于 1 MB",MESSAGE_RATE_LIMIT:"发送过于频繁，请稍后再试",DEVICE_CHANGED:"SIM 状态已变化，请刷新后重试",REQUEST_CONFLICT:"发送请求冲突，请核实记录"};
+      const labels = {INVALID_IMAGE:"请选择有效的 JPG、PNG 或 GIF 图片",MMS_TOO_LARGE:"图片大小超过 1 MiB",MESSAGE_RATE_LIMIT:"发送过于频繁，请稍后再试",DEVICE_CHANGED:"SIM 状态已变化，请刷新后重试",REQUEST_CONFLICT:"发送请求冲突，请核实记录"};
       toast(labels[error.code] || "提交结果待确认，再次提交将核对同一请求");
     } finally {sending = false;updateSend();}
   }
@@ -316,7 +317,7 @@ const Messages = (() => {
     if (activeRemoved) {
       active =
         threads[Math.min(Math.max(index, 0), threads.length - 1)]?.id || "";
-      attachment = null;
+      clearAttachment();
       newNumber = "";
       if (!threads.length) view = "list";
       refresh();
@@ -410,7 +411,7 @@ const Messages = (() => {
       active = "new";
       view = "chat";
       newNumber = "";
-      attachment = null;
+      clearAttachment();
       refresh();
       $("#msg-to").focus();
     }
@@ -421,13 +422,13 @@ const Messages = (() => {
     if (action === "cancel") {
       active = threads[0]?.id || "";
       view = "list";
-      attachment = null;
+      clearAttachment();
       newNumber = "";
       refresh();
     }
     if (action === "attach") $("#msg-file").click();
     if (action === "remove-photo") {
-      attachment = null;
+      clearAttachment();
       renderAttachment();
       updateSend();
     }
@@ -472,23 +473,24 @@ const Messages = (() => {
       return;
     }
     if (e.target.id !== "msg-file") return;
-    const file = e.target.files[0];
+    const picker = e.target, file = picker.files[0], ticket = ++attachmentRead;
+    picker.value = "";
     if (!file) return;
-    if (
-      !["image/png", "image/jpeg", "image/gif"].includes(
-        file.type,
-      ) ||
-      file.size > 1024 * 1024
-    ) {
-      toast("请选择 1 MB 以内的图片");
-      e.target.value = "";
-      return;
-    }
-    const target = active,
-      reader = new FileReader();
+    const extension = /\.(jpe?g|png|gif)$/i.exec(file.name)?.[1].toLowerCase();
+    if (!extension || !file.size) { toast("请选择 JPG、PNG 或 GIF 图片"); return; }
+    if (file.size > 1024 * 1024) { toast("图片大小超过 1 MiB"); return; }
+    const kind = extension === "jpg" || extension === "jpeg" ? "jpeg" : extension;
+    const target = active, reader = new FileReader();
     reader.onload = () => {
-      if (active !== target || !$("#msg-attachment")) return;
-      attachment = { data: reader.result };
+      if (ticket !== attachmentRead || active !== target || $("#msg-file") !== picker || !$("#msg-attachment")) return;
+      const encoded = String(reader.result).split(",")[1] || "";
+      let header = "";
+      try { header = atob(encoded.slice(0, 16)); } catch { /* Invalid file data. */ }
+      const valid = kind === "jpeg" ? header.startsWith("\xff\xd8\xff")
+        : kind === "png" ? header.startsWith("\x89PNG\r\n\x1a\n")
+        : /^GIF8[79]a/.test(header);
+      if (!valid) { toast("图片格式与内容不符"); return; }
+      attachment = { data: `data:image/${kind};base64,${encoded}` };
       renderAttachment();
       updateSend();
     };
