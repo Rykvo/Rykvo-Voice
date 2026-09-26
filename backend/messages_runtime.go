@@ -485,7 +485,8 @@ func (m *moduleManager) messageState(ctx context.Context, id, state, issue strin
 // must never let an old receipt advance a different message.
 func (m *moduleManager) applySMSReports(ctx context.Context) {
 	_, _ = m.db.Exec(ctx, `WITH parts AS (
- SELECT m.id,m.iccid,m.peer,m.created_at,(x->>'reference')::int reference
+ SELECT m.id,m.iccid,m.peer,m.created_at,(x->>'reference')::int reference,
+ COALESCE(NULLIF(x->>'submittedAt','')::timestamptz,m.created_at) submitted_at
  FROM messages m CROSS JOIN LATERAL jsonb_array_elements(
  CASE WHEN jsonb_typeof(m.result->'partResults')='array' THEN m.result->'partResults' ELSE '[]'::jsonb END) x
  WHERE m.mine AND m.kind='sms' AND m.created_at>now()-interval '7 days'
@@ -493,7 +494,8 @@ func (m *moduleManager) applySMSReports(ctx context.Context) {
  SELECT p.iccid,p.fingerprint,p.reference,p.status,min(m.id) id,count(DISTINCT m.id) n
  FROM message_reports p JOIN parts m ON m.iccid=p.iccid
  AND ltrim(m.peer,'+')=ltrim(p.peer,'+') AND m.reference=p.reference
- AND p.received_at>=m.created_at AND (p.scts IS NULL OR p.scts>=m.created_at-interval '10 minutes')
+ AND p.received_at>=m.created_at AND (p.scts IS NULL OR
+ p.scts BETWEEN m.submitted_at-interval '10 minutes' AND m.submitted_at+interval '10 minutes')
  GROUP BY p.iccid,p.fingerprint,p.reference,p.status
  ), outcomes AS (
  SELECT id,max(status) FILTER(WHERE status BETWEEN 64 AND 127) failure,
@@ -509,6 +511,9 @@ func (m *moduleManager) applySMSReports(ctx context.Context) {
  AND o.delivered=(m.result->>'partsTotal')::int
  AND jsonb_array_length(CASE WHEN jsonb_typeof(m.result->'partResults')='array'
  THEN m.result->'partResults' ELSE '[]'::jsonb END)=(m.result->>'partsTotal')::int))`)
+	// Stop the spinner after a bounded wait; late receipts still resolve unknown.
+	_, _ = m.db.Exec(ctx, `UPDATE messages SET state='unknown',issue='SMS_DELIVERY_UNCONFIRMED'
+ WHERE mine AND kind='sms' AND state='accepted' AND updated_at<now()-interval '2 minutes'`)
 }
 
 func (m *moduleManager) pollCellularInbox(parent context.Context, cursor *int) {

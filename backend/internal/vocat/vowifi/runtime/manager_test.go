@@ -320,7 +320,10 @@ func TestManagerReEnablesWhenSwitchChangesDuringDisable(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if state.Phase == want {
+			manager.mu.Lock()
+			busy := manager.entries["ec20"].busy
+			manager.mu.Unlock()
+			if state.Phase == want && !busy {
 				return
 			}
 			time.Sleep(time.Millisecond)

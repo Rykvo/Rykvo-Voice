@@ -54,7 +54,41 @@ func (s *System) cellSMS(ctx context.Context, c Candidate, identity, card string
 		at.port.Close()
 		return nil, e
 	}
+	if e = ensureSMSReports(ctx, at.query); e != nil {
+		at.port.Close()
+		return nil, e
+	}
 	return at, nil
+}
+
+// Store reports for polling instead of losing direct +CDS URCs between opens.
+func ensureSMSReports(ctx context.Context, query func(context.Context, string) ([]string, error)) error {
+	lines, err := query(ctx, "AT+CNMI?")
+	if err != nil {
+		return err
+	}
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "+CNMI:") {
+			continue
+		}
+		values := fields(line)
+		if len(values) != 5 {
+			break
+		}
+		for i, maximum := range []int{2, 3, 2, 2, 1} {
+			n, e := strconv.Atoi(values[i])
+			if e != nil || n < 0 || n > maximum {
+				return errors.New("INVALID_RESPONSE")
+			}
+		}
+		if values[3] == "2" {
+			return nil
+		}
+		values[3] = "2"
+		_, err = query(ctx, "AT+CNMI="+strings.Join(values, ","))
+		return err
+	}
+	return errors.New("INVALID_RESPONSE")
 }
 func smsATWrite(ctx context.Context, at *atSession, data []byte) error {
 	for len(data) > 0 {
@@ -175,6 +209,10 @@ func (s *System) ReadCellularSMS(ctx context.Context, c Candidate, identity, car
 		return e
 	}
 	defer at.port.Close()
+	return readCellularInbox(ctx, at, store)
+}
+
+func readCellularInbox(ctx context.Context, at *atSession, store func(context.Context, SMSDelivery) error) error {
 	// Received SMS may be in ME even when the current read store is SM.
 	config, e := at.query(ctx, "AT+CPMS?")
 	if e != nil {
@@ -189,7 +227,7 @@ func (s *System) ReadCellularSMS(ctx context.Context, c Candidate, identity, car
 			}
 		}
 	}
-	if original != "SM" && original != "ME" && original != "MT" {
+	if original != "SM" && original != "ME" && original != "MT" && original != "SR" {
 		return errors.New("SMS_STORAGE_UNAVAILABLE")
 	}
 	changed := false
@@ -201,7 +239,7 @@ func (s *System) ReadCellularSMS(ctx context.Context, c Candidate, identity, car
 		}
 	}()
 	stores := []string{original}
-	for _, name := range []string{"SM", "ME"} {
+	for _, name := range []string{"SM", "ME", "SR"} {
 		if name != original {
 			stores = append(stores, name)
 		}
