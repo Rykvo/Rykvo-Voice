@@ -39,6 +39,7 @@ const MessageIdentity = (() => {
   }
   function delivery(message) {
     if (!message.mine) return "";
+    if (message.state === "waiting_network" && message.kind === "mms") return "waiting";
     if (["queued", "sending", "waiting_network"].includes(message.state)) return "pending";
     if (message.state === "accepted") return "sent";
     if (message.state === "delivered") return "delivered";

@@ -40,6 +40,8 @@ test('avatars are stable, varied and prefer remark characters',()=>{
   assert.ok(new Set(Array.from({length:20},(_,i)=>identity.avatar('+133225005'+i).color)).size>3);
 });
 test('only a delivery receipt is shown as delivered; pending states have spinner',()=>{
+  assert.equal(identity.delivery({mine:true,state:'waiting_network',kind:'mms'}),'waiting');
+  assert.equal(identity.delivery({mine:true,state:'sending',kind:'mms'}),'pending');
   for(const state of ['queued','sending','waiting_network']) assert.equal(identity.delivery({mine:true,state}),'pending');
   for(const state of ['unknown','partial','new-state']) assert.equal(identity.delivery({mine:true,state}),'unconfirmed');
   assert.equal(identity.delivery({mine:true,state:'accepted'}),'sent');

@@ -196,13 +196,13 @@ const Messages = (() => {
   function deliveryHTML(message) {
     if (!message.remote) return "";
     if (!message.mine) {
-      const labels = {receiving:"正在接收", download_pending:"彩信待接收", downloading:"正在接收", expired:"彩信已过期", decode_error:"信息解码异常", unsupported_push:"暂不支持的信息类型"};
-      return labels[message.state] ? `<small class="msg-delivery" role="status">${labels[message.state]}</small>` : "";
+      const labels = {receiving:"正在接收", download_pending:"彩信待接收", downloading:"正在接收", waiting_network:"等待彩信网络", failed:"彩信接收失败", expired:"彩信已过期", decode_error:"信息解码异常", unsupported_push:"暂不支持的信息类型"};
+      return labels[message.state] ? `<small class="msg-delivery${message.state === "failed" ? " failed" : ""}" role="status" title="${esc(message.issue || "")}">${labels[message.state]}</small>` : "";
     }
     const state = MessageIdentity.delivery(message);
     if (!state) return "";
-    const labels = {sent: "已发送", delivered: "已送达", failed: "尚未送达", unconfirmed: "结果待确认"};
-    return `<small class="msg-delivery${state === "failed" ? " failed" : ""}" role="status">${state === "pending" ? '<span class="msg-spinner" aria-label="发送中"></span>' : labels[state]}</small>`;
+    const labels = {sent: "已发送", delivered: "已送达", failed: "尚未送达", unconfirmed: "结果待确认", waiting: "等待彩信网络"};
+    return `<small class="msg-delivery${state === "failed" ? " failed" : ""}" role="status" title="${esc(message.issue || "")}">${state === "pending" ? '<span class="msg-spinner" aria-label="发送中"></span>' : labels[state]}</small>`;
   }
   function syncRemote(records, contacts = []) {
     const old = current(), previous = JSON.stringify(old?.messages || []);

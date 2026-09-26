@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-func (s *System) cellSMS(ctx context.Context, c Candidate, identity, card string) (*atSession, error) {
+func (s *System) cellularSession(ctx context.Context, c Candidate, identity, card string) (*atSession, error) {
 	found, e := s.Discover(ctx)
 	if e != nil {
 		return nil, e
@@ -42,6 +42,13 @@ func (s *System) cellSMS(ctx context.Context, c Candidate, identity, card string
 	if e != nil || mode != 1 {
 		at.port.Close()
 		return nil, errors.New("SMS_NOT_READY")
+	}
+	return at, nil
+}
+func (s *System) cellSMS(ctx context.Context, c Candidate, identity, card string) (*atSession, error) {
+	at, e := s.cellularSession(ctx, c, identity, card)
+	if e != nil {
+		return nil, e
 	}
 	if _, e = at.query(ctx, "AT+CMGF=0"); e != nil {
 		at.port.Close()

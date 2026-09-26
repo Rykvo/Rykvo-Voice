@@ -384,9 +384,9 @@ test("delivery status is outside the bubble and only explicit failure is red",()
   app.publish(["accepted","delivered","failed","sending","unknown","partial"].map(state=>({number:"+13322500550",mine:true,state})));
   app.select("remote:module-01:line-module-01-0:+13322500550");
   const html=app.node("#msg-transcript").innerHTML;
-  assert.match(html, /<\/span><\/div><small class="msg-delivery" role="status">已发送/);
-  assert.match(html, /class="msg-delivery" role="status">已送达/);
-  assert.match(html, /class="msg-delivery failed" role="status">尚未送达/);
+  assert.match(html, /<\/span><\/div><small class="msg-delivery" role="status" title="">已发送/);
+  assert.match(html, /class="msg-delivery" role="status" title="">已送达/);
+  assert.match(html, /class="msg-delivery failed" role="status" title="">尚未送达/);
   assert.equal((html.match(/msg-delivery failed/g)||[]).length,1);
   assert.equal((html.match(/结果待确认/g)||[]).length,2);
   assert.match(html, /class="msg-spinner" aria-label="发送中"/);
@@ -430,4 +430,14 @@ test("empty content label never replaces photos or incomplete and failed recepti
     app.select("remote:module-01:line-module-01-0:128");
     assert.doesNotMatch(app.node("#msg-transcript").innerHTML,/无文本内容/);
   }
+});
+
+
+test("waiting MMS is not an active spinner and error details are escaped",()=>{
+ const app=setup(undefined,true);app.server();
+ app.publish([{number:"+13322500550",mine:true,kind:"mms",state:"waiting_network",issue:'MMS_<"bad">'}]);
+ app.select("remote:module-01:line-module-01-0:+13322500550");
+ const html=app.node("#msg-transcript").innerHTML;
+ assert.match(html,/等待彩信网络/);assert.doesNotMatch(html,/msg-spinner/);
+ assert.doesNotMatch(html,/<"bad">/);assert.match(html,/&lt;/);
 });

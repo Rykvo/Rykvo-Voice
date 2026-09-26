@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"rykvo.local/auth/internal/carrierconfig"
 	"rykvo.local/auth/internal/hardware"
 	"rykvo.local/auth/internal/mms"
 	"rykvo.local/auth/internal/vocat/device"
@@ -20,6 +21,10 @@ import (
 type cellularMessageTransport interface {
 	SendCellularSMS(context.Context, hardware.Candidate, string, string, string, string) (vowifi.SMSSubmitResult, error)
 	ReadCellularSMS(context.Context, hardware.Candidate, string, string, func(context.Context, hardware.SMSDelivery) error) error
+}
+type cellularMMSTransport interface {
+	SendCellularMMS(context.Context, hardware.Candidate, string, string, carrierconfig.Profile, string, string, string, *mms.Part) (hardware.MMSSubmitResult, error)
+	ReceiveCellularMMS(context.Context, hardware.Candidate, string, string, carrierconfig.Profile, string, string, func(mms.PDU) error) error
 }
 
 func cellularRegistered(r hardware.Reading) bool {
@@ -199,6 +204,22 @@ func (m *moduleManager) runMessages(ctx context.Context) {
 	}
 	_, _ = m.db.Exec(ctx, "UPDATE messages SET state='download_pending' WHERE NOT mine AND state='downloading'")
 	cursor := 0
+	// A modem MMS transaction must not block SMS inboxes or receipt processing.
+	workerDone := make(chan struct{})
+	defer func() { <-workerDone }()
+	go func() {
+		defer close(workerDone)
+		timer := time.NewTicker(2 * time.Second)
+		defer timer.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+				m.processMessage(ctx)
+			}
+		}
+	}()
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -206,14 +227,13 @@ func (m *moduleManager) runMessages(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			m.processMessage(ctx)
 			m.applySMSReports(ctx)
 			m.pollCellularInbox(ctx, &cursor)
 		}
 	}
 }
 func (m *moduleManager) processMessage(parent context.Context) {
-	ctx, cancel := context.WithTimeout(parent, 100*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 480*time.Second)
 	defer cancel()
 	// Waiting work is retried only before any network submission is known to occur.
 	var id, card, line, to, text, rawImage, kind, state string
@@ -235,6 +255,7 @@ func (m *moduleManager) processMessage(parent context.Context) {
 	profile := m.carrierConfigs[card]
 	wifi := m.wifi[module]
 	useWiFi := wifi != nil && (wifi.Enabled || wifi.running || wifi.State == "stopping")
+	roamingAllowed := m.roamingReady && m.roaming[card]
 	ready := valid && ((useWiFi && wifi.Enabled && wifi.Registered && wifi.SMSReady) || (!useWiFi && cellularRegistered(sample.Reading)))
 	m.mu.RUnlock()
 	if !valid {
@@ -247,6 +268,14 @@ func (m *moduleManager) processMessage(parent context.Context) {
 	}
 	if kind == "mms" && (profile.MMS.Status != "matched" || profile.MMS.Profile == nil) {
 		m.messageState(ctx, id, "waiting_network", "MMS_CONFIG_REQUIRED", nil)
+		return
+	}
+	if kind == "mms" && !useWiFi && (!cellularRegistered(sample.Reading) || sample.Reading.Registration == "roaming" && !roamingAllowed) {
+		issue := "MMS_NETWORK_REQUIRED"
+		if sample.Reading.Registration == "roaming" {
+			issue = "MMS_ROAMING_DISABLED"
+		}
+		m.messageState(ctx, id, "waiting_network", issue, nil)
 		return
 	}
 	// CAS also honors a cancellation that happened after selecting this job.
@@ -313,6 +342,30 @@ func (m *moduleManager) processMessage(parent context.Context) {
 		m.messageState(finish, id, status, issue, result)
 		return
 	}
+	var native cellularMMSTransport
+	if !useWiFi {
+		native, _ = m.source.(cellularMMSTransport)
+		if native == nil {
+			m.messageState(ctx, id, "failed", "MMS_MODEM_UNSUPPORTED", nil)
+			return
+		}
+		gate := m.gate(sample.Candidate.Key)
+		select {
+		case gate <- struct{}{}:
+			defer func() { <-gate }()
+		default:
+			m.messageState(ctx, id, "waiting_network", "MMS_BUSY", nil)
+			return
+		}
+		m.mu.RLock()
+		w := m.wifi[module]
+		busy := !m.ready || m.jobs[module].active() || w != nil && (w.Enabled || w.running || w.State == "stopping")
+		m.mu.RUnlock()
+		if busy {
+			m.messageState(ctx, id, "waiting_network", "MMS_BUSY", nil)
+			return
+		}
+	}
 	if next == "downloading" {
 		var meta struct {
 			Location    string `json:"location"`
@@ -322,40 +375,65 @@ func (m *moduleManager) processMessage(parent context.Context) {
 			m.messageState(ctx, id, "failed", "MMS_INVALID_NOTIFICATION", nil)
 			return
 		}
-		p, e := mms.Retrieve(ctx, *profile.MMS.Profile, meta.Location)
-		if e != nil {
-			m.messageState(ctx, id, "waiting_network", "MMS_NETWORK_REQUIRED", nil)
-			return
-		}
-		body, img := "", ""
-		for _, part := range p.Parts {
-			if part.Type == "text/plain" {
-				if len(body)+len(part.Data) <= 4096 {
-					body += string(part.Data)
+		persist := func(p mms.PDU) error {
+			body, img := "", ""
+			for _, part := range p.Parts {
+				if part.Type == "text/plain" {
+					if len(body)+len(part.Data) <= 4096 {
+						body += string(part.Data)
+					}
+				} else if img == "" {
+					candidate := "data:" + part.Type + ";base64," + base64.StdEncoding.EncodeToString(part.Data)
+					if _, err := messageImage(candidate); err == nil {
+						img = candidate
+					}
 				}
-			} else if img == "" {
-				candidate := "data:" + part.Type + ";base64," + base64.StdEncoding.EncodeToString(part.Data)
-				if _, err := messageImage(candidate); err == nil {
-					img = candidate
+			}
+			if body == "" && img == "" {
+				return errors.New("MMS_UNSUPPORTED_CONTENT")
+			}
+			peer := strings.TrimSuffix(p.From, "/TYPE=PLMN")
+			if !hardware.ValidSMS(peer, "x") {
+				peer = to
+			}
+			finish, stop := context.WithTimeout(context.Background(), 5*time.Second)
+			defer stop()
+			tag, err := m.db.Exec(finish, "UPDATE messages SET body=$2,image=$3,peer=$4,state='received',issue='' WHERE id=$1 AND deleted_at IS NULL AND state='downloading'", id, body, img, peer)
+			if err == nil && tag.RowsAffected() != 1 {
+				return errors.New("MMS_CANCELLED")
+			}
+			return err
+		}
+		if native != nil {
+			e = native.ReceiveCellularMMS(ctx, sample.Candidate, sample.Candidate.Identity(sample.Reading), card, *profile.MMS.Profile, meta.Location, meta.Transaction, persist)
+		} else {
+			var p mms.PDU
+			p, e = mms.Retrieve(ctx, *profile.MMS.Profile, meta.Location)
+			if e == nil {
+				e = persist(p)
+				if e == nil {
+					_ = mms.Acknowledge(ctx, *profile.MMS.Profile, meta.Transaction)
 				}
 			}
 		}
-		if body == "" && img == "" {
-			m.messageState(ctx, id, "failed", "MMS_UNSUPPORTED_CONTENT", nil)
-			return
-		}
-		peer := strings.TrimSuffix(p.From, "/TYPE=PLMN")
-		if !hardware.ValidSMS(peer, "x") {
-			peer = to
-		}
-		if _, e = m.db.Exec(ctx, "UPDATE messages SET body=$2,image=$3,peer=$4,state='received',issue='' WHERE id=$1", id, body, img, peer); e == nil {
-			_ = mms.Acknowledge(ctx, *profile.MMS.Profile, meta.Transaction)
+		if e != nil {
+			finish, stop := context.WithTimeout(context.Background(), 5*time.Second)
+			defer stop()
+			m.messageState(finish, id, "failed", e.Error(), nil)
 		}
 		return
 	}
 	part, e := messageImage(rawImage)
 	if e != nil {
 		m.messageState(ctx, id, "failed", "INVALID_IMAGE", nil)
+		return
+	}
+	if native != nil {
+		result, err := native.SendCellularMMS(ctx, sample.Candidate, sample.Candidate.Identity(sample.Reading), card, *profile.MMS.Profile, id, to, text, part)
+		status, issue := nativeMMSState(result, err)
+		finish, stop := context.WithTimeout(context.Background(), 5*time.Second)
+		defer stop()
+		m.messageState(finish, id, status, issue, result)
 		return
 	}
 	networkID, e := mms.Send(ctx, *profile.MMS.Profile, id, to, text, part)
@@ -372,6 +450,22 @@ func (m *moduleManager) processMessage(parent context.Context) {
 	finish, c := context.WithTimeout(context.Background(), 5*time.Second)
 	defer c()
 	m.messageState(finish, id, status, issue, map[string]string{"messageId": networkID})
+}
+func nativeMMSState(result hardware.MMSSubmitResult, err error) (string, string) {
+	if result.Accepted && err == nil {
+		return "accepted", ""
+	}
+	issue := "MMS_OUTCOME_UNKNOWN"
+	if err != nil {
+		issue = err.Error()
+	}
+	if result.Attempted {
+		return "unknown", issue
+	}
+	if issue == "MMS_NOT_READY" {
+		return "waiting_network", issue
+	}
+	return "failed", issue
 }
 func (m *moduleManager) messageState(ctx context.Context, id, state, issue string, result any) {
 	b := []byte(`{}`)
