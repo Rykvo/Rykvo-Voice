@@ -188,3 +188,24 @@ CREATE TABLE IF NOT EXISTS restart_requests (
  state text NOT NULL DEFAULT 'requested',
  created_at timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS sip_accounts (
+ id text PRIMARY KEY,
+ username text NOT NULL,
+ port integer NOT NULL CHECK (port BETWEEN 1024 AND 65535),
+ realm text NOT NULL DEFAULT 'rykvo',
+ digest_md5 bytea NOT NULL CHECK (octet_length(digest_md5)=16),
+ digest_sha256 bytea NOT NULL CHECK (octet_length(digest_sha256)=32),
+ allocation text NOT NULL CHECK (allocation IN ('all','fixed')),
+ receive_calls boolean NOT NULL DEFAULT false,
+ credential_revision bigint NOT NULL DEFAULT 1 CHECK (credential_revision>0),
+ revision bigint NOT NULL DEFAULT 1 CHECK (revision>0),
+ created_at timestamptz NOT NULL DEFAULT now(),
+ updated_at timestamptz NOT NULL DEFAULT now(),
+ UNIQUE(username,port)
+);
+CREATE TABLE IF NOT EXISTS sip_account_modules (
+ account_id text NOT NULL REFERENCES sip_accounts(id) ON DELETE CASCADE,
+ module_id bigint NOT NULL REFERENCES modules(id),
+ PRIMARY KEY(account_id,module_id)
+);

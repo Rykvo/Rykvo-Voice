@@ -39,14 +39,15 @@ main[data-page="sip"] .page-enter,
   width: 30%;
 }
 .sip-col-username {
-  width: 24%;
+  width: 18%;
 }
 .sip-col-password {
-  width: 20%;
+  width: 16%;
 }
 .sip-col-modules {
-  width: 14%;
+  width: 12%;
 }
+.sip-col-status { width: 12%; }
 .sip-col-actions {
   width: 12%;
 }
@@ -57,6 +58,18 @@ main[data-page="sip"] .page-enter,
 .sip-password {
   white-space: nowrap;
 }
+.sip-status { white-space: nowrap; color: var(--muted); }
+.sip-status::before {
+  content: ""; display: inline-block; width: 6px; height: 6px;
+  margin-right: 6px; border-radius: 50%; background: currentColor;
+}
+.sip-status[data-status="online"] { color: #248a3d; }
+.sip-status[data-status="busy"] { color: #a66500; }
+.sip-status[data-status="unknown"]::before { display: none; }
+.theme-dark .sip-status[data-status="online"] { color: #30d158; }
+.theme-dark .sip-status[data-status="busy"] { color: #ffd60a; }
+.sip-service-status { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+.sip-service-status:empty { display: none; }
 .sip-table tbody tr {
   height: 56px;
 }
@@ -101,7 +114,7 @@ main[data-page="sip"] .page-enter,
 #sip-port {
   font-variant-numeric: tabular-nums;
 }
-/* 按内容区宽度排列，窄窗口也保留五列。 */
+/* 按内容区宽度排列，窄窗口也保留六列。 */
 .sip-page {
   container: sip / inline-size;
 }
@@ -118,14 +131,15 @@ main[data-page="sip"] .page-enter,
     width: 30%;
   }
   .sip-col-username {
-    width: 22%;
+    width: 16%;
   }
   .sip-col-password {
     width: 16%;
   }
   .sip-col-modules,
+  .sip-col-status,
   .sip-col-actions {
-    width: 16%;
+    width: 12%;
   }
   .sip-table th,
   .sip-table td {
@@ -142,6 +156,9 @@ main[data-page="sip"] .page-enter,
   .sip-table tbody tr {
     height: 52px;
   }
+}
+@container sip (max-width: 480px) {
+  .sip-table { min-width: 560px; }
 }
 
 .sip-allocation {

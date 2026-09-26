@@ -30,17 +30,19 @@ type attempts struct {
 	until time.Time
 }
 type server struct {
-	webRoot    string
-	db         *pgxpool.Pool
-	origin     string
-	secure     bool
-	mu         sync.Mutex
-	limits     map[string]attempts
-	slots      chan struct{}
-	gestures   map[string]gesture
-	tunnels    *tunnelManager
-	modules    *moduleManager
-	sipNetwork *sipNetworkManager
+	webRoot       string
+	db            *pgxpool.Pool
+	origin        string
+	secure        bool
+	mu            sync.Mutex
+	limits        map[string]attempts
+	slots         chan struct{}
+	gestures      map[string]gesture
+	tunnels       *tunnelManager
+	modules       *moduleManager
+	sipNetwork    *sipNetworkManager
+	sipAccountsMu sync.Mutex
+	sipGateway    *sipGateway
 }
 type session struct {
 	User struct {
@@ -205,6 +207,10 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.URL.Path == "/api/settings/sip-server" || strings.HasPrefix(r.URL.Path, "/api/settings/sip-server/") {
 		s.sipNetworkAPI(ctx, w, r)
+		return
+	}
+	if r.URL.Path == "/api/sip/accounts" || strings.HasPrefix(r.URL.Path, "/api/sip/accounts/") {
+		s.sipAccountsAPI(ctx, w, r)
 		return
 	}
 	if r.URL.Path != "/api/session" {

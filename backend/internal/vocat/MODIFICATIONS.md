@@ -53,3 +53,7 @@ No production engine switch is performed merely by importing this code.
   This is recovery, not seamless overlapping SA rotation. Initial authentication
   errors and operator policy refusals remain terminal. Add packet/lifecycle/
   bridge tests and keep diagnostic output free of subscriber credentials.
+
+- Restrict RTP SDP to implemented mono 8 kHz PCMA/PCMU codecs. Reject AMR,
+  unsupported clock rates and static payload redefinitions; retain the first
+  audio section address when later media sections are present.

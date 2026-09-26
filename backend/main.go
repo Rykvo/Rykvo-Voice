@@ -147,6 +147,10 @@ func main() {
 	if client, ok := wifi.(*hardware.VocatWorkerClient); ok {
 		client.OnSMS = api.modules.receiveSMS
 	}
+	sipContext, stopSIP := context.WithCancel(ctx)
+	api.sipGateway = newSIPGateway(api)
+	go api.sipGateway.run(sipContext)
+	defer func() { stopSIP(); <-api.sipGateway.done }()
 	messageContext, stopMessages := context.WithCancel(ctx)
 	messageDone := make(chan struct{})
 	go func() { defer close(messageDone); api.modules.runMessages(messageContext) }()

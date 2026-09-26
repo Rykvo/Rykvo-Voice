@@ -39,6 +39,9 @@ jobs:
       - name: Hardware race tests
         working-directory: backend
         run: go test -race ./internal/hardware && go test -race -run 'TestModule' .
+      - name: SIP registration and scheduling race tests
+        working-directory: backend
+        run: go test -race ./internal/sipregistrar ./internal/telephony && go test -race -run '^TestSIPGateway' .
       - name: IMS identity race and parser bounds
         working-directory: backend
         run: >-

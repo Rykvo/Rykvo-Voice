@@ -154,10 +154,11 @@ controller.abort();
 
 ### SIP、设置与维护
 
-- SIP 创建 `{username,password,port}`，端口整数 1–65535，默认 5060；服务器 IP 由服务端配置返回，不由创建表单填写。
-- SIP 账号 `{id,ip,username,port,hasPassword,allocation,moduleIds,receiveCalls}`；列表显示 IP:端口（IPv6 加方括号），模块列只显示“全部/固定”。
-- 更新允许 `{username,password?,port,allocation:"all"|"fixed",moduleIds:[],receiveCalls}`。固定至少选一个有效且有权使用的模块。receiveCalls 关闭只拒绝该账号入站，不禁用呼出。
-- 不把密码掩码当真实密码回传；密码未修改时省略 password。生产列表返回 hasPassword，不返回明文；当前预览依赖内存密码，接入时相应调整 `sip.js` 的字段读取/校验。
+- SIP 使用独立 `sip-accounts-api` 能力开关；GET/POST `/api/sip/accounts`，PATCH/DELETE `/api/sip/accounts/:id`。创建提交 `{username,password,port,allocation:"all",moduleIds:[],receiveCalls:false}`。
+- 列表返回 `{items,network:{mode,host,start,end,default},networkReady,callsReady}`。局域网输入框显示“输入端口”，云端以实际范围作为占位提示，不预填固定值；读取失败不猜测范围。提交端口须在后端允许范围内，排除服务保留端口。
+- 账号 `{id,ip,username,port,allocation,moduleIds,receiveCalls,revision,status}`；列表显示 IP:端口（IPv6 加方括号），模块列只显示“全部/固定”，状态为真实在线/通话中/离线。通话驱动尚未启用时 `callsReady:false`，不以 VPN 在线推断账号在线。
+- 更新提交 `{username,password?,port,allocation,moduleIds,receiveCalls,revision}`，删除提交 `{revision}`。版本冲突返回 409；固定分配至少选一个有效模块。关闭接听只停止该账号待接分支。
+- 密码不返回、不写入前端缓存；编辑留空保留原密码，修改用户名须重新输入密码。后端保存 SIP Digest 凭据，不存明文密码。实际撤权挂机仍须注册器及通话驱动接入验收。
 - 管理员 GET 返回 `{account}`；PATCH 提交 `{account,currentPassword,newPassword,confirmPassword}`，空账号或新密码保留原值。服务端验证当前登录密码、长度与确认密码，成功返回 204 并撤销该账号全部会话，前端重新载入登录页。每账号 15 分钟最多 5 次修改尝试；独立密码不受影响。
 - 开发者配置 `{username,apiKey?,webhook,botToken?,adminId,notificationId,telegramProxy?}`。ID 保持字符串。GET 返回非敏感字段和 hasApiKey/hasBotToken/hasTelegramProxy；不回显秘密。PATCH 省略表示不改，显式 null 表示清除。代理仅用于 Telegram，后端解析 `IP:端口:账号:密码`，出站 URL/代理地址需后端限制目标，防止 SSRF。
 - 保留规则 `{days}`，0–36500 整数，0 关闭。服务端按真实时间清理所有账户范围内的过期通话/消息/孤立附件，但保留账号、设置及近期消息。后端调度不依赖网页打开；前端本地清理不应在服务模式代替服务端删除。

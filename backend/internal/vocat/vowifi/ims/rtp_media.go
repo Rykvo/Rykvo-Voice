@@ -71,15 +71,10 @@ func (media *rtpMedia) ready() bool {
 }
 
 func (media *rtpMedia) offerSDP(local net.IP) []byte {
-	return media.buildSDP(local, "8 0 104 102 100", []string{
+	// Advertise only codecs implemented by the PCM bridge.
+	return media.buildSDP(local, "8 0", []string{
 		"a=rtpmap:8 PCMA/8000",
 		"a=rtpmap:0 PCMU/8000",
-		"a=rtpmap:104 AMR-WB/16000",
-		"a=fmtp:104 mode-change-capability=2;max-red=220",
-		"a=rtpmap:102 AMR/8000",
-		"a=fmtp:102 mode-change-capability=2;max-red=220",
-		"a=rtpmap:100 telephone-event/8000",
-		"a=fmtp:100 0-15",
 	})
 }
 
@@ -90,10 +85,7 @@ func (media *rtpMedia) answerSDP(local net.IP) []byte {
 	if codec == "" {
 		return media.offerSDP(local)
 	}
-	rate := 8000
-	if codec == "AMR-WB" {
-		rate = 16000
-	}
+	rate := rtpClockRate
 	return media.buildSDP(local, strconv.Itoa(int(payload)), []string{
 		fmt.Sprintf("a=rtpmap:%d %s/%d", payload, codec, rate),
 	})
@@ -122,20 +114,7 @@ func (media *rtpMedia) buildSDP(local net.IP, formats string, attributes []strin
 		"t=0 0",
 		fmt.Sprintf("m=audio %d RTP/AVP %s", port, formats),
 	}
-	if attributes == nil {
-		lines = append(lines,
-			"a=rtpmap:8 PCMA/8000",
-			"a=rtpmap:0 PCMU/8000",
-			"a=rtpmap:104 AMR-WB/16000",
-			"a=fmtp:104 mode-change-capability=2;max-red=220",
-			"a=rtpmap:102 AMR/8000",
-			"a=fmtp:102 mode-change-capability=2;max-red=220",
-			"a=rtpmap:100 telephone-event/8000",
-			"a=fmtp:100 0-15",
-		)
-	} else {
-		lines = append(lines, attributes...)
-	}
+	lines = append(lines, attributes...)
 	lines = append(lines, "a=ptime:20", "a=sendrecv", "")
 	return []byte(strings.Join(lines, "\r\n"))
 }
@@ -152,29 +131,30 @@ func (media *rtpMedia) configureRemote(body []byte) error {
 		if parseErr != nil || parsed < 0 || parsed > 127 {
 			continue
 		}
-		name := strings.ToUpper(mappings[parsed])
-		if name == "" {
+		mapping := strings.ToUpper(mappings[parsed])
+		if mapping == "" {
 			switch parsed {
 			case 0:
-				name = "PCMU"
+				mapping = "PCMU/8000"
 			case 8:
-				name = "PCMA"
-			case 100:
-				continue
-			default:
-				name = fmt.Sprintf("PAYLOAD-%d", parsed)
+				mapping = "PCMA/8000"
 			}
 		}
-		if name != "TELEPHONE-EVENT" {
-			codec, payload = name, byte(parsed)
-			break
+		parts := strings.Split(mapping, "/")
+		if len(parts) < 2 || len(parts) > 3 || parts[1] != "8000" || (len(parts) == 3 && parts[2] != "1") {
+			continue
 		}
-	}
-	if codec == "" && len(formats) > 0 {
-		if parsed, parseErr := strconv.Atoi(formats[0]); parseErr == nil && parsed >= 0 && parsed <= 127 {
-			codec, payload = fmt.Sprintf("PAYLOAD-%d", parsed), byte(parsed)
+		name := parts[0]
+		if name != "PCMA" && name != "PCMU" {
+			continue
 		}
+		if (parsed == 0 && name != "PCMU") || (parsed == 8 && name != "PCMA") || (parsed != 0 && parsed != 8 && parsed < 96) {
+			continue
+		}
+		codec, payload = name, byte(parsed)
+		break
 	}
+
 	if codec == "" {
 		return errors.New("ims: remote SDP has no usable audio format")
 	}
@@ -191,13 +171,18 @@ func parseAudioSDP(body []byte) (net.IP, int, []string, map[int]string, error) {
 	var port int
 	var formats []string
 	mappings := make(map[int]string)
-	inAudio := false
+	inAudio, seenMedia := false, false
+lines:
 	for _, raw := range strings.Split(strings.ReplaceAll(string(body), "\r\n", "\n"), "\n") {
 		line := strings.TrimSpace(raw)
 		switch {
 		case strings.HasPrefix(line, "m="):
+			if inAudio {
+				break lines
+			}
+			seenMedia = true
 			fields := strings.Fields(strings.TrimPrefix(line, "m="))
-			inAudio = len(fields) >= 4 && strings.EqualFold(fields[0], "audio") && strings.HasPrefix(strings.ToUpper(fields[2]), "RTP/AVP")
+			inAudio = len(fields) >= 4 && strings.EqualFold(fields[0], "audio") && strings.EqualFold(fields[2], "RTP/AVP")
 			if inAudio {
 				port, _ = strconv.Atoi(strings.Split(fields[1], "/")[0])
 				formats = append([]string(nil), fields[3:]...)
@@ -208,16 +193,16 @@ func parseAudioSDP(body []byte) (net.IP, int, []string, map[int]string, error) {
 				ip := net.ParseIP(strings.Split(fields[2], "/")[0])
 				if inAudio {
 					mediaIP = ip
-				} else {
+				} else if !seenMedia {
 					sessionIP = ip
 				}
 			}
 		case inAudio && strings.HasPrefix(strings.ToLower(line), "a=rtpmap:"):
-			fields := strings.Fields(strings.TrimPrefix(line, "a=rtpmap:"))
+			fields := strings.Fields(line[len("a=rtpmap:"):])
 			if len(fields) == 2 {
 				pt, parseErr := strconv.Atoi(fields[0])
 				if parseErr == nil {
-					mappings[pt] = strings.Split(fields[1], "/")[0]
+					mappings[pt] = fields[1]
 				}
 			}
 		}
@@ -251,7 +236,7 @@ func (media *rtpMedia) WritePCM(samples []int16) error {
 	}
 	codec, payload := media.codec, media.payloadType
 	media.mu.RUnlock()
-	if remote == nil || codec == "" {
+	if remote == nil || (codec != "PCMA" && codec != "PCMU") {
 		return errors.New("ims: RTP media is not negotiated")
 	}
 	media.writeMu.Lock()

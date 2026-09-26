@@ -22,7 +22,8 @@ function setup(mode = "all", base = "") {
           : mode === "all" ||
               (mode === "session" && selector.includes('"session-api"')) ||
               (mode === "tunnel" && selector.includes('"tunnel-api"')) ||
-              (mode === "sipNetwork" && selector.includes('"sip-network-api"'))
+              (mode === "sipNetwork" && selector.includes('"sip-network-api"')) ||
+              (mode === "sipAccounts" && selector.includes('"sip-accounts-api"'))
             ? { content: "enabled" }
             : null,
     },
@@ -335,3 +336,11 @@ test("reserved interface contracts retain line scope and credentials stay out of
  assert.equal(f.requests[0].url,"/api/settings/sip-server");assert.equal(f.requests[1].url,"/api/settings/sip-server/logout");
  await assert.rejects(f.api.tunnel.connect({body:{}}),{code:"NOT_CONNECTED"});await assert.rejects(f.api.calls.list(),{code:"NOT_CONNECTED"});
  });
+
+test("SIP account management does not enable calling or global tunnel APIs", async () => {
+  const f = setup("sipAccounts");
+  await f.api.sip.list();
+  assert.equal(f.requests[0].url, "/api/sip/accounts");
+  await assert.rejects(f.api.calls.dial({body:{number:"1001"}}),{code:"NOT_CONNECTED"});
+  await assert.rejects(f.api.tunnel.connect({body:{}}),{code:"NOT_CONNECTED"});
+});
