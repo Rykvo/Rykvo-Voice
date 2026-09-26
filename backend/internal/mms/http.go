@@ -176,6 +176,11 @@ func (c *Client) Send(ctx context.Context, id, to, text string, image *Part) (st
 	if e != nil {
 		return "", e
 	}
+	return SendConfirmation(v, id)
+}
+
+// A successful submission is not proof of handset delivery.
+func SendConfirmation(v PDU, id string) (string, error) {
 	if v.Type != 0x81 || v.Transaction != id {
 		return "", ErrUnknown
 	}

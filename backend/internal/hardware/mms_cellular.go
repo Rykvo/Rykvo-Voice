@@ -1,10 +1,7 @@
 package hardware
 
 import (
-	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/url"
@@ -23,6 +20,7 @@ type MMSSubmitResult struct {
 	Stage     string `json:"stage"`
 	Code      int    `json:"code"`
 	HTTPCode  int    `json:"httpCode"`
+	MessageID string `json:"messageId,omitempty"`
 }
 
 type mmsBearer struct {
@@ -47,7 +45,7 @@ func mmsASCII(v string, max int) bool {
 
 func mmsProfile(p carrierconfig.Profile) (int, int, error) {
 	u, e := url.Parse(p.MMSC)
-	if e != nil || u.Scheme != "http" || u.Hostname() == "" || u.User != nil || u.Fragment != "" || !mmsASCII(p.MMSC, 100) ||
+	if e != nil || u.Scheme != "http" || u.Hostname() == "" || u.User != nil || u.Fragment != "" || !mmsASCII(p.MMSC, 2048) ||
 		!apnNamePattern.MatchString(p.APN) || strings.EqualFold(p.APN, "ims") || strings.EqualFold(p.APN, "sos") ||
 		!mmsASCII(p.User, 64) || !mmsASCII(p.Password, 64) || !mmsASCII(p.MMSProxy, 50) || strings.ContainsAny(p.MMSProxy, " /:@") {
 		return 0, 0, errors.New("MMS_PROFILE_UNSUPPORTED")
@@ -224,7 +222,7 @@ func mmsWait(ctx context.Context, at *atSession, prefix string) (string, error) 
 		if e != nil {
 			return "", e
 		}
-		if line == "ERROR" || strings.HasPrefix(line, "+CME ERROR") || strings.HasPrefix(line, "+CMS ERROR") {
+		if line == "ERROR" || line == "SEND FAIL" || strings.HasPrefix(line, "+CME ERROR") || strings.HasPrefix(line, "+CMS ERROR") {
 			if parts := strings.SplitN(line, ":", 2); len(parts) == 2 {
 				if code, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil {
 					return "", fmt.Errorf("MMS_COMMAND_REJECTED_%d", code)
@@ -237,87 +235,13 @@ func mmsWait(ctx context.Context, at *atSession, prefix string) (string, error) 
 		}
 	}
 }
-func mmsChecksum(data []byte) uint16 {
-	var value uint16
-	for i, v := range data {
-		if i%2 == 0 {
-			value ^= uint16(v) << 8
-		} else {
-			value ^= uint16(v)
-		}
-	}
-	return value
-}
-func (b *mmsBearer) upload(ctx context.Context, name string, data []byte) error {
-	if bytes.Contains(data, []byte("+++")) {
-		return b.uploadChunks(ctx, name, data)
-	}
-	call, cancel := context.WithTimeout(ctx, 65*time.Second)
-	defer cancel()
-	e := smsATWrite(call, b.at, []byte(fmt.Sprintf("AT+QFUPL=%q,%d,60,1\r", name, len(data))))
-	if e == nil {
-		_, e = mmsWait(call, b.at, "CONNECT")
-	}
-	if e == nil {
-		e = mmsDataReady(call)
-	}
-	for offset := 0; e == nil && offset < len(data); {
-		n := len(data) - offset
-		if n > 1024 {
-			n = 1024
-		}
-		e = mmsDataWrite(call, b.at, data[offset:offset+n])
-		offset += n
-		if e == nil && offset < len(data) {
-			var ack []byte
-			ack, e = mmsReadBytes(call, b.at, 1)
-			if e == nil && (len(ack) != 1 || ack[0] != 'A') {
-				e = errors.New("MMS_UPLOAD_ACK")
-			}
-		}
-	}
-	var result string
-	if e == nil {
-		for {
-			result, e = mmsLine(call, b.at)
-			if e != nil {
-				break
-			}
-			result = strings.TrimPrefix(result, "A")
-			if strings.HasPrefix(result, "+QFUPL:") {
-				break
-			}
-			if strings.Contains(result, "ERROR") {
-				e = errors.New("MMS_UPLOAD_FAILED")
-				break
-			}
-		}
-	}
-	if e == nil {
-		_, e = mmsWait(call, b.at, "OK")
-	}
-	if e != nil {
-		b.healthy = false
-		return errors.New("MMS_UPLOAD_FAILED")
-	}
-	f := fields(result)
-	if len(f) != 2 {
-		return errors.New("MMS_UPLOAD_FAILED")
-	}
-	size, e := strconv.Atoi(f[0])
-	sum, se := strconv.ParseUint(f[1], 16, 16)
-	if e != nil || se != nil || size != len(data) || uint16(sum) != mmsChecksum(data) {
-		return errors.New("MMS_UPLOAD_CHECKSUM")
-	}
-	return nil
-}
-
 func (s *System) SendCellularMMS(ctx context.Context, c Candidate, identity, card string, p carrierconfig.Profile, id, to, text string, image *mms.Part) (MMSSubmitResult, error) {
 	r := MMSSubmitResult{Stage: "validate"}
-	if _, e := mms.SendRequest(id, to, text, image); e != nil {
+	data, e := mms.SendRequest(id, to, text, image)
+	if e != nil {
 		return r, e
 	}
-	_, port, e := mmsProfile(p)
+	_, _, e = mmsProfile(p)
 	if e != nil {
 		return r, e
 	}
@@ -331,103 +255,26 @@ func (s *System) SendCellularMMS(ctx context.Context, c Candidate, identity, car
 		return r, e
 	}
 	defer b.close()
-	return sendNativeMMS(ctx, b, p, port, to, text, image)
+	return sendCellularMM1(ctx, b, p, id, data)
 }
 
-func sendNativeMMS(ctx context.Context, b *mmsBearer, p carrierconfig.Profile, port int, to, text string, image *mms.Part) (MMSSubmitResult, error) {
-	r := MMSSubmitResult{Stage: "configure"}
-	files := []string{}
-	defer func() {
-		if !b.healthy {
-			return
-		}
-		clean, cancel := context.WithTimeout(context.Background(), 8*time.Second)
-		defer cancel()
-		if _, e := b.command(clean, "AT+QMMSEDIT=0", 2*time.Second); e != nil {
-			return
-		}
-		for _, name := range files {
-			if _, e := b.command(clean, "AT+QFDEL="+strconv.Quote(name), 2*time.Second); e != nil {
-				return
-			}
-		}
-	}()
-	commands := []string{
-		fmt.Sprintf("AT+QMMSCFG=\"contextid\",%d", b.cid),
-		"AT+QMMSCFG=\"mmsc\"," + strconv.Quote(p.MMSC),
-		fmt.Sprintf("AT+QMMSCFG=\"proxy\",%q,%d", p.MMSProxy, port),
-		"AT+QMMSCFG=\"sendparam\",6,1,1,0,2,0",
-		"AT+QMMSCFG=\"connecttimeout\",60",
-		"AT+QMMSCFG=\"character\",\"UTF8\"",
-		"AT+QMMSEDIT=0", "AT+QMMSEDIT=1,1," + strconv.Quote(to),
+// TCP AT commands retain the SIM-bound PDP and expose the MMSC message ID.
+// Never fall back to another submission after any request bytes were written.
+func sendCellularMM1(ctx context.Context, b *mmsBearer, p carrierconfig.Profile, id string, data []byte) (MMSSubmitResult, error) {
+	r := MMSSubmitResult{Stage: "connect"}
+	response, err := b.httpExchange(ctx, p, "POST", p.MMSC, data, &r)
+	if err != nil {
+		return r, err
 	}
-	for _, cmd := range commands {
-		if _, e := b.command(ctx, cmd, 2*time.Second); e != nil {
-			return r, errors.New("MMS_CONFIG_FAILED")
-		}
-	}
-	token := make([]byte, 4)
-	if _, e := rand.Read(token); e != nil {
-		return r, e
-	}
-	base := "RAM:" + hex.EncodeToString(token)
-	parts := []mms.Part{}
-	if text != "" {
-		parts = append(parts, mms.Part{Type: "text/plain", Data: []byte(text)})
-	}
-	if image != nil {
-		parts = append(parts, *image)
-	}
-	r.Stage = "upload"
-	for _, part := range parts {
-		ext := map[string]string{"text/plain": "txt", "image/jpeg": "jpg", "image/png": "png", "image/gif": "gif"}[part.Type]
-		if ext == "" {
-			return r, errors.New("MMS_UNSUPPORTED_CONTENT")
-		}
-		name := base + "." + ext
-		if e := b.fileAvailable(ctx, name); e != nil {
-			return r, e
-		}
-		files = append(files, name)
-		if e := b.upload(ctx, name, part.Data); e != nil {
-			return r, e
-		}
-		if _, e := b.command(ctx, "AT+QMMSEDIT=5,1,"+strconv.Quote(name), 2*time.Second); e != nil {
-			return r, errors.New("MMS_ATTACHMENT_FAILED")
-		}
-	}
-	r.Stage = "submit"
-	r.Attempted = true
-	call, cancel := context.WithTimeout(ctx, 100*time.Second)
-	defer cancel()
-	if e := smsATWrite(call, b.at, []byte("AT+QMMSEND=90\r")); e != nil {
-		b.healthy = false
+	v, err := mms.Parse(response)
+	if err != nil {
 		return r, mms.ErrUnknown
 	}
-	line, e := mmsWait(call, b.at, "+QMMSEND") // An initial OK is not acceptance.
-	if e != nil {
-		b.healthy = false
-		return r, mms.ErrUnknown
+	r.Code = int(v.Status)
+	r.MessageID, err = mms.SendConfirmation(v, id)
+	if err != nil {
+		return r, err
 	}
-	f := fields(line)
-	if len(f) < 1 || len(f) > 3 {
-		return r, mms.ErrUnknown
-	}
-	r.Code, e = strconv.Atoi(f[0])
-	if e != nil {
-		return r, mms.ErrUnknown
-	}
-	if len(f) > 1 {
-		r.HTTPCode, e = strconv.Atoi(f[1])
-		if e != nil {
-			return r, mms.ErrUnknown
-		}
-	}
-	r.Stage = "complete"
-	if r.Code == 0 && r.HTTPCode == 200 {
-		r.Accepted = true
-		return r, nil
-	}
-	// Socket/response failures can occur after submission. Never resend automatically.
-	return r, fmt.Errorf("MMS_MODEM_%d_HTTP_%d", r.Code, r.HTTPCode)
+	r.Stage, r.Accepted = "complete", true
+	return r, nil
 }

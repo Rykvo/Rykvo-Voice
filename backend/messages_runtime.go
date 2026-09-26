@@ -473,6 +473,9 @@ func nativeMMSState(result hardware.MMSSubmitResult, err error) (string, string)
 	if err != nil {
 		issue = err.Error()
 	}
+	if issue == "MMS_REJECTED" {
+		return "failed", issue
+	}
 	if result.Attempted {
 		return "unknown", issue
 	}

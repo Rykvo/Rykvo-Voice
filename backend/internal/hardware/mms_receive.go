@@ -200,6 +200,14 @@ func (s *mmsSocket) Read(dst []byte) (int, error) {
 }
 
 func (b *mmsBearer) http(parent context.Context, p carrierconfig.Profile, method, address string, body []byte) ([]byte, error) {
+	return b.httpExchange(parent, p, method, address, body, nil)
+}
+
+func (b *mmsBearer) httpExchange(parent context.Context, p carrierconfig.Profile, method, address string, body []byte, submit *MMSSubmitResult) ([]byte, error) {
+	if len(body) > mms.MaxSize {
+		return nil, errors.New("MMS_TOO_LARGE")
+	}
+
 	u, e := mmsReceiveURL(p, address)
 	if e != nil {
 		return nil, e
@@ -221,7 +229,7 @@ func (b *mmsBearer) http(parent context.Context, p carrierconfig.Profile, method
 	if !mmsASCII(host, 253) {
 		return nil, errors.New("MMS_LOCATION_UNSUPPORTED")
 	}
-	ctx, cancel := context.WithTimeout(parent, 90*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 180*time.Second)
 	defer cancel()
 	host, e = b.resolveHost(ctx, host)
 	if e != nil {
@@ -291,7 +299,7 @@ func (b *mmsBearer) http(parent context.Context, p carrierconfig.Profile, method
 	} else {
 		e = req.Write(&request)
 	}
-	if e != nil || request.Len() > 8192 {
+	if e != nil || request.Len() > mms.MaxSize+8192 {
 		return nil, errors.New("MMS_INVALID_REQUEST")
 	}
 	data := request.Bytes()
@@ -308,6 +316,10 @@ func (b *mmsBearer) http(parent context.Context, p carrierconfig.Profile, method
 			e = mmsDataReady(ctx)
 		}
 		if e == nil {
+			if submit != nil {
+				submit.Attempted = true
+				submit.Stage = "submit"
+			}
 			e = mmsDataWrite(ctx, b.at, data[:n])
 		}
 		if e == nil {
@@ -325,13 +337,17 @@ func (b *mmsBearer) http(parent context.Context, p carrierconfig.Profile, method
 		return nil, errors.New("MMS_HTTP_INVALID")
 	}
 	defer response.Body.Close()
-	if method == "POST" && response.StatusCode == 204 {
+	if submit != nil {
+		submit.HTTPCode = response.StatusCode
+		submit.Stage = "response"
+	}
+	if method == "POST" && submit == nil && response.StatusCode == 204 {
 		return nil, nil
 	}
 	if response.StatusCode != 200 {
 		return nil, fmt.Errorf("MMS_HTTP_%d", response.StatusCode)
 	}
-	if method == "GET" {
+	if method == "GET" || submit != nil {
 		kind, _, e := mime.ParseMediaType(response.Header.Get("Content-Type"))
 		if e != nil || kind != "application/vnd.wap.mms-message" {
 			return nil, errors.New("MMS_HTTP_CONTENT_TYPE")

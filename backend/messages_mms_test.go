@@ -13,7 +13,9 @@ func TestNativeMMSStateDoesNotReplayUncertainSubmissions(t *testing.T) {
 	}{
 		{hardware.MMSSubmitResult{Attempted: true, Accepted: true}, "", "accepted"},
 		{hardware.MMSSubmitResult{Attempted: true}, "MMS_MODEM_775_HTTP_0", "unknown"},
-		{hardware.MMSSubmitResult{}, "MMS_UPLOAD_CHECKSUM", "failed"},
+		{hardware.MMSSubmitResult{Attempted: true}, "MMS_REJECTED", "failed"},
+		{hardware.MMSSubmitResult{Attempted: true}, "MMS_HTTP_INVALID", "unknown"},
+		{hardware.MMSSubmitResult{}, "MMS_SOCKET_FAILED", "failed"},
 		{hardware.MMSSubmitResult{}, "MMS_PDP_ACTIVATION_FAILED", "failed"},
 		{hardware.MMSSubmitResult{}, "MMS_NOT_READY", "waiting_network"},
 	} {
