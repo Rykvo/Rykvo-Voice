@@ -2,10 +2,13 @@ package ims
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"testing"
+	"time"
 )
 
 type routeTestLease struct{ closed int }
@@ -64,5 +67,56 @@ func TestRTPNegotiatesRouteBeforePublishingMedia(t *testing.T) {
 	}
 	if m.configureRemote(sdp) == nil {
 		t.Fatal("closed media reacquired route")
+	}
+}
+
+func TestRTPRouteNegotiationDuringReceive(t *testing.T) {
+	m, err := newRTPMedia(net.ParseIP("127.0.0.1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	peer, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer peer.Close()
+	m.route = func(context.Context, *net.UDPAddr, *net.UDPAddr) (io.Closer, error) {
+		return &routeTestLease{}, nil
+	}
+	sdp := []byte(fmt.Sprintf("v=0\r\nc=IN IP4 127.0.0.1\r\nm=audio %d RTP/AVP 0\r\n", peer.LocalAddr().(*net.UDPAddr).Port))
+	if err = m.configureRemote(sdp); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		packet := make([]byte, 12+rtpPacketSamples)
+		packet[0] = 0x80
+		binary.BigEndian.PutUint32(packet[8:12], 123)
+		for i := 0; i < 500; i++ {
+			binary.BigEndian.PutUint16(packet[2:4], uint16(i))
+			binary.BigEndian.PutUint32(packet[4:8], uint32(i*rtpPacketSamples))
+			if _, e := peer.WriteToUDP(packet, m.conn.LocalAddr().(*net.UDPAddr)); e != nil {
+				done <- e
+				return
+			}
+			time.Sleep(100 * time.Microsecond)
+		}
+		done <- nil
+	}()
+	for i := 0; i < 500; i++ {
+		if err = m.configureRemote(sdp); err != nil {
+			t.Error(err)
+			break
+		}
+		time.Sleep(100 * time.Microsecond)
+	}
+	if err = <-done; err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err = m.ReadPCM(ctx); err != nil {
+		t.Fatal("no RTP processed during negotiation:", err)
 	}
 }

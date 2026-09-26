@@ -175,10 +175,10 @@ func (media *rtpMedia) configureRemote(body []byte) error {
 	}
 	remote := &net.UDPAddr{IP: address, Port: port}
 	media.mu.RLock()
-	previous := media.remote
+	sameEndpoint := media.remote != nil && media.remote.IP.Equal(address) && media.remote.Port == port
 	media.mu.RUnlock()
 	var old io.Closer
-	if media.route != nil && (media.routeLease == nil || previous == nil || !previous.IP.Equal(address) || previous.Port != port) {
+	if media.route != nil && (media.routeLease == nil || !sameEndpoint) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		lease, err := media.route(ctx, media.conn.LocalAddr().(*net.UDPAddr), remote)
 		cancel()
