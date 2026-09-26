@@ -307,3 +307,39 @@ func TestMMSChunkUploadPreservesEscapeBytes(t *testing.T) {
 		t.Fatal(e, offset)
 	}
 }
+
+type mmsBackpressurePort struct {
+	mmsTestPort
+	calls   int
+	data    []byte
+	blocked bool
+}
+
+func (p *mmsBackpressurePort) Write(data []byte) (int, error) {
+	p.calls++
+	if p.blocked || p.calls%3 == 1 {
+		return 0, nil
+	}
+	n := len(data)
+	if n > 17 {
+		n = 17
+	}
+	p.data = append(p.data, data[:n]...)
+	return n, nil
+}
+func TestMMSDataWriteBackpressure(t *testing.T) {
+	data := bytes.Repeat([]byte{0, 0xff, '+', 0x1a}, 600)
+	p := &mmsBackpressurePort{}
+	if err := mmsDataWrite(context.Background(), &atSession{port: p}, data); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(p.data, data) {
+		t.Fatal("data lost or duplicated")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	p = &mmsBackpressurePort{blocked: true}
+	if err := mmsDataWrite(ctx, &atSession{port: p}, data); err != context.DeadlineExceeded {
+		t.Fatal(err)
+	}
+}

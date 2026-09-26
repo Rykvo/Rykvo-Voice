@@ -23,16 +23,33 @@ func mmsDataReady(ctx context.Context) error {
 }
 
 // Short USB packets flush EC20 file data before waiting for the 1 KiB ACK.
-func mmsDataWrite(ctx context.Context, at *atSession, data []byte) error {
+func mmsDataWrite(parent context.Context, at *atSession, data []byte) error {
+	ctx, cancel := context.WithTimeout(parent, 10*time.Second)
+	defer cancel()
 	for len(data) > 0 {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		n := len(data)
 		if n > 511 {
 			n = 511
 		}
-		if e := smsATWrite(ctx, at, data[:n]); e != nil {
-			return e
+		written, err := at.port.Write(data[:n])
+		if err != nil {
+			return err
 		}
-		data = data[n:]
+		if written < 0 || written > n {
+			return errors.New("MMS_INVALID_WRITE")
+		}
+		data = data[written:]
+		if written == 0 {
+			// The nonblocking serial port returns zero when its poll times out.
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(5 * time.Millisecond):
+			}
+		}
 	}
 	return nil
 }
@@ -116,7 +133,7 @@ func (b *mmsBearer) uploadChunks(parent context.Context, name string, data []byt
 		}
 		if e != nil {
 			b.healthy = false
-			return errors.New("MMS_UPLOAD_FAILED")
+			return fmt.Errorf("MMS_UPLOAD_WRITE_%d: %w", offset, e)
 		}
 		f := fields(line)
 		if len(f) != 2 || f[0] != strconv.Itoa(n) || f[1] != strconv.Itoa(offset+n) {

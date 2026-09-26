@@ -23,6 +23,6 @@ EC20 没有原生 QMMSRECV。现有 WAP Push 短信解码/分片重组提取通�
 
 ## 验证
 
-默认测试不接触设备。显式设置 `RYKVO_MMS_FILE_TEST_PORT` 后，`TestMMSModemFileRoundTrip` 只验证专用 RAM 测试文件，不激活 PDP、不发送彩信；测试文件已存在时中止。
+默认测试不接触设备。显式设置 `RYKVO_MMS_FILE_TEST_PORT` 后，`TestMMSModemFileRoundTrip` 只验证专用 RAM 测试文件，不激活 PDP、不发送彩信；测试文件已存在时中止。可额外设置 RYKVO_MMS_FILE_TEST_INPUT 读取本机附件进行原字节回读验证，不记录内容、不提交运营商。
 
 参考：[Quectel MMS 应用说明](https://forums.quectel.com/uploads/short-url/1dHDGInW30kRmgeYRnDwzmqzz3t.pdf)、[文件接口](https://forums.quectel.com/uploads/short-url/9qrEyTIpmnu6obn9OaohxYOhPRi.pdf)、[EC20 TCP/IP](https://forums.quectel.com/uploads/short-url/6VIC0qyhQEFIEOSJROGSMbqezTq.pdf)。

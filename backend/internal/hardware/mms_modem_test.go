@@ -27,7 +27,15 @@ func TestMMSModemFileRoundTrip(t *testing.T) {
 	if e != nil || !strings.Contains(strings.Join(lines, " "), "EC20") {
 		t.Fatal("not EC20", e)
 	}
-	for i, data := range [][]byte{bytes.Repeat([]byte("ab12"), 700), bytes.Repeat([]byte("a+++b\r\nOK\r\n"), 200)} {
+	fixtures := [][]byte{bytes.Repeat([]byte("ab12"), 700), bytes.Repeat([]byte("a+++b\r\nOK\r\n"), 200)}
+	if input := os.Getenv("RYKVO_MMS_FILE_TEST_INPUT"); input != "" {
+		data, err := os.ReadFile(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fixtures = [][]byte{data}
+	}
+	for i, data := range fixtures {
 		name := []string{"RAM:rvmmsq01.txt", "RAM:rvmmsq02.txt"}[i]
 		if e = b.fileAvailable(ctx, name); e != nil {
 			t.Fatal(e)

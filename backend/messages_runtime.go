@@ -419,7 +419,11 @@ func (m *moduleManager) processMessage(parent context.Context) {
 		if e != nil {
 			finish, stop := context.WithTimeout(context.Background(), 5*time.Second)
 			defer stop()
-			m.messageState(finish, id, "failed", e.Error(), nil)
+			state := "failed"
+			if errors.Is(e, mms.ErrNetwork) {
+				state = "waiting_network"
+			}
+			m.messageState(finish, id, state, e.Error(), nil)
 		}
 		return
 	}

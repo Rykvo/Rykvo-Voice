@@ -225,6 +225,11 @@ func mmsWait(ctx context.Context, at *atSession, prefix string) (string, error) 
 			return "", e
 		}
 		if line == "ERROR" || strings.HasPrefix(line, "+CME ERROR") || strings.HasPrefix(line, "+CMS ERROR") {
+			if parts := strings.SplitN(line, ":", 2); len(parts) == 2 {
+				if code, err := strconv.Atoi(strings.TrimSpace(parts[1])); err == nil {
+					return "", fmt.Errorf("MMS_COMMAND_REJECTED_%d", code)
+				}
+			}
 			return "", errors.New("MMS_COMMAND_REJECTED")
 		}
 		if line == prefix || strings.HasPrefix(line, prefix+":") {
