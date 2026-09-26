@@ -40,7 +40,7 @@ func testMMSDownloadResume(t *testing.T, ctx context.Context, m *moduleManager, 
 		{false, "failed", "MMS_LOCATION_UNSUPPORTED", "", "0 hours", "failed", true},
 	} {
 		id := fmt.Sprintf("mms-resume-%d", n)
-		_, err := m.db.Exec(ctx, `INSERT INTO messages(id,module_id,iccid,line_id,peer,mine,kind,state,issue,image,created_at,deleted_at) VALUES($1,$2,'resume-card','mms-resume-fixture','123', $3,'mms',$4,$5,$6,now()-$7::interval,CASE WHEN $8 THEN now() ELSE NULL END)`, id, module, tc.mine, tc.state, tc.issue, tc.image, tc.age, tc.deleted)
+		_, err := m.db.Exec(ctx, `INSERT INTO messages(id,module_id,iccid,line_id,peer,mine,kind,state,issue,image,created_at,deleted_at) VALUES($1,$2,'89000000000000000721','mms-resume-fixture','123', $3,'mms',$4,$5,$6,now()-$7::interval,CASE WHEN $8 THEN now() ELSE NULL END)`, id, module, tc.mine, tc.state, tc.issue, tc.image, tc.age, tc.deleted)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -77,20 +77,20 @@ func testMMSReportMatching(t *testing.T, ctx context.Context, m *moduleManager, 
 		card, recipient, network, want string
 		duplicate                      bool
 	}{
-		{129, "report-card", "+12025550123/TYPE=PLMN", "network", "delivered", false},
-		{130, "report-card", "12025550123/TYPE=PLMN", "network", "failed", false},
-		{131, "report-card", "+12025550123/TYPE=PLMN", "network", "accepted", false},
-		{129, "another-card", "+12025550123/TYPE=PLMN", "network", "accepted", false},
-		{129, "report-card", "+12025550999/TYPE=PLMN", "network", "accepted", false},
-		{129, "report-card", "+12025550123/TYPE=PLMN", "", "accepted", false},
-		{129, "report-card", "+12025550123/TYPE=PLMN", "network", "accepted", true},
+		{129, "89000000000000000722", "+12025550123/TYPE=PLMN", "network", "delivered", false},
+		{130, "89000000000000000722", "12025550123/TYPE=PLMN", "network", "failed", false},
+		{131, "89000000000000000722", "+12025550123/TYPE=PLMN", "network", "accepted", false},
+		{129, "89000000000000000723", "+12025550123/TYPE=PLMN", "network", "accepted", false},
+		{129, "89000000000000000722", "+12025550999/TYPE=PLMN", "network", "accepted", false},
+		{129, "89000000000000000722", "+12025550123/TYPE=PLMN", "", "accepted", false},
+		{129, "89000000000000000722", "+12025550123/TYPE=PLMN", "network", "accepted", true},
 	} {
 		id := fmt.Sprintf("mms-report-out-%d", n)
 		network := tc.network
 		if network != "" {
 			network += fmt.Sprint(n)
 		}
-		exec(`INSERT INTO messages(id,module_id,iccid,line_id,peer,mine,kind,state,result) VALUES($1,$2,'report-card','mms-report-fixture','+12025550123',true,'mms','accepted',jsonb_build_object('messageId',$3::text))`, id, module, network)
+		exec(`INSERT INTO messages(id,module_id,iccid,line_id,peer,mine,kind,state,result) VALUES($1,$2,'89000000000000000722','mms-report-fixture','+12025550123',true,'mms','accepted',jsonb_build_object('messageId',$3::text))`, id, module, network)
 		if tc.duplicate {
 			exec(`INSERT INTO messages(id,module_id,iccid,line_id,peer,mine,kind,state,result) SELECT id||'-duplicate',module_id,iccid,line_id,peer,mine,kind,'delivered',result FROM messages WHERE id=$1`, id)
 		}
