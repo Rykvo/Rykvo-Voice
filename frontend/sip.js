@@ -164,10 +164,12 @@ const SIP = (() => {
         "通话记录",
         `<section class="sip-history-window"><button type="button" class="text-button form-back" data-sip-history-back>‹ 编辑 SIP 账号</button>${historyHTML(record.id)}</section>`,
       );
+      SIPHistory.update();
       $("[data-sip-history-back]").focus();
       return;
     }
     if (event.target.closest("[data-sip-history-back]")) {
+      SIPHistory.close();
       if (historyDraft) open(historyDraft);
       historyDraft = null;
       return;
@@ -249,6 +251,7 @@ const SIP = (() => {
       if (active && epoch === generation && !request.signal.aborted) {
         updateRows();
         updatePortHint();
+        SIPHistory.update();
         timer = setTimeout(load, 5000);
       }
     }
@@ -284,6 +287,7 @@ const SIP = (() => {
   });
   $("#dialog").addEventListener("close", () => {
     if ($("#dialog").open) return;
+    SIPHistory.close();
     const form = $("#sip-form");
     if (form) {
       form.reset();
@@ -293,6 +297,7 @@ const SIP = (() => {
     historyDraft = null;
   });
   function unmount() {
+    SIPHistory.close();
     active = false; generation++; clearTimeout(timer);
     reading?.abort(); writing?.abort(); reading = writing = null;
     network = null; records = []; historyDraft = null; editing = null;

@@ -209,6 +209,10 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.sipNetworkAPI(ctx, w, r)
 		return
 	}
+	if r.URL.Path == "/api/call-records" || r.URL.Path == "/api/call-records/stats" {
+		s.callRecordsAPI(ctx, w, r)
+		return
+	}
 	if r.URL.Path == "/api/sip/accounts" || strings.HasPrefix(r.URL.Path, "/api/sip/accounts/") {
 		s.sipAccountsAPI(ctx, w, r)
 		return

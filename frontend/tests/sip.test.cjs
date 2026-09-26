@@ -35,7 +35,7 @@ function setup(hostname = "192.0.2.1", calls = []) {
     AbortController,
     setTimeout(fn) { timers.set(++timerID,fn); return timerID; },
     clearTimeout(id) { timers.delete(id); },
-    Backend: { sip: {
+    Backend: { callRecords: { async list() { return {items:[],nextCursor:"",totalMinutes:0}; } }, sip: {
       async list() { return {items: structuredClone(serverRecords),network:{host:hostname,start:1024,end:65535,default:5060},callsReady:false}; },
       async create({body}) {
         requests.push({operation:"create",body:structuredClone(body)});
@@ -350,9 +350,8 @@ test("history includes only explicitly associated SIP calls, never other module 
     null,
   ]);
   const html = app.sip.historyHTML("sip-1");
-  assert.match(html, /10001/);
-  assert.match(html, /&lt;img>/);
-  assert.doesNotMatch(html, /10002|10003|<img>/);
+  assert.match(html, /加载中/);
+  assert.doesNotMatch(html, /10001|10002|10003|<img>/);
 });
 
 test("history opens a separate view and back restores the unsaved module selection", async () => {
@@ -371,7 +370,7 @@ test("history opens a separate view and back restores the unsaved module selecti
   ];
   app.click("[data-sip-history]");
   assert.equal(app.dialogs.at(-1)[0], "通话记录");
-  assert.match(app.dialogs.at(-1)[1], /暂无通话记录/);
+  assert.match(app.dialogs.at(-1)[1], /加载中/);
   assert.doesNotMatch(app.dialogs.at(-1)[1], /sip-form/);
   app.click("[data-sip-history-back]");
   assert.equal(app.dialogs.at(-1)[0], "编辑 SIP 账号");

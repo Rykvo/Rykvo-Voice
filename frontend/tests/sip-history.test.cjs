@@ -3,214 +3,63 @@ const assert = require("node:assert/strict");
 const vm = require("node:vm");
 const { readFileSync } = require("node:fs");
 const { join } = require("node:path");
-function setup(records = []) {
-  const events = {},
-    nodes = new Map();
-  const node = (key) => {
-    if (!nodes.has(key))
-      nodes.set(key, {
-        value: "",
-        innerHTML: "",
-        attributes: {},
-        setAttribute(k, v) {
-          this.attributes[k] = v;
-        },
-      });
-    return nodes.get(key);
-  };
+function setup() {
+  const nodes = new Map(), events = {}, requests = [];
+  let respond = async () => ({ items: [], nextCursor: "", totalMinutes: 0 });
+  const node = key => { if (!nodes.has(key)) nodes.set(key,{ innerHTML:"", textContent:"", disabled:false, hidden:false }); return nodes.get(key); };
   const context = vm.createContext({
-    window: { addEventListener() {} },
-    UI: { escape: String, $: node, read: () => records, time: () => "12:00" },
-    Countries: { format: String },
-    ModuleData: { items: [] },
-    document: {
-      addEventListener: (type, fn) => (events[type] ||= []).push(fn),
-    },
+    AbortController,
+    UI: {escape: s=>String(s).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll('"',"&quot;"), $:node,read:()=>{throw Error("legacy local records read");}},
+    Calendar: null, Countries:{format:String}, ModuleData:{items:[{id:"module-02",name:"模块 02"}]},
+    Backend:{callRecords:{list(o){requests.push(o);return respond(o);}}},
+    document:{hidden:false,addEventListener:(t,f)=>(events[t]||=[]).push(f)},
+    window:{addEventListener(){}},
   });
-  vm.runInContext(
-    readFileSync(join(__dirname, "..", "calendar.js"), "utf8"),
-    context,
-  );
-  vm.runInContext(
-    readFileSync(join(__dirname, "..", "sip-history.js"), "utf8"),
-    context,
-  );
-  return {
-    h: vm.runInContext("SIPHistory", context),
-    node,
-    emit(type, target) {
-      for (const fn of events[type] || []) fn({ target });
-    },
-  };
+  for (const f of ["calendar.js","sip-history.js"]) vm.runInContext(readFileSync(join(__dirname,"..",f),"utf8"),context);
+  return {h:vm.runInContext("SIPHistory",context),node,requests,reply(fn){respond=fn;},
+    emit(t,target){return Promise.all((events[t]||[]).map(f=>f({target})));}};
 }
-const base = {
-  sipAccountId: "a",
-  direction: "outgoing",
-  number: "10001",
-  at: Date.now(),
-  status: "connected",
-  duration: 61,
-};
-test("history counts only this account outgoing calls on the selected local day", () => {
-  const { h } = setup();
-  const today = h.dateKey();
-  const records = [
-    base,
-    { ...base, sipAccountId: "b" },
-    { ...base, direction: "incoming" },
-    {
-      ...base,
-      at: new Date(h.dateKey(Date.now() - 86400000) + "T12:00:00").getTime(),
-    },
-    { ...base, direction: undefined, kind: "missed" },
-    { ...base, direction: undefined, kind: "cancelled" },
-    null,
-    { ...base, at: NaN },
-  ];
-  const selected = h.select(records, "a", today);
-  assert.equal(selected.length, 2);
-  assert.equal(h.select(null, "a", today).length, 0);
-  assert.equal(
-    h.isOutgoing({ ...base, direction: "incoming", kind: "outgoing" }),
-    false,
-  );
+const base = {id:"1",sipAccountId:"account",number:"10001",moduleId:"module-02",direction:"outgoing",status:"connected",startedAt:"2026-09-27T01:00:00Z",answeredAt:"2026-09-27T01:00:10Z",duration:61};
+test("existing four-column view loads real account and local-day records only", async()=>{
+  const a=setup();a.reply(async()=>({items:[base,{...base,id:"2",direction:"incoming"}],nextCursor:"",totalMinutes:4}));
+  const html=a.h.render("account");
+  assert.deepEqual([...html.matchAll(/<th scope="col">([^<]+)<\/th>/g)].map(x=>x[1]),["对方号码","模块","状态","时长"]);
+  assert.match(html,/加载中/);await a.h.update();
+  const body=a.node("#sip-history-rows").innerHTML;
+  assert.equal((body.match(/10001/g)||[]).length,2);assert.match(body,/呼入/);assert.match(body,/呼出/);assert.match(body,/2分钟/);
+  assert.equal(a.requests[0].query.accountId,"account");assert.ok(a.requests[0].query.from.endsWith("Z"));
+  assert.equal(a.node("#sip-history-duration").textContent,"0小时4分");
 });
-test("repeated outgoing numbers remain separate and each row counts one call", () => {
-  const { h } = setup([
-    base,
-    { ...base, status: "busy" },
-    { ...base, duration: 3601 },
-  ]);
-  const html = h.render("a");
-  assert.equal((html.match(/<th scope="row">10001/g) || []).length, 3);
-  assert.match(html, /<td>2分钟<\/td>/);
-  assert.match(html, /<td>61分钟<\/td>/);
-  assert.match(html, /data-connected="false">未接通<\/span><\/td><td>—/);
-  assert.match(html, /data-connected="true">已接通<\/span>/);
-  assert.doesNotMatch(html, /<td>1<\/td>/);
-  assert.doesNotMatch(html, /秒|\d{2}:\d{2}:\d{2}/);
+test("all exact status reasons stay distinct and unknown codes do not invent card faults",()=>{
+  const {h}=setup();
+  for(const [status,want] of Object.entries({connected:"已接通",no_answer:"无人接听",rejected:"对方拒接",busy:"对方占线",module_busy:"模块忙碌",card_error:"卡异常",not_registered:"网络未注册",module_error:"模块异常",cancelled:"已取消",unconnected:"未接通",madeup:"拨打失败"})) assert.equal(h.status({status}),want);
+  assert.equal(h.minutes({...base,duration:0}),1);assert.equal(h.minutes({...base,duration:60}),1);assert.equal(h.minutes({...base,duration:60.1}),2);
+  assert.equal(h.minutes({...base,answeredAt:null}),null);assert.equal(h.minutes({...base,duration:null}),null);
+  assert.equal(h.totalDuration(null),"—");assert.equal(h.totalDuration(6000),"100小时0分");
 });
-test("local date boundaries and reverse chronological sorting are stable", () => {
-  const { h } = setup();
-  const start = new Date(2026, 8, 24, 0, 0, 0).getTime();
-  const calls = [
-    { ...base, at: start },
-    { ...base, at: start - 1 },
-    { ...base, at: start + 3600000 },
-  ];
-  const selected = h.select(calls, "a", "2026-09-24");
-  assert.equal(selected.length, 2);
-  assert.equal(selected[0].at, start + 3600000);
-  assert.equal(calls[0].at, start);
-  assert.equal(h.dateKey(NaN), "");
+test("stale account/date responses and a closed dialog cannot overwrite current data",async()=>{
+  const a=setup();let resolve;
+  a.reply(()=>new Promise(r=>resolve=r));a.h.render("old");const old=a.h.update();
+  a.h.render("new");a.reply(async()=>({items:[{...base,number:"222"}],nextCursor:"",totalMinutes:2}));await a.h.update();
+  resolve({items:[{...base,number:"111"}],nextCursor:"",totalMinutes:9});await old;
+  assert.match(a.node("#sip-history-rows").innerHTML,/222/);assert.doesNotMatch(a.node("#sip-history-rows").innerHTML,/111/);
+  a.reply(()=>new Promise(r=>resolve=r));const later=a.h.update();a.h.close();assert.equal(a.requests.at(-1).signal.aborted,true);
+  resolve({items:[],nextCursor:"",totalMinutes:0});await later;assert.match(a.node("#sip-history-rows").innerHTML,/222/);
 });
-test("custom calendar filters individual rows without statistics or quick filters", () => {
-  const { h, node, emit } = setup([base]);
-  const html = h.render("a");
-  assert.match(html, /data-calendar-open="sip-history-date"/);
-  assert.doesNotMatch(html, /type="date"/);
-  assert.doesNotMatch(
-    html,
-    /sip-history-stats|sip-history-status|总通话|今天|昨天/,
-  );
-  assert.deepEqual(
-    [...html.matchAll(/<th scope="col">([^<]+)<\/th>/g)].map((x) => x[1]),
-    ["对方号码", "模块", "状态", "时长"],
-  );
-  emit("change", {
-    id: "sip-history-date",
-    value: h.dateKey(Date.now() - 86400000),
-  });
-  assert.match(node("#sip-history-rows").innerHTML, /暂无通话记录/);
-  emit("change", { id: "sip-history-date", value: h.dateKey() });
-  assert.match(node("#sip-history-rows").innerHTML, /10001/);
-  const invalid = { id: "sip-history-date", value: "2026-02-30" };
-  emit("change", invalid);
-  assert.equal(invalid.value, h.dateKey());
+test("pagination is bounded and totals include offscreen records",async()=>{
+  const a=setup();a.h.render("account");a.reply(async o=>o.query.before?{items:[{...base,number:"last"}],nextCursor:"",totalMinutes:202}:{items:[base],nextCursor:"cursor",totalMinutes:202});
+  await a.h.update();assert.equal(a.node("[data-sip-history-next]").hidden,false);
+  await a.emit("click",{closest:s=>s==="[data-sip-history-next]"});await new Promise(setImmediate);
+  assert.equal(a.requests.at(-1).query.before,"cursor");assert.match(a.node("#sip-history-rows").innerHTML,/last/);assert.equal(a.node("#sip-history-duration").textContent,"3小时22分");
+  const count=a.requests.length;await a.h.update();assert.equal(a.requests.length,count);
+  await a.emit("click",{closest:s=>s==="[data-sip-history-prev]"});await new Promise(setImmediate);assert.match(a.node("#sip-history-rows").innerHTML,/10001/);
 });
-test("SIP and cellular use the same iOS switch, native checkboxes stay hidden", () => {
-  const dir = join(__dirname, "..");
-  for (const file of ["sip.js", "cellular.js"]) {
-    const js = readFileSync(join(dir, file), "utf8");
-    assert.match(js, /class="form-switch"/);
-    assert.match(js, /role="switch"/);
-  }
-  const css = readFileSync(join(dir, "forms.css"), "utf8");
-  assert.match(
-    css,
-    /\.form-switch input \{[^}]*appearance: none;[^}]*opacity: 0;/,
-  );
-  assert.match(css, /background: #34c759;/);
+test("failures differ from an empty history and retry never exposes raw errors",async()=>{
+  const a=setup();a.h.render("account");a.reply(async()=>{throw Error("secret-server-content");});await a.h.update();
+  assert.match(a.node("#sip-history-rows").innerHTML,/加载失败/);assert.doesNotMatch(a.node("#sip-history-rows").innerHTML,/secret|暂无通话记录/);assert.equal(a.node("#sip-history-duration").textContent,"—");
+  a.reply(async()=>({items:[],nextCursor:"",totalMinutes:0}));await a.h.update();assert.match(a.node("#sip-history-rows").innerHTML,/暂无通话记录/);
 });
-
-test("footer totals connected outgoing duration for the selected account and date", () => {
-  const today = new Date();
-  today.setHours(12, 0, 0, 0);
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const records = [
-    { ...base, at: today.getTime(), duration: 3601 },
-    { ...base, at: today.getTime(), duration: 59 },
-    { ...base, at: today.getTime(), duration: 999, status: "busy" },
-    { ...base, at: today.getTime(), duration: 999, direction: "incoming" },
-    { ...base, at: today.getTime(), duration: 999, sipAccountId: "other" },
-    { ...base, at: yesterday.getTime(), duration: 75 },
-  ];
-  const { h, node, emit } = setup(records);
-  assert.match(h.render("a"), /id="sip-history-duration">1小时2分/);
-  emit("change", { id: "sip-history-date", value: h.dateKey(yesterday) });
-  assert.equal(node("#sip-history-duration").textContent, "0小时2分");
-  emit("change", { id: "sip-history-date", value: "2000-01-01" });
-  assert.equal(node("#sip-history-duration").textContent, "0小时0分");
-  emit("change", { id: "sip-history-date", value: h.dateKey(today) });
-  assert.equal(node("#sip-history-duration").textContent, "1小时2分");
-});
-test("duration includes offscreen records, handles invalid seconds and never wraps at 24 hours", () => {
-  const { h } = setup();
-  assert.equal(
-    h.totalDuration(
-      Array.from({ length: 100 }, () => ({ ...base, duration: 3600 })),
-    ),
-    "100小时0分",
-  );
-  assert.equal(
-    h.totalDuration([
-      { ...base, duration: 61.9 },
-      { ...base, duration: NaN },
-      { ...base, duration: -1 },
-      { ...base, duration: Infinity },
-      { ...base, duration: "99" },
-      { ...base, duration: 99, status: "failed" },
-    ]),
-    "0小时6分",
-  );
-  assert.equal(h.totalDuration([]), "0小时0分");
-});
-
-test("each connected call rounds up separately with a one-minute minimum", () => {
-  const { h } = setup();
-  for (const [duration, expected] of [
-    [0, 1],
-    [1, 1],
-    [59, 1],
-    [60, 1],
-    [60.1, 2],
-    [61, 2],
-    [119, 2],
-    [120, 2],
-    [121, 3],
-  ]) {
-    assert.equal(h.billedMinutes({ ...base, duration }), expected);
-  }
-  assert.equal(
-    h.totalDuration([
-      { ...base, duration: 1 },
-      { ...base, duration: 1 },
-    ]),
-    "0小时2分",
-  );
-  assert.equal(
-    h.billedMinutes({ ...base, status: "failed", duration: 100 }),
-    0,
-  );
+test("date bounds respect local midnight and escape all server-rendered text",async()=>{
+  const a=setup();assert.equal(a.h.bounds("2026-02-30"),null);const b=a.h.bounds("2026-09-27");assert.equal(new Date(b.from).getHours(),0);assert.equal(new Date(b.to).getDate(),28);
+  a.h.render("account");a.reply(async()=>({items:[{...base,number:"<img src=x>"}],nextCursor:"",totalMinutes:2}));await a.h.update();assert.doesNotMatch(a.node("#sip-history-rows").innerHTML,/<img/);assert.match(a.node("#sip-history-rows").innerHTML,/&lt;img/);
 });

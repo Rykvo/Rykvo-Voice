@@ -119,7 +119,7 @@ const Backend = (() => {
       document.querySelector('meta[name="session-api"]')?.content ===
         "enabled") ||
     (scope === "sipServer" && document.querySelector('meta[name="sip-network-api"]')?.content === "enabled") ||
-    (scope === "sip" && document.querySelector('meta[name="sip-accounts-api"]')?.content === "enabled") ||
+    (["sip", "callRecords"].includes(scope) && document.querySelector('meta[name="sip-accounts-api"]')?.content === "enabled") ||
     (scope === "messages" && document.querySelector('meta[name="messages-api"]')?.content === "enabled") ||
     (scope === "modules" &&
       document.querySelector('meta[name="modules-api"]')?.content === "enabled") ||

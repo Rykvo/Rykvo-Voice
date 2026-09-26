@@ -220,4 +220,8 @@ CREATE TABLE IF NOT EXISTS sip_call_records (
  answered_at timestamptz,
  ended_at timestamptz
 );
-CREATE INDEX IF NOT EXISTS sip_call_records_account ON sip_call_records(account_id,started_at DESC);
+
+ALTER TABLE sip_call_records ADD COLUMN IF NOT EXISTS direction text NOT NULL DEFAULT 'outgoing';
+ALTER TABLE sip_call_records ADD COLUMN IF NOT EXISTS outcome text NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS sip_call_records_page ON sip_call_records(account_id,started_at DESC,id DESC);
+DROP INDEX IF EXISTS sip_call_records_account;

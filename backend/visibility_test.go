@@ -80,6 +80,7 @@ func TestVisibilityDatabase(t *testing.T) {
 	testPrefixedSession(t, s, value, csrf)
 	testSIPNetworkAuthorization(t, s, value, csrf)
 	testSIPAccountsDatabase(t, s, value, csrf)
+	testCallRecordsDatabase(t, s, value)
 	request := func(method, path string, body any, want int) map[string]any {
 		t.Helper()
 		encoded, _ := json.Marshal(body)

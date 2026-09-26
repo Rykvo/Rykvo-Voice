@@ -85,6 +85,12 @@ func (s *atSession) readResponse(ctx context.Context, command string) ([]string,
 					continue
 				}
 				s.pending = ""
+				if line == "BUSY" {
+					return nil, errors.New("VOICE_REMOTE_BUSY")
+				}
+				if line == "NO ANSWER" {
+					return nil, errors.New("VOICE_NO_ANSWER")
+				}
 				return nil, errors.New("CALL_ENDED")
 			}
 			if line == "ERROR" || strings.HasPrefix(line, "+CME ERROR") || strings.HasPrefix(line, "+CMS ERROR") {

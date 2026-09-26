@@ -70,6 +70,14 @@ func localSIPAddresses() []string {
 func (g *sipGateway) run(ctx context.Context) {
 	defer close(g.done)
 	g.calls.ctx = ctx
+	if g.server.db != nil {
+		recovery, cancel := context.WithTimeout(ctx, 5*time.Second)
+		_, err := g.server.db.Exec(recovery, `UPDATE sip_call_records SET state='interrupted',outcome=CASE WHEN outcome='' THEN 'interrupted' ELSE outcome END WHERE ended_at IS NULL AND state NOT IN ('ended','interrupted')`)
+		cancel()
+		if err != nil {
+			log.Print("SIP call record recovery failed")
+		}
+	}
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 	for {

@@ -48,8 +48,9 @@ test("production entry has no sample loader or remote runtime dependencies", () 
 test("history uses stored account calls only and retains billing and date controls", () => {
   const js = readFileSync(join(dir, "sip-history.js"), "utf8");
   assert.doesNotMatch(js, /previewRecords|samples|100 条示例/);
-  assert.match(js, /UI.read\("rykvo-voice-calls-v1", \[\]\)/);
-  assert.match(js, /Math.max\(1, Math.ceil\(duration \/ 60\)\)/);
+  assert.match(js, /Backend\.callRecords\.list/);
+  assert.doesNotMatch(js, /UI\.read|localStorage/);
+  assert.match(js, /Math.max\(1, Math.ceil\(call.duration \/ 60\)\)/);
   assert.match(js, /通话统计/);
   assert.match(js, /Calendar.render/);
   assert.doesNotMatch(js, /localStorage\.(?:clear|removeItem)/);

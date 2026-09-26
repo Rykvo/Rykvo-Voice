@@ -56,6 +56,8 @@ type sipOutgoing struct {
 	acceptedAt time.Time
 	final      atomic.Bool
 	record     string
+	outcome    string
+	endedAt    time.Time
 }
 
 type moduleVoice interface {
@@ -105,6 +107,9 @@ func (c *sipCalls) actionsLocked(actions []telephony.Action) {
 	for _, a := range actions {
 		if a.Kind == telephony.StopMedia || a.Kind == telephony.TerminateClient || a.Kind == telephony.HangupModule {
 			if call := c.active[a.Call]; call != nil {
+				if reason := actionCallResult(a.Reason); reason != "" {
+					call.result(reason)
+				}
 				call.stop()
 			}
 		}
@@ -241,6 +246,19 @@ func (c *sipCalls) inviteLocked(req *sip.Request, tx sip.ServerTransaction, port
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(c.ctx, 3*time.Second)
+	record, recordErr := c.g.server.startCallRecord(ctx, req, a.ID)
+	if recordErr != nil {
+		cancel()
+		_ = tx.Respond(sip.NewResponseFromRequest(req, 503, "Call Record Unavailable", nil))
+		return nil
+	}
+	recordHanded := false
+	earlyModule, earlyReason := "", "service_unavailable"
+	defer func() {
+		if !recordHanded {
+			c.g.server.endCallRecord(record, earlyModule, "ended", earlyReason, time.Now())
+		}
+	}()
 	accounts, err := c.g.readAccounts(ctx)
 	if err == nil && !c.syncLocked(ctx, accounts) {
 		err = errors.New("voice policy unavailable")
@@ -266,9 +284,13 @@ func (c *sipCalls) inviteLocked(req *sip.Request, tx sip.ServerTransaction, port
 	call, actions, err := c.router.Dial(reg)
 	c.actionsLocked(actions)
 	if err != nil {
+		reasonCtx, done := context.WithTimeout(c.ctx, 3*time.Second)
+		earlyModule, earlyReason = c.unavailableResult(reasonCtx, a.ID, err)
+		done()
 		_ = tx.Respond(sip.NewResponseFromRequest(req, 503, "No Available Voice Module", nil))
 		return nil
 	}
+	earlyModule = call.Module
 	callCtx, stop := context.WithCancel(c.ctx)
 	copy := req.Clone()
 	seed := make([]byte, 16)
@@ -293,10 +315,12 @@ func (c *sipCalls) inviteLocked(req *sip.Request, tx sip.ServerTransaction, port
 		_ = tx.Respond(sip.NewResponseFromRequest(req, 503, "Media Network Unavailable", nil))
 		return nil
 	}
-	leg := &sipOutgoing{owner: c, call: call, reg: reg, request: copy, tx: tx, client: client, ctx: callCtx, cancel: stop, ack: make(chan struct{}), contact: sip.ContactHeader{Address: sip.Uri{Scheme: "sip", Host: public, Port: port}}}
+	leg := &sipOutgoing{record: record, owner: c, call: call, reg: reg, request: copy, tx: tx, client: client, ctx: callCtx, cancel: stop, ack: make(chan struct{}), contact: sip.ContactHeader{Address: sip.Uri{Scheme: "sip", Host: public, Port: port}}}
+	recordHanded = true
 	c.active[call.ID] = leg
 	tx.OnCancel(func(r *sip.Request) {
 		if r.Source() == req.Source() {
+			leg.result("cancelled")
 			leg.peerClosed.Store(true)
 			leg.stop()
 		}
@@ -370,6 +394,7 @@ func (c *sipOutgoing) respond(code int, reason string, body []byte) error {
 func (c *sipOutgoing) run(sample sipVoiceSample, network sipAccountNetwork, bind, public net.IP) {
 	g := c.owner.g
 	m := g.server.modules
+	c.recordState("dialing")
 	// The Wi-Fi worker owns the hardware gate for its entire registration.
 	if !sample.wifi {
 		gate := m.gate(sample.Candidate.Key)
@@ -382,6 +407,7 @@ func (c *sipOutgoing) run(sample sipVoiceSample, network sipAccountNetwork, bind
 			c.finish(true)
 			return
 		case <-gateTimer.C:
+			c.result("module_busy")
 			_ = c.respond(503, "Module Busy", nil)
 			c.finish(true)
 			return
@@ -393,6 +419,7 @@ func (c *sipOutgoing) run(sample sipVoiceSample, network sipAccountNetwork, bind
 	var playback cellularPCMStats
 	defer func() {
 		c.stop()
+		c.endRecord("cleanup_pending")
 		audio.Wait()
 		if c.rtp != nil && c.record != "" {
 			var flowDropped uint64
@@ -441,6 +468,7 @@ func (c *sipOutgoing) run(sample sipVoiceSample, network sipAccountNetwork, bind
 	start := network.Start
 	span := network.End - start + 1
 	if start < 1024 || network.End > 65535 || span <= 0 {
+		c.result("media_network_error")
 		_ = c.respond(503, "Media Network Unavailable", nil)
 		return
 	}
@@ -457,11 +485,13 @@ func (c *sipOutgoing) run(sample sipVoiceSample, network sipAccountNetwork, bind
 			break
 		}
 		if !strings.Contains(err.Error(), "bind") && !strings.Contains(err.Error(), "address already") {
+			c.result("unsupported_audio")
 			_ = c.respond(488, "Unsupported Audio", nil)
 			return
 		}
 	}
 	if c.rtp == nil {
+		c.result("media_network_error")
 		_ = c.respond(503, "No Media Port", nil)
 		return
 	}
@@ -470,6 +500,7 @@ func (c *sipOutgoing) run(sample sipVoiceSample, network sipAccountNetwork, bind
 	device, err = c.owner.open(op, sample)
 	opCancel()
 	if err != nil {
+		c.result(moduleCallResult(err))
 		_ = c.respond(503, "Module Voice Unavailable", nil)
 		return
 	}
@@ -478,16 +509,6 @@ func (c *sipOutgoing) run(sample sipVoiceSample, network sipAccountNetwork, bind
 	g.server.sipAccountsMu.Unlock()
 	if !current || c.ctx.Err() != nil {
 		return
-	}
-	c.record = c.request.To().Params.GetOr("tag", "")
-	if g.server.db != nil {
-		recordCtx, done := context.WithTimeout(c.ctx, 3*time.Second)
-		_, err = g.server.db.Exec(recordCtx, `INSERT INTO sip_call_records(id,account_id,module_id,peer) VALUES($1,$2,$3,$4)`, c.record, c.reg.Account, c.call.Module, c.request.Recipient.User)
-		done()
-		if err != nil {
-			_ = c.respond(503, "Call Record Unavailable", nil)
-			return
-		}
 	}
 	var mediaActive atomic.Bool
 	audio.Add(1)
@@ -504,6 +525,7 @@ func (c *sipOutgoing) run(sample sipVoiceSample, network sipAccountNetwork, bind
 	err = device.Dial(op, c.request.Recipient.User)
 	opCancel()
 	if err != nil {
+		c.result(moduleCallResult(err))
 		_ = c.respond(503, "Dial Failed", nil)
 		return
 	}
@@ -517,6 +539,11 @@ func (c *sipOutgoing) run(sample sipVoiceSample, network sipAccountNetwork, bind
 		case <-c.ctx.Done():
 			return
 		case <-timer.C:
+			if ringing {
+				c.result("no_answer")
+			} else {
+				c.result("call_timeout")
+			}
 			_ = c.respond(480, "No Answer", nil)
 			return
 		case <-poll.C:
@@ -524,34 +551,32 @@ func (c *sipOutgoing) run(sample sipVoiceSample, network sipAccountNetwork, bind
 			state, e := device.State(check)
 			done()
 			if e != nil {
+				c.result("module_error")
 				_ = c.respond(503, "Module Lost", nil)
 				return
 			}
 			switch state {
 			case "idle":
-				code, reason := 486, "Call Ended"
+				code := 480
+				reason := "failed"
 				if d, ok := device.(interface{ SIPCode() int }); ok {
-					switch d.SIPCode() {
-					case 403:
-						code, reason = 403, "Carrier Rejected"
-					case 404:
-						code, reason = 404, "Number Not Found"
-					case 480:
-						code, reason = 480, "Temporarily Unavailable"
-					case 488:
-						code, reason = 488, "Unsupported Carrier Audio"
-					case 503:
-						code, reason = 503, "Carrier Unavailable"
-					case 603:
-						code, reason = 603, "Decline"
+					carrier := d.SIPCode()
+					reason = carrierCallResult(carrier)
+					if carrier >= 400 && carrier <= 699 {
+						code = carrier
 					}
 				}
-				_ = c.respond(code, reason, nil)
+				if d, ok := device.(interface{ FailureReason() string }); ok && d.FailureReason() != "" {
+					reason = d.FailureReason()
+				}
+				c.result(reason)
+				_ = c.respond(code, "Call Ended", nil)
 				return
 			case "ringing":
 				if !ringing {
 					_ = c.respond(180, "Ringing", nil)
 					ringing = true
+					c.recordState("ringing")
 				}
 			case "active":
 				c.answered = true
@@ -627,6 +652,7 @@ media:
 }
 func (c *sipOutgoing) mediaFailed(stage string, err error) {
 	if c.ctx.Err() == nil {
+		c.result("media_error")
 		log.Printf("SIP call %s: %s failed: %v", c.record, stage, err)
 	}
 	c.stop()
@@ -670,22 +696,11 @@ func (c *sipOutgoing) endPeer() {
 	// An unanswered BYE remains reserved until a real peer BYE arrives.
 	c.owner.g.server.sipAccountsMu.Unlock()
 }
-func (c *sipOutgoing) recordState(state string) {
-	if c.record == "" || c.owner.g.server.db == nil {
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	_, err := c.owner.g.server.db.Exec(ctx, `UPDATE sip_call_records SET state=$2,answered_at=CASE WHEN $2='connected' THEN COALESCE(answered_at,now()) ELSE answered_at END,ended_at=CASE WHEN $2='ended' THEN now() ELSE ended_at END WHERE id=$1`, c.record, state)
-	if err != nil {
-		log.Print("SIP call record update failed")
-	}
-}
 func (c *sipOutgoing) finish(moduleClosed bool) {
 	if moduleClosed {
-		c.recordState("ended")
+		c.endRecord("ended")
 	} else {
-		c.recordState("cleanup_pending")
+		c.endRecord("cleanup_pending")
 	}
 
 	c.stop()

@@ -284,3 +284,9 @@ EC20 连续通信超时恢复期间 `issue=RECOVERING`，页面显示“正在�
 ## v1.6.1 界面清理
 
 SIP 列表不常驻显示开发阶段说明，读取失败仍显示错误。未接入的操作按需提示不可用，能力开关及真实账号状态保持不变。网页拨号不再使用模拟定时器或生成虚构通话记录。
+
+### SIP 通话记录（真实数据）
+
+`GET /call-records` 与 `GET /call-records/stats` 使用管理会话认证。查询必须提供 `accountId`、`from` 和 `to`（客户端当地日期零点转换的 RFC3339 时间，左闭右开，最多 26 小时）。列表每页最多 100 条，`before` 使用响应 `nextCursor`，按开始时间及 ID 倒序稳定翻页。响应 `items`、`nextCursor`、`totalMinutes`；统计始终覆盖该账号整天，不只当前页。
+
+每条包含 `id/sipAccountId/moduleId/number/direction/state/status/startedAt/answeredAt/endedAt/duration`。`duration` 为真实接通秒数，结束未知为 null。页面沿用逐通向上取整分钟；未保存原因的历史记录保留未接通，不编造故障。新记录 `status` 区分对方占线、模块忙碌、拒接、未接听、取消、卡或模块故障、网络未注册；不从未知 SIP 失败猜卡欠费。此接口当前不实现删除操作，不清空原浏览器业务数据。

@@ -20,6 +20,7 @@ type CellularCall struct {
 	journal     string
 	flow        atomic.Bool
 	flowDropped atomic.Uint64
+	failure     atomic.Pointer[string]
 	closed      atomic.Bool
 	writeMu     sync.Mutex
 }
@@ -102,6 +103,9 @@ func (s *System) OpenCellularCall(ctx context.Context, c Candidate, identity, ca
 	}
 	v.flow.Store(true)
 	a.onLine = func(line string) {
+		if reason := voiceATResult(line); reason != "" {
+			v.failure.Store(&reason)
+		}
 		if line == "+QPCMV: 0" {
 			v.flow.Store(false)
 		}
@@ -244,4 +248,20 @@ func (v *CellularCall) Close() {
 			v.at.port.Close()
 		}
 	}
+}
+
+func voiceATResult(line string) string {
+	switch line {
+	case "BUSY":
+		return "busy"
+	case "NO ANSWER":
+		return "no_answer"
+	}
+	return ""
+}
+func (v *CellularCall) FailureReason() string {
+	if p := v.failure.Load(); p != nil {
+		return *p
+	}
+	return ""
 }

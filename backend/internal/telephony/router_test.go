@@ -206,7 +206,7 @@ func TestFixedAllocationNeverEscapesAndPoliciesAreCopied(t *testing.T) {
 		t.Fatal(c)
 	}
 	b := f.account(t, "b", true, "02")
-	if _, _, err := f.r.Dial(b); !errors.Is(err, ErrUnavailable) {
+	if _, _, err := f.r.Dial(b); !errors.Is(err, ErrModuleBusy) {
 		t.Fatal("escaped fixed allocation", err)
 	}
 }
@@ -503,11 +503,11 @@ func TestDialAndRingTimeoutKeepModuleQuarantined(t *testing.T) {
 				t.Fatal("timeout did not hangup")
 			}
 			b := f.account(t, "b", true, "01")
-			if _, _, err := f.r.Dial(b); !errors.Is(err, ErrUnavailable) {
+			if _, _, err := f.r.Dial(b); !errors.Is(err, ErrModuleBusy) {
 				t.Fatal("timeout freed module without evidence", err)
 			}
 			f.r.ModuleClosed(c.ID)
-			if _, _, err := f.r.Dial(b); !errors.Is(err, ErrUnavailable) {
+			if _, _, err := f.r.Dial(b); !errors.Is(err, ErrModuleBusy) {
 				t.Fatal("client still not cleaned", err)
 			}
 			f.r.ClientClosed(c.ID, a.ID)
@@ -608,7 +608,7 @@ func TestWebAndSIPUseSameModuleLocks(t *testing.T) {
 	if err != nil || !has(actions, DialModule, 0) || !f.r.ActionCurrent(actions[0]) {
 		t.Fatal(actions, err)
 	}
-	if _, _, err := f.r.Dial(a); !errors.Is(err, ErrUnavailable) {
+	if _, _, err := f.r.Dial(a); !errors.Is(err, ErrModuleBusy) {
 		t.Fatal(err)
 	}
 	if _, _, err := f.r.Incoming("01"); !errors.Is(err, ErrBusy) {

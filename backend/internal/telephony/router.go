@@ -13,6 +13,7 @@ var (
 	ErrInvalid      = errors.New("invalid telephony operation")
 	ErrUnauthorized = errors.New("registration is no longer valid")
 	ErrBusy         = errors.New("account or module is occupied")
+	ErrModuleBusy   = errors.New("authorized voice modules are occupied")
 	ErrUnavailable  = errors.New("no eligible voice module")
 	ErrState        = errors.New("call state has changed")
 )
@@ -257,12 +258,19 @@ func (r *Router) Dial(reg Registration) (Call, []Action, error) {
 		return Call{}, nil, ErrBusy
 	}
 	var eligible []string
+	occupied := false
 	for module, ready := range r.ready {
+		if r.moduleUse[module] != 0 && r.policies[reg.Account].allows(module) {
+			occupied = true
+		}
 		if ready && r.moduleUse[module] == 0 && r.policies[reg.Account].allows(module) {
 			eligible = append(eligible, module)
 		}
 	}
 	if len(eligible) == 0 {
+		if occupied {
+			return Call{}, nil, ErrModuleBusy
+		}
 		return Call{}, nil, ErrUnavailable
 	}
 	slices.Sort(eligible)
