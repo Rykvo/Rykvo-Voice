@@ -217,3 +217,42 @@ func FuzzRegistrar(f *testing.F) {
 		r.Handle(req, 20001)
 	})
 }
+
+func TestLegacyMobileDigestChallenge(t *testing.T) {
+	for _, ua := range []string{"Zoiper v2.10.20.17", "PortSIP UC Client iOS - v12.4.1"} {
+		t.Run(ua, func(t *testing.T) {
+			r := New()
+			r.Replace([]Account{fixtureAccount("test-secret", 1)})
+			req := request(t, "legacy", 1)
+			req.AppendHeader(sip.NewHeader("User-Agent", ua))
+			challenge := r.Handle(req, 20001)
+			headers := challenge.GetHeaders("WWW-Authenticate")
+			if len(headers) != 1 || !strings.Contains(headers[0].Value(), "algorithm=MD5") {
+				t.Fatal("legacy challenge not interoperable")
+			}
+			authorize(t, r, req, "wrong", "MD5")
+			if r.Handle(req, 20001).StatusCode != 401 {
+				t.Fatal("wrong password accepted")
+			}
+			req.RemoveHeader("Authorization")
+			authorize(t, r, req, "test-secret", "MD5")
+			if r.Handle(req, 20001).StatusCode != 200 {
+				t.Fatal("legacy registration failed")
+			}
+			if r.Handle(req, 20001).StatusCode != 401 {
+				t.Fatal("legacy replay accepted")
+			}
+		})
+	}
+	for _, ua := range []string{"", "Zoiper v5.6", "PortSIP UC Client iOS - v16.0", "other-client"} {
+		r := New()
+		req := request(t, "modern", 1)
+		if ua != "" {
+			req.AppendHeader(sip.NewHeader("User-Agent", ua))
+		}
+		headers := r.Handle(req, 20001).GetHeaders("WWW-Authenticate")
+		if len(headers) != 2 || !strings.Contains(headers[0].Value(), "algorithm=SHA-256") {
+			t.Fatal("modern challenge lost SHA-256")
+		}
+	}
+}

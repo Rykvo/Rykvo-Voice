@@ -120,6 +120,18 @@ func response(req *sip.Request, code int, reason string) *sip.Response {
 	return res
 }
 
+// Legacy mobile clients stop at an unsupported first Digest challenge.
+// MD5 is already supported; keep nonce, password and replay checks unchanged.
+func challengeAlgorithms(req *sip.Request) []string {
+	if h := req.GetHeader("User-Agent"); h != nil {
+		ua := h.Value()
+		if strings.HasPrefix(ua, "Zoiper v2.") || strings.HasPrefix(ua, "PortSIP UC Client iOS - v12.") {
+			return []string{"MD5"}
+		}
+	}
+	return []string{"SHA-256", "MD5"}
+}
+
 // Handle supports registration and authenticated capability checks. Until a real
 // media adapter is installed, INVITE is explicitly rejected, never answered.
 func (r *Registrar) Handle(req *sip.Request, port int) *sip.Response {
@@ -188,7 +200,7 @@ func (r *Registrar) Handle(req *sip.Request, port int) *sip.Response {
 		value := hex.EncodeToString(seed[:])
 		r.nonces[value] = nonce{source: req.Source() + "/" + req.Transport(), username: username, port: port, expires: now.Add(time.Minute)}
 		res := response(req, 401, "Unauthorized")
-		for _, algorithm := range []string{"SHA-256", "MD5"} {
+		for _, algorithm := range challengeAlgorithms(req) {
 			res.AppendHeader(sip.NewHeader("WWW-Authenticate", fmt.Sprintf(`Digest realm="%s", nonce="%s", algorithm=%s, qop="auth"`, Realm, value, algorithm)))
 		}
 		return res
