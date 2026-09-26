@@ -14,6 +14,7 @@ import (
 
 	"rykvo.local/auth/internal/vocat/device"
 	"rykvo.local/auth/internal/vocat/vowifi"
+	"rykvo.local/auth/internal/vocat/vowifi/ims"
 )
 
 // Only subscriber message content crosses this private channel, never AKA/IMSI.
@@ -253,6 +254,8 @@ func (w *smsWorker) command(b []byte) bool {
 		code := ""
 		if errors.Is(err, vowifi.ErrSMSNotReady) {
 			code = "SMS_NOT_READY"
+		} else if errors.Is(err, ims.ErrSMSRejected) {
+			code = "SMS_REJECTED"
 		} else if err != nil {
 			code = "SMS_OUTCOME_UNKNOWN"
 		}

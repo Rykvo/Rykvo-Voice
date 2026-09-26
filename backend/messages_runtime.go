@@ -479,14 +479,34 @@ func (m *moduleManager) messageState(ctx context.Context, id, state, issue strin
 	_, _ = m.db.Exec(ctx, "UPDATE messages SET state=$2,issue=$3,result=$4 WHERE id=$1 AND state<>'cancelled'", id, state, issue, b)
 }
 
-// Delivery receipts are evidence for a TP-MR, not proof of reading. Ambiguous
-// reference reuse stays accepted; only one matching submission is advanced.
+// Match all submissions, including already-resolved ones: a reused TP-MR
+// must never let an old receipt advance a different message.
 func (m *moduleManager) applySMSReports(ctx context.Context) {
-	_, _ = m.db.Exec(ctx, `WITH matched AS (
- SELECT p.iccid,p.peer,p.reference,p.status,min(m.id) id,count(*) n FROM message_reports p JOIN messages m ON m.iccid=p.iccid AND m.peer=p.peer AND m.mine AND m.kind='sms' AND m.state IN ('accepted','partial') AND m.created_at>now()-interval '7 days' AND p.received_at>=m.created_at AND (p.scts IS NULL OR p.scts>=m.created_at-interval '10 minutes') AND EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(m.result->'partResults','[]')) x WHERE (x->>'reference')::int=p.reference AND x->>'accepted'='true') GROUP BY p.iccid,p.peer,p.reference,p.status
- ), complete AS (
- SELECT m.id FROM messages m WHERE m.state='accepted' AND jsonb_array_length(COALESCE(m.result->'partResults','[]'))>0 AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(m.result->'partResults') x WHERE NOT EXISTS(SELECT 1 FROM matched p WHERE p.id=m.id AND p.n=1 AND p.status=0 AND p.reference=(x->>'reference')::int))
- ) UPDATE messages SET state='delivered' WHERE id IN (SELECT id FROM complete)`)
+	_, _ = m.db.Exec(ctx, `WITH parts AS (
+ SELECT m.id,m.iccid,m.peer,m.created_at,(x->>'reference')::int reference
+ FROM messages m CROSS JOIN LATERAL jsonb_array_elements(
+ CASE WHEN jsonb_typeof(m.result->'partResults')='array' THEN m.result->'partResults' ELSE '[]'::jsonb END) x
+ WHERE m.mine AND m.kind='sms' AND m.created_at>now()-interval '7 days'
+ ), matched AS (
+ SELECT p.iccid,p.fingerprint,p.reference,p.status,min(m.id) id,count(DISTINCT m.id) n
+ FROM message_reports p JOIN parts m ON m.iccid=p.iccid
+ AND ltrim(m.peer,'+')=ltrim(p.peer,'+') AND m.reference=p.reference
+ AND p.received_at>=m.created_at AND (p.scts IS NULL OR p.scts>=m.created_at-interval '10 minutes')
+ GROUP BY p.iccid,p.fingerprint,p.reference,p.status
+ ), outcomes AS (
+ SELECT id,max(status) FILTER(WHERE status BETWEEN 64 AND 127) failure,
+ count(DISTINCT reference) FILTER(WHERE status=0) delivered
+ FROM matched WHERE n=1 GROUP BY id
+ )
+ UPDATE messages m SET
+ state=CASE WHEN o.failure IS NOT NULL THEN 'failed' ELSE 'delivered' END,
+ issue=CASE WHEN o.failure IS NOT NULL THEN 'SMS_STATUS_'||o.failure::text ELSE '' END
+ FROM outcomes o WHERE m.id=o.id AND m.state IN ('accepted','partial','unknown')
+ AND (o.failure IS NOT NULL OR (
+ m.state<>'partial' AND COALESCE((m.result->>'partsTotal')::int,0)>0
+ AND o.delivered=(m.result->>'partsTotal')::int
+ AND jsonb_array_length(CASE WHEN jsonb_typeof(m.result->'partResults')='array'
+ THEN m.result->'partResults' ELSE '[]'::jsonb END)=(m.result->>'partsTotal')::int))`)
 }
 
 func (m *moduleManager) pollCellularInbox(parent context.Context, cursor *int) {

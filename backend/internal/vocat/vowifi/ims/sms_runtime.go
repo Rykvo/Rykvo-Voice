@@ -501,6 +501,7 @@ func (session *Session) processSMSMessage(request *sipRequest) {
 		session.logInboundSMS(slog.LevelInfo, "IMS inbound SMS control message received", request,
 			"stage", "rpdu", "payload_source", payloadSource,
 			"rp_message_type", int(rpdu.messageType), "rp_reference", int(rpdu.reference))
+		session.receiveRPResult(request, payload)
 		return
 	}
 
@@ -526,7 +527,7 @@ func (session *Session) processSMSMessage(request *sipRequest) {
 		if session.provider.config.OnSIMDataDownload == nil {
 			session.logInboundSMS(slog.LevelWarn, "IMS SIM data download has no UICC handler", request,
 				"stage", "uicc", "rp_reference", int(rpdu.reference))
-      session.sendLoggedDeliveryReport(request, []byte{0x02, rpdu.reference}, "rp_ack")
+			session.sendLoggedDeliveryReport(request, []byte{0x02, rpdu.reference}, "rp_ack")
 			return
 		}
 		if err := session.provider.config.OnSIMDataDownload(context.Background(), SIMDataDownload{
@@ -926,7 +927,7 @@ func (session *Session) SendUSSI(ctx context.Context, request vowifi.USSISubmitR
 	if result.Status == "" {
 		result.Status = "final"
 	}
-	result.SubmissionStatus = "accepted_by_ims"
+	result.SubmissionStatus = "accepted_by_smsc"
 	return result, nil
 }
 
@@ -1097,7 +1098,11 @@ func (session *Session) SendSMS(ctx context.Context, request vowifi.SMSSubmitReq
 			result.SubmissionStatus = "failed"
 			return result, err
 		}
-		reference := session.allocateRPReference()
+		reference, pending, reserveErr := session.beginRP()
+		if reserveErr != nil {
+			return result, reserveErr
+		}
+		defer session.endRP(reference)
 		if len(part.TPDU) < 2 {
 			return result, errors.New("ims: SMS-SUBMIT TPDU is truncated")
 		}
@@ -1116,13 +1121,24 @@ func (session *Session) SendSMS(ctx context.Context, request vowifi.SMSSubmitReq
 		if response != nil {
 			partResult.SIPCode = response.StatusCode
 		}
-		if sendErr == nil && response.StatusCode >= 200 && response.StatusCode < 300 {
-			partResult.Accepted = true
-			partResult.SubmissionStatus = "accepted_by_ims"
-			result.PartsAccepted++
+		if sendErr == nil && response != nil && response.StatusCode >= 200 && response.StatusCode < 300 {
+			rp, waitErr := session.awaitRP(ctx, pending)
+			sendErr = waitErr
+			partResult.RPAcknowledged = waitErr == nil && rp.accepted
+			partResult.RPCause = rp.cause
+			if partResult.RPAcknowledged {
+				partResult.Accepted = true
+				partResult.SubmissionStatus = "accepted_by_smsc"
+				result.PartsAccepted++
+			} else if rp.cause != nil {
+				partResult.SubmissionStatus = "rejected_by_smsc"
+			} else {
+				partResult.SubmissionStatus = "rp_unconfirmed"
+			}
 		} else {
 			partResult.SubmissionStatus = "rejected_by_ims"
 		}
+		session.endRP(reference)
 		result.PartResults = append(result.PartResults, partResult)
 		if sendErr != nil {
 			session.logOutboundSMS(slog.LevelWarn, "IMS outbound SMS submission failed",
@@ -1140,7 +1156,7 @@ func (session *Session) SendSMS(ctx context.Context, request vowifi.SMSSubmitReq
 		}
 	}
 	result.AllPartsAccepted = true
-	result.SubmissionStatus = "accepted_by_ims"
+	result.SubmissionStatus = "accepted_by_smsc"
 	session.logOutboundSMS(slog.LevelInfo, "IMS outbound SMS submission accepted",
 		"stage", "sip_response", "parts", result.PartsAccepted)
 	return result, nil
@@ -1185,14 +1201,6 @@ func (session *Session) logOutboundSMS(level slog.Level, message string, attribu
 		"security", session.effectiveSecurityMode(),
 	}
 	logger.Log(context.Background(), level, message, append(base, attributes...)...)
-}
-
-func (session *Session) allocateRPReference() byte {
-	session.mu.Lock()
-	defer session.mu.Unlock()
-	value := session.nextRPReference
-	session.nextRPReference++
-	return value
 }
 
 func (session *Session) sendSIPMessage(
@@ -1297,6 +1305,13 @@ func (session *Session) sendSIPMessageWithIdentity(
 		"", "",
 	)
 	request := append([]byte(strings.Join(lines, "\r\n")), body...)
+	if contentType == smsContentType && len(body) >= 2 && body[0] == 0 {
+		session.mu.Lock()
+		if pending := session.pendingRP[body[1]]; pending != nil {
+			pending.callID = callID
+		}
+		session.mu.Unlock()
+	}
 	session.logOutboundSMS(slog.LevelDebug, "IMS SIP MESSAGE transaction started",
 		"stage", "sip_send", "call_id", callID, "cseq", cseq,
 		"identity_source", identitySource,

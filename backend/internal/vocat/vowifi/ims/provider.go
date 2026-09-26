@@ -654,6 +654,8 @@ type Session struct {
 	inboundConnections map[net.Conn]struct{}
 	smsMu              sync.Mutex
 	nextRPReference    byte
+	pendingRP          map[byte]*rpPending
+	rpReuseAfter       [256]time.Time
 	callMu             sync.Mutex
 	calls              map[string]*imsCall
 

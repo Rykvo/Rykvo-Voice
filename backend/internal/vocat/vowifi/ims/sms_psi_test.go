@@ -35,6 +35,9 @@ func (a *smsPSITestAKA) ReadSMSCenterPSI(ctx context.Context, _ string) (string,
 
 // A real loopback registrar and MESSAGE receiver, never a modem or external SMS.
 func smsPSITestSession(t *testing.T, aka vowifi.AKAProvider, publicIdentity ...string) (*Session, <-chan *sipRequest, *bytes.Buffer) {
+	return smsPSITestSessionRP(t, aka, []byte{3}, publicIdentity...)
+}
+func smsPSITestSessionRP(t *testing.T, aka vowifi.AKAProvider, rpReply []byte, publicIdentity ...string) (*Session, <-chan *sipRequest, *bytes.Buffer) {
 	t.Helper()
 	listener, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1")})
 	if err != nil {
@@ -53,6 +56,9 @@ func smsPSITestSession(t *testing.T, aka vowifi.AKAProvider, publicIdentity ...s
 				return
 			}
 			packet, err := parseSIPPacket(buffer[:n])
+			if err == nil && packet.Response != nil {
+				continue
+			}
 			if err != nil || packet.Request == nil {
 				done <- fmt.Errorf("invalid request: %v", err)
 				return
@@ -81,6 +87,16 @@ func smsPSITestSession(t *testing.T, aka vowifi.AKAProvider, publicIdentity ...s
 			if _, err = listener.WriteToUDP(testResponse(code, reason, r.value("Call-ID"), r.value("CSeq"), extra), remote); err != nil {
 				done <- err
 				return
+			}
+			if r.Method == "MESSAGE" && len(r.Body) > 1 && r.Body[0] == 0 && len(rpReply) > 0 {
+				data := []byte{rpReply[0], r.Body[1]}
+				if rpReply[0] == 5 {
+					data = append(data, 1, rpReply[1])
+				}
+				if _, err = listener.WriteToUDP(testRPResultRequest(r, listener.LocalAddr().String(), data), remote); err != nil {
+					done <- err
+					return
+				}
 			}
 			if closing {
 				done <- nil
@@ -275,7 +291,7 @@ func TestSMSPSICancellationBetweenParts(t *testing.T) {
 	defer cancel()
 	session.provider.config.Logger = slog.New(smsPSICancelLog{Handler: slog.Default().Handler(), cancel: cancel, message: "IMS SIP MESSAGE response received"})
 	result, err := session.SendSMS(ctx, vowifi.SMSSubmitRequest{Recipient: "+12025550123", Text: strings.Repeat("A", 200)})
-	if !errors.Is(err, context.Canceled) || result.PartsAttempted != 1 || result.PartsAccepted != 1 {
+	if !errors.Is(err, context.Canceled) || result.PartsAttempted != 1 || result.PartsAccepted > 1 {
 		t.Fatalf("SendSMS=%#v %v", result, err)
 	}
 	select {
@@ -308,7 +324,10 @@ func TestSMSPSISendUsesSIMTargetPreservesRPDU(t *testing.T) {
 	if strings.Contains(logs.String(), "IMS outbound SMS route selected") {
 		t.Fatal("fix must not add a per-message diagnostic log")
 	}
-	if !bytes.Equal(selected.Body, fallback.Body) {
+	normalized := append([]byte(nil), fallback.Body...)
+	normalized[1] = selected.Body[1]
+	normalized[4+int(normalized[3])+2] = selected.Body[1]
+	if !bytes.Equal(selected.Body, normalized) {
 		t.Fatalf("PSI changed RPDU: %x vs %x", selected.Body, fallback.Body)
 	}
 	parts, err := device.PrepareSMSSubmitTPDUs("+12025550123", "OFFLINE TEST")

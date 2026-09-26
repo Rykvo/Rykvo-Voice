@@ -201,8 +201,9 @@ const Messages = (() => {
     }
     const state = MessageIdentity.delivery(message);
     if (!state) return "";
-    const labels = {sent: "已发送", delivered: "已送达", failed: "尚未送达", unconfirmed: "结果待确认", waiting: "等待彩信网络"};
-    return `<small class="msg-delivery${state === "failed" ? " failed" : ""}" role="status" title="${esc(message.issue || "")}">${state === "pending" ? '<span class="msg-spinner" aria-label="发送中"></span>' : labels[state]}</small>`;
+    const labels = {delivered: "已送达", failed: "尚未送达"};
+    const hint = message.issue || (["accepted", "unknown", "partial"].includes(message.state) ? "尚未收到送达确认" : "");
+    return `<small class="msg-delivery${state === "failed" ? " failed" : ""}" role="status" title="${esc(hint)}">${state === "pending" ? '<span class="msg-spinner" aria-label="发送中"></span>' : labels[state]}</small>`;
   }
   function syncRemote(records, contacts = []) {
     const old = current(), previous = JSON.stringify(old?.messages || []);

@@ -284,13 +284,14 @@ type SMSSubmitPart struct {
 	Total            int       `json:"total"`
 	Reference        int       `json:"reference"`
 	SIPCode          int       `json:"sipCode"`
+	RPAcknowledged   bool      `json:"rpAcknowledged,omitempty"`
+	RPCause          *int      `json:"rpCause,omitempty"`
 	Accepted         bool      `json:"accepted"`
 	SubmittedAt      time.Time `json:"submittedAt"`
 	SubmissionStatus string    `json:"submissionStatus"`
 }
 
-// SMSSubmitResult proves acceptance by the IMS SIP endpoint. It does not
-// claim that the recipient read the message.
+// SMSSubmitResult records transport acceptance, not recipient delivery or reading.
 type SMSSubmitResult struct {
 	To                string          `json:"to"`
 	Encoding          string          `json:"encoding"`

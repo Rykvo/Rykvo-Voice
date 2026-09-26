@@ -39,12 +39,10 @@ const MessageIdentity = (() => {
   }
   function delivery(message) {
     if (!message.mine) return "";
-    if (message.state === "waiting_network" && message.kind === "mms") return "waiting";
+    if (message.state === "waiting_network" && message.kind === "mms") return "failed";
     if (["queued", "sending", "waiting_network"].includes(message.state)) return "pending";
-    if (message.state === "accepted") return "sent";
     if (message.state === "delivered") return "delivered";
-    if (["failed", "expired", "cancelled"].includes(message.state)) return "failed";
-    return "unconfirmed";
+    return "failed";
   }
   return { clean, scope, resolver, threadId, avatar, delivery };
 })();

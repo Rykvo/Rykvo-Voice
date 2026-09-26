@@ -558,6 +558,17 @@ func serveOutboundSMS(listener *net.UDPConn, nonce string, readyForClose chan<- 
 		return err
 	}
 
+	if _, err = listener.WriteToUDP(testRPResultRequest(message.Request, listener.LocalAddr().String(), []byte{3, body[1]}), remote); err != nil {
+		return err
+	}
+	count, remote, err = listener.ReadFromUDP(packet)
+	if err != nil {
+		return err
+	}
+	if reply, e := parseSIPResponse(packet[:count]); e != nil || reply.StatusCode != 200 {
+		return fmt.Errorf("RP result SIP response: %v", e)
+	}
+
 	statusTPDU := []byte{
 		0x02, tpdu[1], 0x05, 0x91, 0x21, 0x43, 0xf5,
 		0x42, 0x10, 0x20, 0x30, 0x40, 0x50, 0x00,

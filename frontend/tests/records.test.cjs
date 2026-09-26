@@ -330,7 +330,7 @@ test("remote aliases merge both directions with note persistence and full deleti
   await app.note("张先生");
   assert.match(app.html(),/张先生/);
   assert.match(app.node("#msg-transcript").innerHTML,/张先/);
-  assert.match(app.node("#msg-transcript").innerHTML,/已发送/);
+  assert.match(app.node("#msg-transcript").innerHTML,/尚未送达/);
   assert.doesNotMatch(app.node("#msg-transcript").innerHTML,/运营商已接受/);
   app.publish([{number:"3322500550"}]); assert.match(app.html(),/张先生/);
   app.action("note"); await app.note(""); assert.doesNotMatch(app.html(),/张先生/);
@@ -379,17 +379,18 @@ test("remark display escapes markup without hiding the peer number",async()=>{
 });
 
 
-test("delivery status is outside the bubble and only explicit failure is red",()=>{
+test("outgoing status has only spinner, delivered and red not-delivered below the bubble",()=>{
   const app=setup(undefined,true);app.server();
   app.publish(["accepted","delivered","failed","sending","unknown","partial"].map(state=>({number:"+13322500550",mine:true,state})));
   app.select("remote:module-01:line-module-01-0:+13322500550");
   const html=app.node("#msg-transcript").innerHTML;
-  assert.match(html, /<\/span><\/div><small class="msg-delivery" role="status" title="">已发送/);
+  assert.match(html, /<\/span><\/div><small class="msg-delivery failed" role="status" title="尚未收到送达确认">尚未送达/);
   assert.match(html, /class="msg-delivery" role="status" title="">已送达/);
   assert.match(html, /class="msg-delivery failed" role="status" title="">尚未送达/);
-  assert.equal((html.match(/msg-delivery failed/g)||[]).length,1);
-  assert.equal((html.match(/结果待确认/g)||[]).length,2);
+  assert.equal((html.match(/msg-delivery failed/g)||[]).length,4);
+  assert.equal((html.match(/尚未送达/g)||[]).length,4);
   assert.match(html, /class="msg-spinner" aria-label="发送中"/);
+  assert.doesNotMatch(html, /已发送|结果待确认|送达待确认/);
 });
 
 test("consecutive incoming messages share the last avatar and retain each bubble",()=>{
@@ -438,6 +439,6 @@ test("waiting MMS is not an active spinner and error details are escaped",()=>{
  app.publish([{number:"+13322500550",mine:true,kind:"mms",state:"waiting_network",issue:'MMS_<"bad">'}]);
  app.select("remote:module-01:line-module-01-0:+13322500550");
  const html=app.node("#msg-transcript").innerHTML;
- assert.match(html,/等待彩信网络/);assert.doesNotMatch(html,/msg-spinner/);
+ assert.match(html,/尚未送达/);assert.doesNotMatch(html,/msg-spinner/);
  assert.doesNotMatch(html,/<"bad">/);assert.match(html,/&lt;/);
 });
