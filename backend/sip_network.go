@@ -120,7 +120,7 @@ func (s *server) sipNetworkAPI(ctx context.Context, w http.ResponseWriter, r *ht
 		reply(w, 200, map[string]any{"data": status})
 		return
 	}
-	if path != "/connect" && path != "/reconnect" && path != "/disconnect" {
+	if path != "/connect" && path != "/logout" {
 		fail(w, 404, "NOT_FOUND")
 		return
 	}

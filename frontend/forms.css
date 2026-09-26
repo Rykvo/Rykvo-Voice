@@ -136,13 +136,6 @@
 .sip-network-status[data-failed="true"] {
   color: #ff453a;
 }
-[data-sip-disconnect] {
-  display: block;
-  margin: 6px auto 0;
-}
-[data-sip-disconnect][hidden] {
-  display: none;
-}
 #server-reset {
   display: block;
   margin: 10px auto 0;

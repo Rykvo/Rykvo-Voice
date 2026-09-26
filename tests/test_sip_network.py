@@ -119,3 +119,18 @@ class SIPNetworkTests(unittest.TestCase):
     def test_unknown_commands_and_extra_fields_rejected(self):
         for value in [{'action':'shell'}, {'action':'status','command':'anything'}, None]:
             self.assertEqual(sip.handle(value), {'error':'SIP_INVALID_REQUEST'})
+
+    def test_logout_removes_keys_but_keeps_installation_identity(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(sip, 'ROOT', Path(directory)), patch.object(sip, 'STATE', Path(directory) / 'state.json'), patch.object(sip, 'down') as down:
+            state = sip.load()
+            installation = state['installationId']
+            state.update(spec=spec(), enabled=True, startedAt=1)
+            sip.save(state)
+            result = sip.dispatch({'action': 'logout'})
+            self.assertEqual(result['state'], 'disconnected')
+            self.assertFalse(result['configured'])
+            self.assertEqual(result['address'], '')
+            self.assertEqual(sip.load()['installationId'], installation)
+            self.assertNotIn('spec', sip.load())
+            self.assertNotIn(spec()['privateKey'], sip.STATE.read_text())
+            down.assert_called_once_with(spec())

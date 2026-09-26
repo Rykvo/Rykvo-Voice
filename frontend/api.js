@@ -68,8 +68,7 @@ const Backend = (() => {
     },
     sipServer: {
       get: ["GET", "/settings/sip-server"],
-      reconnect: ["POST", "/settings/sip-server/reconnect"],
-      disconnect: ["POST", "/settings/sip-server/disconnect"],
+      logout: ["POST", "/settings/sip-server/logout"],
       connect: ["POST", "/settings/sip-server/connect"],
     },
     emergencyAddress: {

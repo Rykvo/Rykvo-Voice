@@ -17,7 +17,7 @@ const SIPServer = (() => {
           ${Forms.field({ prefix: "sip-server", name: "accessCode", label: "接入码", type: "password", placeholder: "输入接入码", maxLength: 43 })}
         </div>
         <p class="sip-network-status" role="status" aria-live="polite" hidden></p>
-        <div class="form-footer"><button type="submit" class="primary">连接</button><button type="button" data-sip-disconnect class="text-button" hidden>断开</button></div>
+        <div class="form-footer"><button type="submit" class="primary">连接</button></div>
       </form></section>`;
   }
   function show(value) {
@@ -30,10 +30,11 @@ const SIPServer = (() => {
     note.hidden = false;
     const button = form.querySelector('[type="submit"]');
     button.disabled = busy;
-    button.textContent = busy ? "配置中" : value.configured ? "重新连接" : "连接";
-    const disconnect = form.querySelector('[data-sip-disconnect]');
-    disconnect.hidden = !value.enabled; disconnect.disabled = busy;
+    button.textContent = busy ? "配置中" : value.enabled ? "注销" : "连接";
+    button.classList.toggle("server-disconnect", Boolean(value.enabled));
     const address = form.elements.namedItem("address");
+    address.readOnly = Boolean(value.enabled) || busy;
+    form.elements.namedItem("accessCode").disabled = Boolean(value.enabled) || busy;
     if (!address.value && value.address) address.value = value.address;
   }
   async function read(current = form) {
@@ -56,20 +57,20 @@ const SIPServer = (() => {
     const current = form, entered = current.elements.namedItem("address").value.trim();
     const address = entered.includes("://") ? entered : "https://" + entered;
     const codeInput = current.elements.namedItem("accessCode"), accessCode = codeInput.value.trim();
-    const disconnect = event.type === "click";
-    const reconnect = !disconnect && status?.configured && address === status.address && !accessCode;
+    const logout = Boolean(status?.enabled);
     let validAddress = false;
     try { const u = new URL(address); validAddress = u.protocol === "https:" && u.pathname === "/api/connect" && !u.username && !u.password && !u.search && !u.hash && (!u.port || u.port === "443"); } catch {}
-    if (!disconnect && !reconnect && Forms.report(current, !validAddress ? {field:"address",message:labels.SIP_INVALID_ADDRESS}
+    if (!logout && Forms.report(current, !validAddress ? {field:"address",message:labels.SIP_INVALID_ADDRESS}
       : !/^[A-Za-z0-9_-]{43}$/.test(accessCode) ? {field:"accessCode",message:"请输入完整接入码"} : null)) return;
-    if (!disconnect) current.elements.namedItem("address").value = address;
+    if (!logout) current.elements.namedItem("address").value = address;
     clearTimeout(timer);
     const request = new AbortController(); controller = request;
     codeInput.value = "";
     show({...status,state:"configuring",issue:""});
     try {
-      const operation = disconnect ? "disconnect" : reconnect ? "reconnect" : "connect";
+      const operation = logout ? "logout" : "connect";
       await Backend.sipServer[operation]({body:operation === "connect" ? {address,accessCode} : {},signal:request.signal});
+      if (logout && current === form) current.elements.namedItem("address").value = "";
     } catch (error) {
       if (form === current && !request.signal.aborted) show({...status,state:"failed",issue:error.code});
     } finally {
@@ -80,13 +81,11 @@ const SIPServer = (() => {
   function unmount() {
     clearTimeout(timer); timer = null; controller?.abort(); controller = null;
     form?.removeEventListener("submit", submit);
-    form?.querySelector('[data-sip-disconnect]')?.removeEventListener("click", submit);
     form?.reset(); form = null; status = null;
   }
   function mount() {
     unmount(); form = document.getElementById("sip-server-form");
     form?.addEventListener("submit", submit);
-    form?.querySelector('[data-sip-disconnect]')?.addEventListener("click", submit);
     if (Backend.enabled("sipServer")) read();
   }
   return {render,mount,unmount};

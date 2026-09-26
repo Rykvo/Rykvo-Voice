@@ -273,7 +273,7 @@ def apply(state, spec):
 def dispatch(request):
     require(isinstance(request, dict), 'SIP_INVALID_REQUEST')
     action = request.get('action')
-    require(action in ('status', 'connect', 'reconnect', 'disconnect', 'resume'), 'SIP_INVALID_REQUEST')
+    require(action in ('status', 'connect', 'reconnect', 'disconnect', 'logout', 'resume'), 'SIP_INVALID_REQUEST')
     require(set(request) == ({'action', 'address', 'accessCode'} if action == 'connect' else {'action'}), 'SIP_INVALID_REQUEST')
     ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
     os.chmod(ROOT, 0o700)
@@ -288,7 +288,7 @@ def dispatch(request):
             info = link(pending['interface'])
             if info and info.get('ifalias') == MARK:
                 down(pending)
-            if state['enabled'] and state.get('spec') and not owned(state['spec']):
+            if action not in ('logout', 'disconnect') and state['enabled'] and state.get('spec') and not owned(state['spec']):
                 up(state['spec'])
             save(state)
         if action == 'connect':
@@ -299,9 +299,12 @@ def dispatch(request):
                 return view(state)
             require(state.get('spec'), 'SIP_NOT_CONFIGURED')
             return apply(state, state['spec'])
-        if action == 'disconnect':
+        if action in ('disconnect', 'logout'):
             down(state.get('spec'))
             state.update(enabled=False, issue='')
+            if action == 'logout':
+                state.pop('spec', None)
+                state.pop('startedAt', None)
             save(state)
         return view(state)
 

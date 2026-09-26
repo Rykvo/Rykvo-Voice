@@ -331,7 +331,7 @@ test("reserved interface contracts retain line scope and credentials stay out of
 });
 
  test("SIP network scope leaves host tunnel and phone APIs independent",async()=>{
- const f=setup("sipNetwork");await f.api.sipServer.get();await f.api.sipServer.reconnect({body:{}});
- assert.equal(f.requests[0].url,"/api/settings/sip-server");assert.equal(f.requests[1].url,"/api/settings/sip-server/reconnect");
+ const f=setup("sipNetwork");await f.api.sipServer.get();await f.api.sipServer.logout({body:{}});
+ assert.equal(f.requests[0].url,"/api/settings/sip-server");assert.equal(f.requests[1].url,"/api/settings/sip-server/logout");
  await assert.rejects(f.api.tunnel.connect({body:{}}),{code:"NOT_CONNECTED"});await assert.rejects(f.api.calls.list(),{code:"NOT_CONNECTED"});
  });

@@ -14,7 +14,7 @@ func testSIPNetworkAuthorization(t *testing.T, s *server, cookie, csrf string) {
 	previous := s.sipNetwork
 	s.sipNetwork = &sipNetworkManager{busy: true}
 	defer func() { s.sipNetwork = previous }()
-	for _, action := range []string{"connect", "reconnect", "disconnect"} {
+	for _, action := range []string{"connect", "logout"} {
 		for _, tc := range []struct {
 			origin, token string
 			want          int
@@ -87,7 +87,7 @@ func TestSIPNetworkAPIInputAndNoSecretResponse(t *testing.T) {
 		{"/api/settings/sip-server/connect", "GET", "", 405},
 		{"/api/settings/sip-server/connect", "POST", `{"address":"http://host/api/connect","accessCode":"bad"}`, 400},
 		{"/api/settings/sip-server/connect", "POST", `{"address":"https://host/api/connect","accessCode":"` + strings.Repeat("A", 43) + `","command":"shell"}`, 400},
-		{"/api/settings/sip-server/disconnect", "POST", `{}`, 409},
+		{"/api/settings/sip-server/logout", "POST", `{}`, 409},
 		{"/api/settings/sip-server", "GET", "", 200},
 	} {
 		r := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))

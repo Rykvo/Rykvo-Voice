@@ -242,12 +242,12 @@ EC20 连续通信超时恢复期间 `issue=RECOVERING`，页面显示“正在�
 
 蜂窝数据入口位于 SIM 详情的“数据漫游”下方。与 Wi-Fi 通话的 IMS APN 独立，不复用用户的数据 APN。
 
-## SIP 电话服务器网络接入（1.5.28）
+## SIP 电话服务器网络接入（1.5.30）
 
 - 独立 `sip-network-api` scope，不修改主机服务器 `/tunnel`。
 - `GET /settings/sip-server` 返回 VPN 状态、公开绑定参数；从不返回私钥、接入码。
 - `POST /settings/sip-server/connect` 接受 `{address,accessCode}`；地址必须是 HTTPS `/api/connect`。
-- `POST /settings/sip-server/reconnect`、`POST /settings/sip-server/disconnect` 接受 `{}`，复用已保存配置。
+- `POST /settings/sip-server/logout` 接受 `{}`，移除本机 VPN 并清除服务器配置及密钥；安装标识保持稳定。云端客户端仍由云端管理。注销后可填写新的地址及接入码。
 - 写操作要求现有管理员会话、同源 Origin、CSRF；返回 202 只表示受理。GET 真实 WireGuard 握手有效时才显示 `VPN 已连接`。
 - 云端按持久化 installationId 领取配置；本机只解析密钥和网络参数，不执行云端路由钩子。凭据保存在 root-only 状态目录，不缓存接入码。
 - 状态 `network` 包含 interface、bindAddress、publicAddress、server、start、end，预留给后续本地电话引擎；`capabilities.calls=false`。
