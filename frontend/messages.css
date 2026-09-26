@@ -115,14 +115,6 @@ main[data-page="messages"] #page-content > .page-enter {
   min-height: 0;
   overflow: auto;
 }
-.msg-code-group {
-  margin: 0;
-  padding: 16px 14px 7px;
-  color: var(--msg-muted);
-  font-size: 11px;
-  letter-spacing: 0.3px;
-  font-weight: 600;
-}
 .msg-thread {
   width: 100%;
   position: relative;
@@ -342,6 +334,10 @@ main[data-page="messages"] #page-content > .page-enter {
   overflow: auto;
   overscroll-behavior: contain;
   padding: 25px clamp(20px, 2vw, 36px) 24px;
+  scrollbar-width: none;
+}
+.msg-transcript::-webkit-scrollbar {
+  display: none;
 }
 .msg-date {
   text-align: center;

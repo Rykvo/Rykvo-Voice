@@ -115,16 +115,10 @@ const Messages = (() => {
         (a, b) => (b.messages.at(-1)?.at || 0) - (a.messages.at(-1)?.at || 0),
       );
     return (
-      Countries.group(rows)
-        .map(
-          ([code, items]) =>
-            `<h2 class="msg-code-group">${code ? `+${code}` : "未标注区号"}</h2>${items
-              .map((t) => {
-                const last = t.messages.at(-1);
-                return `<button class="msg-thread ${active === t.id ? "selected" : ""}" data-msg-thread="${esc(t.id)}" aria-pressed="${active === t.id}"><span class="msg-unread ${t.unread ? "visible" : ""}" aria-label="${t.unread ? "未读" : ""}"></span>${avatar(t)}<span class="msg-thread-copy"><span class="msg-thread-top"><strong>${t.name ? `<span class="msg-thread-name">${esc(t.name)}</span><span class="msg-thread-number">${esc(t.number)}</span>` : esc(title(t))}</strong><time>${last ? time(last.at) : ""}</time><span aria-hidden="true">›</span></span><span class="msg-preview">${esc(emptyReceived(last) ? "无文本内容" : last?.text || (last?.image ? "照片" : ""))}</span></span></button>`;
-              })
-              .join("")}`,
-        )
+      rows.map((t) => {
+        const last = t.messages.at(-1);
+        return `<button class="msg-thread ${active === t.id ? "selected" : ""}" data-msg-thread="${esc(t.id)}" aria-pressed="${active === t.id}"><span class="msg-unread ${t.unread ? "visible" : ""}" aria-label="${t.unread ? "未读" : ""}"></span>${avatar(t)}<span class="msg-thread-copy"><span class="msg-thread-top"><strong>${t.name ? `<span class="msg-thread-name">${esc(t.name)}</span><span class="msg-thread-number">${esc(t.number)}</span>` : esc(title(t))}</strong><time>${last ? time(last.at) : ""}</time><span aria-hidden="true">›</span></span><span class="msg-preview">${esc(emptyReceived(last) ? "无文本内容" : last?.text || (last?.image ? "照片" : ""))}</span></span></button>`;
+      })
         .join("") ||
       `<p class="msg-empty">${query ? "没有找到信息" : "暂无信息"}</p>`
     );
@@ -136,16 +130,17 @@ const Messages = (() => {
   }
   function render() {
     const empty = active !== "new" && !current();
-    return `<div class="messages-app" data-view="${view}"><aside class="msg-sidebar" aria-label="会话列表"><header class="msg-list-header"><h1>信息</h1><button class="msg-icon-button" data-msg-action="compose" aria-label="新建信息"><img src="assets/compose.png" alt=""></button></header><label class="msg-search"><span aria-hidden="true"><svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m13 13 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><input id="msg-search" type="search" placeholder="搜索" aria-label="搜索信息" value="${esc(query)}"></label><div class="msg-thread-list scroll-area" id="msg-thread-list">${listHTML()}</div></aside><section class="msg-chat" aria-label="信息对话">${empty ? '<div class="msg-empty-state">暂无信息</div>' : `<header class="msg-chat-header" id="msg-chat-header">${headerHTML()}</header><div class="msg-recipient" id="msg-recipient" ${active === "new" ? "" : "hidden"}><label for="msg-to">收件人：</label><input id="msg-to" type="tel" inputmode="tel" placeholder="手机号码" aria-label="收件人手机号" value="${esc(newNumber)}" maxlength="21"></div>${senderHTML()}<div class="msg-transcript scroll-area" id="msg-transcript" role="log" aria-label="聊天内容" aria-live="polite"></div><div class="msg-composer-area"><div class="msg-attachment" id="msg-attachment" hidden></div><form class="msg-composer" id="ipad-message-form"><button type="button" class="msg-attach-button" data-msg-action="attach" aria-label="添加照片"><img src="assets/message-plus.png" alt=""></button><input hidden id="msg-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><div class="msg-input-wrap"><textarea id="msg-input" aria-label="信息内容" placeholder="短信" rows="1" maxlength="2000">${esc(drafts[active] || "")}</textarea><button class="msg-send" type="submit" aria-label="发送信息" disabled><img src="assets/message-send.png" alt=""><span class="msg-spinner" aria-hidden="true"></span></button></div></form></div>`}</section></div>`;
+    return `<div class="messages-app" data-view="${view}"><aside class="msg-sidebar" aria-label="会话列表"><header class="msg-list-header"><h1>信息</h1><button class="msg-icon-button" data-msg-action="compose" aria-label="新建信息"><img src="assets/compose.png" alt=""></button></header><label class="msg-search"><span aria-hidden="true"><svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m13 13 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><input id="msg-search" type="search" placeholder="搜索" aria-label="搜索信息" value="${esc(query)}"></label><div class="msg-thread-list scroll-area" id="msg-thread-list">${listHTML()}</div></aside><section class="msg-chat" aria-label="信息对话">${empty ? '<div class="msg-empty-state">暂无信息</div>' : `<header class="msg-chat-header" id="msg-chat-header">${headerHTML()}</header><div class="msg-recipient" id="msg-recipient" ${active === "new" ? "" : "hidden"}><label for="msg-to">收件人：</label><input id="msg-to" type="tel" inputmode="tel" placeholder="手机号码" aria-label="收件人手机号" value="${esc(newNumber)}" maxlength="21"></div>${senderHTML()}<div class="msg-transcript" id="msg-transcript" role="log" aria-label="聊天内容" aria-live="polite"></div><div class="msg-composer-area"><div class="msg-attachment" id="msg-attachment" hidden></div><form class="msg-composer" id="ipad-message-form"><button type="button" class="msg-attach-button" data-msg-action="attach" aria-label="添加照片"><img src="assets/message-plus.png" alt=""></button><input hidden id="msg-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><div class="msg-input-wrap"><textarea id="msg-input" aria-label="信息内容" placeholder="短信" rows="1" maxlength="2000">${esc(drafts[active] || "")}</textarea><button class="msg-send" type="submit" aria-label="发送信息" disabled><img src="assets/message-send.png" alt=""><span class="msg-spinner" aria-hidden="true"></span></button></div></form></div>`}</section></div>`;
   }
   function bubbleHTML(message, previous, next) {
     const date = new Date(message.at);
-    const isNewDay = !previous || date.toDateString() !== new Date(previous.at).toDateString();
+    const showTime = !previous || date.toDateString() !== new Date(previous.at).toDateString() ||
+      message.at - previous.at >= 300000;
     const grouped = next && message.mine === next.mine && next.at >= message.at &&
       next.at - message.at < 300000 && date.toDateString() === new Date(next.at).toDateString();
     const portrait = message.mine ? "" : grouped
       ? '<span class="msg-avatar-space" aria-hidden="true"></span>' : avatar(current());
-    return `${isNewDay ? `<div class="msg-date">${UI.day(message.at)} ${UI.time(message.at)}</div>` : ""}<div class="msg-line ${message.mine ? "outgoing" : "incoming"}${grouped ? " grouped" : ""}">${portrait}<div class="msg-content"><div class="msg-bubble ${message.image ? "with-image" : ""}">${message.image ? `<img src="${esc(message.image)}" alt="信息中的照片">` : ""}${emptyReceived(message) ? '<span class="msg-placeholder">无文本内容</span>' : message.text ? `<span>${esc(message.text)}</span>` : ""}</div>${deliveryHTML(message)}</div></div>`;
+    return `${showTime ? `<div class="msg-date">${UI.day(message.at)} ${UI.time(message.at)}</div>` : ""}<div class="msg-line ${message.mine ? "outgoing" : "incoming"}${grouped ? " grouped" : ""}">${portrait}<div class="msg-content"><div class="msg-bubble ${message.image ? "with-image" : ""}">${message.image ? `<img src="${esc(message.image)}" alt="信息中的照片">` : ""}${emptyReceived(message) ? '<span class="msg-placeholder">无文本内容</span>' : message.text ? `<span>${esc(message.text)}</span>` : ""}</div>${deliveryHTML(message)}</div></div>`;
   }
   function scrollToLatest() {
     const node = $("#msg-transcript");

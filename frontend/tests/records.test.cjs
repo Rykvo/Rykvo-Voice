@@ -434,6 +434,53 @@ test("empty content label never replaces photos or incomplete and failed recepti
 });
 
 
+test("conversation list sorts globally across countries and short codes",()=>{
+  const app=setup(new Map([[M,"[]"]]),true);app.server();
+  app.publish([
+    {number:"+12025550123",at:2000},
+    {number:"+8613800000000",at:4000},
+    {number:"128",at:3000},
+    {number:"+85262717066",at:1000},
+  ]);
+  const order=()=>[...app.html().matchAll(/data-msg-thread="[^"]*:([^":]+)"/g)].map(m=>m[1]);
+  assert.deepEqual(order(),["+8613800000000","128","+12025550123","+85262717066"]);
+  assert.doesNotMatch(app.html(),/msg-code-group|未标注区号/);
+  app.select("remote:module-01:line-module-01-0:+12025550123");
+  app.node("#msg-input").value="保留草稿";app.emit("input",{id:"msg-input",value:"保留草稿"});
+  app.publish([{number:"+85262717066",at:5000,text:"最新信息"}]);
+  assert.deepEqual(order(),["+85262717066","+8613800000000","128","+12025550123"]);
+  assert.match(app.html(),/data-msg-thread="remote:module-01:line-module-01-0:\+12025550123" aria-pressed="true"/);
+  assert.match(app.html(),/保留草稿/);
+  app.emit("input",{id:"msg-search",value:"最新信息"});
+  assert.deepEqual(order(),["+85262717066"]);
+});
+
+test("chat shows timestamps at the first message, five-minute gaps and midnight",()=>{
+  const start=new Date(2026,8,26,9,0).getTime();
+  for(const [times,count] of [
+    [[start],1],
+    [[start,start+299999],1],
+    [[start,start+300000],2],
+    [[start,start+60000,start+360000,start+960000],3],
+    [[new Date(2026,8,26,23,59).getTime(),new Date(2026,8,27,0,0).getTime()],2],
+  ]) {
+    const app=setup(undefined,true);app.server();
+    app.publish(times.map((at,i)=>({number:"+12025550123",at,mine:i%2===0})));
+    app.select("remote:module-01:line-module-01-0:+12025550123");
+    assert.equal((app.node("#msg-transcript").innerHTML.match(/class="msg-date"/g)||[]).length,count);
+  }
+});
+
+test("chat scrollbar is hidden without disabling scrolling",()=>{
+  const css=readFileSync(join(__dirname,"../messages.css"),"utf8");
+  const transcript=css.match(/\.msg-transcript \{([^}]+)\}/)[1];
+  assert.match(transcript,/overflow: auto/);
+  assert.match(transcript,/scrollbar-width: none/);
+  assert.doesNotMatch(setup().html(),/class="msg-transcript scroll-area"/);
+  assert.match(css,/\.msg-transcript::-webkit-scrollbar\s*\{\s*display: none;/);
+  assert.doesNotMatch(css,/msg-code-group/);
+});
+
 test("waiting MMS is not an active spinner and error details are escaped",()=>{
  const app=setup(undefined,true);app.server();
  app.publish([{number:"+13322500550",mine:true,kind:"mms",state:"waiting_network",issue:'MMS_<"bad">'}]);
