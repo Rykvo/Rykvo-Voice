@@ -78,6 +78,7 @@ func TestVisibilityDatabase(t *testing.T) {
 	s := &server{db: pool, origin: "http://test.local", slots: make(chan struct{}, 2)}
 	testModuleDatabase(t, s, value, csrf)
 	testPrefixedSession(t, s, value, csrf)
+	testSIPNetworkAuthorization(t, s, value, csrf)
 	request := func(method, path string, body any, want int) map[string]any {
 		t.Helper()
 		encoded, _ := json.Marshal(body)

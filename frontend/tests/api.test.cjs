@@ -21,7 +21,8 @@ function setup(mode = "all", base = "") {
           ? { getAttribute: () => base }
           : mode === "all" ||
               (mode === "session" && selector.includes('"session-api"')) ||
-              (mode === "tunnel" && selector.includes('"tunnel-api"'))
+              (mode === "tunnel" && selector.includes('"tunnel-api"')) ||
+              (mode === "sipNetwork" && selector.includes('"sip-network-api"'))
             ? { content: "enabled" }
             : null,
     },
@@ -328,3 +329,9 @@ test("reserved interface contracts retain line scope and credentials stay out of
   assert.equal(f.requests[1].url, "/api/modules/module-03/lines/line%2F03/emergency-address/session");
   assert.equal(f.requests[1].method, "POST");
 });
+
+ test("SIP network scope leaves host tunnel and phone APIs independent",async()=>{
+ const f=setup("sipNetwork");await f.api.sipServer.get();await f.api.sipServer.reconnect({body:{}});
+ assert.equal(f.requests[0].url,"/api/settings/sip-server");assert.equal(f.requests[1].url,"/api/settings/sip-server/reconnect");
+ await assert.rejects(f.api.tunnel.connect({body:{}}),{code:"NOT_CONNECTED"});await assert.rejects(f.api.calls.list(),{code:"NOT_CONNECTED"});
+ });

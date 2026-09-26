@@ -49,7 +49,7 @@ func TestSessionCookie(t *testing.T) {
 
 func TestUnauthenticatedAndOrigin(t *testing.T) {
 	s := &server{origin: "http://example.test", limits: map[string]attempts{}, slots: make(chan struct{}, 2)}
-	for _, path := range []string{"/api/session", "/api/modules", "/api/tunnel"} {
+	for _, path := range []string{"/api/session", "/api/modules", "/api/tunnel", "/api/settings/sip-server"} {
 		recorder := httptest.NewRecorder()
 		s.ServeHTTP(recorder, localRequest("GET", path, nil))
 		if recorder.Code != 401 {

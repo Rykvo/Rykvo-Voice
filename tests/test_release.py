@@ -83,7 +83,7 @@ class ReleaseTests(unittest.TestCase):
 @unittest.skipUnless(Path("/bin/bash").exists(), "Linux Bash required")
 class InstallerTests(unittest.TestCase):
     def run_shell(self, script, directory):
-        result = subprocess.run(["bash", "-c", 'source "$1/install.sh"; ' + script, "test", str(ROOT), directory], capture_output=True, text=True)
+        result = subprocess.run(["bash", "-c", 'source "$1/install.sh"; SIP_SOCKET="$2/sip-socket"; SIP_UNIT="$2/sip-unit"; SIP_BOOT="$2/sip-boot"; ' + script, "test", str(ROOT), directory], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
 
     def test_removal_scope(self):

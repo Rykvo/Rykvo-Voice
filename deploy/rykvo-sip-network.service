@@ -1,0 +1,25 @@
+# Rykvo Voice: restore the saved SIP network after boot.
+[Unit]
+Description=Rykvo Voice SIP network recovery
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /opt/rykvo-voice/live/sip-network.py --resume
+StateDirectory=rykvo-sip-network
+StateDirectoryMode=0700
+TimeoutStartSec=60
+NoNewPrivileges=true
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_NETLINK
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

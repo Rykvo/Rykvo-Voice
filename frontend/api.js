@@ -67,6 +67,9 @@ const Backend = (() => {
       remove: ["DELETE", "/sip/accounts/:accountId"],
     },
     sipServer: {
+      get: ["GET", "/settings/sip-server"],
+      reconnect: ["POST", "/settings/sip-server/reconnect"],
+      disconnect: ["POST", "/settings/sip-server/disconnect"],
       connect: ["POST", "/settings/sip-server/connect"],
     },
     emergencyAddress: {
@@ -116,6 +119,7 @@ const Backend = (() => {
     (["session", "visibility", "ui", "administrator"].includes(scope) &&
       document.querySelector('meta[name="session-api"]')?.content ===
         "enabled") ||
+    (scope === "sipServer" && document.querySelector('meta[name="sip-network-api"]')?.content === "enabled") ||
     (scope === "messages" && document.querySelector('meta[name="messages-api"]')?.content === "enabled") ||
     (scope === "modules" &&
       document.querySelector('meta[name="modules-api"]')?.content === "enabled") ||

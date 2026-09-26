@@ -17,6 +17,9 @@ QMI_SOCKET=/etc/systemd/system/rykvo-qmi.socket
 QMI_UNIT=/etc/systemd/system/rykvo-qmi@.service
 WIFI_SOCKET=/etc/systemd/system/rykvo-wifi.socket
 WIFI_UNIT=/etc/systemd/system/rykvo-wifi@.service
+SIP_SOCKET=/etc/systemd/system/rykvo-sip-network.socket
+SIP_UNIT=/etc/systemd/system/rykvo-sip-network@.service
+SIP_BOOT=/etc/systemd/system/rykvo-sip-network.service
 DB=rykvo_voice
 DB_URL='postgres:///rykvo_voice?host=/var/run/postgresql&user=rykvo_voice'
 TEMP=
@@ -36,7 +39,7 @@ remove_app_path() {
     [[ ! -L "$path" ]] || { unlink -- "$path"; return; }
     resolved=$(realpath -m -- "$path")
     case "$resolved" in
-        "$BASE"|"$BASE/releases/"*|"$BASE/live"|"$STATE"|"$BACKUPS"|/var/cache/rykvo-voice|"$MANAGER") ;;
+        "$BASE"|"$BASE/releases/"*|"$BASE/live"|"$STATE"|/var/lib/rykvo-sip-network|"$BACKUPS"|/var/cache/rykvo-voice|"$MANAGER") ;;
         *) die "拒绝清理范围外路径：$resolved" ;;
     esac
     [[ "$resolved" != "$BASE/releases/" ]] || die '清理路径无效'
@@ -84,7 +87,7 @@ packages() {
     say '安装运行环境'
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -qq
-    apt-get install -y --no-install-recommends ca-certificates curl python3 nginx postgresql openssl tar gzip xz-utils udev iproute2 libqmi-utils libpcsclite1 pcscd libccid polkitd
+    apt-get install -y --no-install-recommends ca-certificates curl python3 nginx postgresql openssl tar gzip xz-utils udev iproute2 libqmi-utils libpcsclite1 pcscd libccid polkitd wireguard-tools iptables
     systemctl enable --now postgresql
     local version
     version=$(db_sql 'SHOW server_version_num')
@@ -92,7 +95,7 @@ packages() {
 }
 
 preflight() {
-    for path in "$HARDWARE_RULE" "$PCSC_RULE" "$QMI_SOCKET" "$QMI_UNIT"; do
+    for path in "$HARDWARE_RULE" "$PCSC_RULE" "$QMI_SOCKET" "$QMI_UNIT" "$SIP_SOCKET" "$SIP_UNIT" "$SIP_BOOT"; do
         if exists "$path" && { [[ -L "$path" ]] || ! grep -q 'Rykvo Voice:' "$path"; }; then
             die '同名设备规则不属于本项目'
         fi
@@ -153,6 +156,7 @@ stage_release() {
     install -m 755 "$SOURCE/bin/cloudflared" "$CANDIDATE/cloudflared"
     cp "$SOURCE/VERSION" "$SOURCE/manifest.json" "$CANDIDATE/"
     install -m 644 "$SOURCE/deploy/qmi-read.py" "$CANDIDATE/qmi-read.py"
+    install -m 644 "$SOURCE/deploy/sip-network.py" "$CANDIDATE/sip-network.py"
     "$CANDIDATE/cloudflared" --version
     find "$CANDIDATE" -type d -exec chmod 755 {} +
 }
@@ -160,7 +164,7 @@ stage_release() {
 snapshot() {
     BACKUP="$BACKUPS/$(date -u +%Y%m%d-%H%M%S)-$(openssl rand -hex 3)"
     install -d -m 700 "$BACKUPS" "$BACKUP"
-    for pair in "unit:$UNIT" "nginx:$SITE" "hardware:$HARDWARE_RULE" "pcsc:$PCSC_RULE" "qmi-socket:$QMI_SOCKET" "qmi-unit:$QMI_UNIT" "wifi-socket:$WIFI_SOCKET" "wifi-unit:$WIFI_UNIT"; do
+    for pair in "unit:$UNIT" "nginx:$SITE" "hardware:$HARDWARE_RULE" "pcsc:$PCSC_RULE" "qmi-socket:$QMI_SOCKET" "qmi-unit:$QMI_UNIT" "wifi-socket:$WIFI_SOCKET" "wifi-unit:$WIFI_UNIT" "sip-socket:$SIP_SOCKET" "sip-unit:$SIP_UNIT" "sip-boot:$SIP_BOOT"; do
         local name=${pair%%:*} path=${pair#*:}
         if exists "$path"; then cp -a "$path" "$BACKUP/$name"; fi
     done
@@ -172,10 +176,14 @@ snapshot() {
     if systemctl is-enabled --quiet rykvo-qmi.socket; then touch "$BACKUP/qmi-enabled"; fi
     if systemctl is-active --quiet rykvo-wifi.socket; then touch "$BACKUP/wifi-active"; fi
     if systemctl is-enabled --quiet rykvo-wifi.socket; then touch "$BACKUP/wifi-enabled"; fi
+    if systemctl is-enabled --quiet rykvo-sip-network.socket; then touch "$BACKUP/sip-enabled"; fi
+    if systemctl is-active --quiet rykvo-sip-network.socket; then touch "$BACKUP/sip-active"; fi
+    if [[ -d /var/lib/rykvo-sip-network ]]; then tar -C /var/lib -czf "$BACKUP/sip-state.tar.gz" rykvo-sip-network; fi
     SWITCHING=1
     systemctl stop rykvo-auth 2>/dev/null || [[ ! -f "$UNIT" ]]
     wifi_stop
     qmi_stop
+    sip_stop
     if [[ "$(db_sql "SELECT 1 FROM pg_database WHERE datname='$DB'")" == 1 ]]; then
         runuser -u postgres -- pg_dump -Fc "$DB" > "$BACKUP/database.dump"
     fi
@@ -222,7 +230,7 @@ database() {
 health() {
     local attempt
     for ((attempt = 0; attempt < 30; attempt++)); do
-        if systemctl is-active --quiet rykvo-wifi.socket && systemctl is-active --quiet rykvo-qmi.socket && systemctl is-active --quiet rykvo-auth && curl --noproxy '*' -fsS --max-time 2 http://127.0.0.1/ -o "$TEMP/health.html" && grep -q 'id="login-form"' "$TEMP/health.html"; then
+        if systemctl is-active --quiet rykvo-sip-network.socket && systemctl is-active --quiet rykvo-wifi.socket && systemctl is-active --quiet rykvo-qmi.socket && systemctl is-active --quiet rykvo-auth && curl --noproxy '*' -fsS --max-time 2 http://127.0.0.1/ -o "$TEMP/health.html" && grep -q 'id="login-form"' "$TEMP/health.html"; then
             [[ "$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' --max-time 3 -H 'Host: panel.example.com' http://127.0.0.1/)" == 404 ]] || return 1
             [[ "$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' --max-time 3 -H 'Host: panel.example.com' http://127.0.0.1/gly)" == 200 ]] || return 1
             [[ "$(curl --noproxy '*' -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1/app.js)" == 401 ]] || return 1
@@ -237,6 +245,10 @@ wifi_stop() {
     systemctl stop rykvo-wifi.socket 'rykvo-wifi@*.service' 2>/dev/null || true
 }
 
+sip_stop() {
+    systemctl stop rykvo-sip-network.socket 'rykvo-sip-network@*.service' 2>/dev/null || true
+}
+
 qmi_stop() {
     systemctl stop rykvo-qmi.socket 'rykvo-qmi@*.service' 2>/dev/null || true
 }
@@ -245,11 +257,13 @@ rollback() {
     systemctl stop rykvo-auth || true
     wifi_stop
     qmi_stop
+    sip_stop
     systemctl disable rykvo-wifi.socket 2>/dev/null || true
     systemctl disable rykvo-qmi.socket 2>/dev/null || true
     local name path
-    for name in unit nginx hardware pcsc qmi-socket qmi-unit wifi-socket wifi-unit; do
-        case "$name" in unit) path=$UNIT;; nginx) path=$SITE;; hardware) path=$HARDWARE_RULE;; pcsc) path=$PCSC_RULE;; qmi-socket) path=$QMI_SOCKET;; qmi-unit) path=$QMI_UNIT;; wifi-socket) path=$WIFI_SOCKET;; wifi-unit) path=$WIFI_UNIT;; esac
+    systemctl disable rykvo-sip-network.socket rykvo-sip-network.service 2>/dev/null || true
+    for name in unit nginx hardware pcsc qmi-socket qmi-unit wifi-socket wifi-unit sip-socket sip-unit sip-boot; do
+        case "$name" in unit) path=$UNIT;; nginx) path=$SITE;; hardware) path=$HARDWARE_RULE;; pcsc) path=$PCSC_RULE;; qmi-socket) path=$QMI_SOCKET;; qmi-unit) path=$QMI_UNIT;; wifi-socket) path=$WIFI_SOCKET;; wifi-unit) path=$WIFI_UNIT;; sip-socket) path=$SIP_SOCKET;; sip-unit) path=$SIP_UNIT;; sip-boot) path=$SIP_BOOT;; esac
         if exists "$BACKUP/$name"; then cp -a "$BACKUP/$name" "$path"; else rm -f -- "$path"; fi
     done
     rm -f -- "$ENABLED"
@@ -266,6 +280,8 @@ rollback() {
     if [[ -f "$BACKUP/wifi-active" ]]; then systemctl start rykvo-wifi.socket; fi
     if [[ -f "$BACKUP/qmi-enabled" ]]; then systemctl enable rykvo-qmi.socket; fi
     if [[ -f "$BACKUP/qmi-active" ]]; then systemctl start rykvo-qmi.socket; fi
+    if [[ -f "$BACKUP/sip-enabled" ]]; then systemctl enable rykvo-sip-network.socket rykvo-sip-network.service; fi
+    if [[ -f "$BACKUP/sip-active" ]]; then systemctl start rykvo-sip-network.socket; fi
     udevadm control --reload-rules || true
     nginx -t && systemctl reload nginx
     if (( WAS_ACTIVE )); then systemctl start rykvo-auth; fi
@@ -320,6 +336,9 @@ deploy() {
     install -m 644 "$SOURCE/deploy/rykvo-qmi@.service" "$QMI_UNIT"
     install -m 644 "$SOURCE/deploy/rykvo-wifi.socket" "$WIFI_SOCKET"
     install -m 644 "$SOURCE/deploy/rykvo-wifi@.service" "$WIFI_UNIT"
+    install -m 644 "$SOURCE/deploy/rykvo-sip-network.socket" "$SIP_SOCKET"
+    install -m 644 "$SOURCE/deploy/rykvo-sip-network@.service" "$SIP_UNIT"
+    install -m 644 "$SOURCE/deploy/rykvo-sip-network.service" "$SIP_BOOT"
     install -m 644 "$SOURCE/deploy/nginx.conf" "$SITE"
     if [[ -L /etc/nginx/sites-enabled/default ]]; then
         readlink /etc/nginx/sites-enabled/default > "$BASE/default-site-link"
@@ -328,6 +347,7 @@ deploy() {
     ln -sfn "$SITE" "$ENABLED"
     nginx -t
     systemctl daemon-reload
+    systemctl enable --now rykvo-sip-network.socket rykvo-sip-network.service
     systemctl enable --now rykvo-wifi.socket rykvo-qmi.socket
     systemctl enable --now nginx rykvo-auth
     systemctl reload nginx
@@ -356,12 +376,16 @@ uninstall() {
         [[ -z "$binding" ]] || die '请先在云服务器页面注销云连接，再彻底卸载，避免遗留远端 DNS 和隧道'
     fi
     confirm_uninstall
+    if [[ -f "$BASE/live/sip-network.py" ]]; then python3 -I "$BASE/live/sip-network.py" --stop || die '请先断开 SIP 网络'; fi
     snapshot
     systemctl disable --now rykvo-auth 2>/dev/null || [[ ! -f "$UNIT" ]]
     wifi_stop
     qmi_stop
+    sip_stop
     systemctl disable rykvo-wifi.socket 2>/dev/null || true
     systemctl disable rykvo-qmi.socket 2>/dev/null || true
+    systemctl disable rykvo-sip-network.socket rykvo-sip-network.service 2>/dev/null || true
+    rm -f -- "$SIP_SOCKET" "$SIP_UNIT" "$SIP_BOOT"
     rm -f -- "$UNIT" "$ENABLED" "$SITE" "$HARDWARE_RULE" "$PCSC_RULE" "$QMI_SOCKET" "$QMI_UNIT" "$WIFI_SOCKET" "$WIFI_UNIT"
     udevadm control --reload-rules || true
     if [[ -f "$BASE/default-site-link" && ! -e /etc/nginx/sites-enabled/default ]]; then
@@ -373,6 +397,7 @@ uninstall() {
     SWITCHING=0
     runuser -u postgres -- dropdb --if-exists --force "$DB"
     runuser -u postgres -- dropuser --if-exists "$DB"
+    remove_app_path /var/lib/rykvo-sip-network
     remove_app_path "$STATE"
     remove_app_path /var/cache/rykvo-voice
     remove_app_path "$BASE"

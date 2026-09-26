@@ -242,19 +242,21 @@ EC20 连续通信超时恢复期间 `issue=RECOVERING`，页面显示“正在�
 
 蜂窝数据入口位于 SIM 详情的“数据漫游”下方。与 Wi-Fi 通话的 IMS APN 独立，不复用用户的数据 APN。
 
-## 预留：SIP 电话服务器与紧急联系地址（1.4.3）
+## SIP 电话服务器网络接入（1.5.28）
 
-- 通用中的 `server` 仅改名为“主机服务器”，原 `/tunnel` 接口、配置和连接保持不变。
-- 新页面 `sipServer` 独立于原 SIP 账号列表；可见性键为 `sipServer`。
-- `Backend.sipServer.connect({body:{address,accessCode},signal})`：`POST /settings/sip-server/connect`。
-- `Backend.emergencyAddress.start({params:{moduleId,lineId},signal})`：`POST /modules/:moduleId/lines/:lineId/emergency-address/session`。
-- **以上两个接口是契约预留，服务器尚未实现；生产环境不启用这两个 scope。** 现有 `session-api`、`tunnel-api`、`modules-api` 均不启用它们。调用立即返回 `NOT_CONNECTED`，不发送网络请求、不拨号、不更新紧急地址。请勿为此开启全局 `backend-api`。
-- SIP 页面只收集本次表单输入；接入码为密码框，在提交结束及离开页面时清除，不写入 localStorage、日志或 URL。按钮显示明确的待接入结果，不假报连接成功。
-- 后续 SIP 接入应实现管理员鉴权、CSRF、幂等、凭据加密存储、地址校验、连接状态查询和断开流程；服务端返回经验证的连接状态后再接入 UI。
-- 紧急地址后续由服务端按当前 SIM/运营商创建专属更新流程，并验证模块/号码归属、运营商支持和更新结果。当前只保留入口与模块、号码参数，不收集或保存地址，不跳转任意链接，不将点击视为更新成功。接入成功流程时需补充运营商白名单、有效期及明确的成功回执。
+- 独立 `sip-network-api` scope，不修改主机服务器 `/tunnel`。
+- `GET /settings/sip-server` 返回 VPN 状态、公开绑定参数；从不返回私钥、接入码。
+- `POST /settings/sip-server/connect` 接受 `{address,accessCode}`；地址必须是 HTTPS `/api/connect`。
+- `POST /settings/sip-server/reconnect`、`POST /settings/sip-server/disconnect` 接受 `{}`，复用已保存配置。
+- 写操作要求现有管理员会话、同源 Origin、CSRF；返回 202 只表示受理。GET 真实 WireGuard 握手有效时才显示 `VPN 已连接`。
+- 云端按持久化 installationId 领取配置；本机只解析密钥和网络参数，不执行云端路由钩子。凭据保存在 root-only 状态目录，不缓存接入码。
+- 状态 `network` 包含 interface、bindAddress、publicAddress、server、start、end，预留给后续本地电话引擎；`capabilities.calls=false`。
+- 后续 SIP/RTP 绑定 bindAddress，端口均在 start–end 内；对外 SDP 地址用 publicAddress。当前不创建 SIP 账号、不开放电话监听、不拨号。
+- 主机默认路由、DNS、Cloudflare Tunnel、运营商 IMS/MMS 路由保持独立。
+- `POST /modules/:moduleId/lines/:lineId/emergency-address/session` 紧急联系地址仍为预留接口，不启用其 scope，不发送请求。
 
-### 服务器入口布局修正
-通用仅保留 `server`（“服务器”）入口。`server`/`sipServer` 路由分别对应同一设置页面的“主机服务器”和“SIP 电话服务器”切换项，沿用原挂载/卸载流程，不改变 Tunnel 连接。两者共用 `server` 显示设置；旧 `sipServer` 显示键仅由后端保留兼容，不再展示独立开关。切换离开 SIP 表单会清除接入码。紧急地址入口和两项预留接口边界不变。
+## 服务器入口布局修正
+通用仅保留 `server`（“服务器”）入口。`server`/`sipServer` 路由分别对应同一设置页面的“主机服务器”和“SIP 电话服务器”切换项，沿用原挂载/卸载流程，不改变 Tunnel 连接。两者共用 `server` 显示设置；旧 `sipServer` 显示键仅由后端保留兼容，不再展示独立开关。切换离开 SIP 表单会清除接入码。紧急地址入口仍为预留；SIP 网络接口见上节。
 
 ## v1.4.4：数据漫游偏好与 Wi-Fi 互锁
 - 当前线路 `PATCH /modules/:moduleId/lines/:lineId` 新增独立请求 `{roaming:boolean,requestId:UUID}`，不可与 Wi-Fi/标签/eSIM 开关混合提交。

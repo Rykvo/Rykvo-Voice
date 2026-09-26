@@ -1,52 +1,38 @@
-const { test } = require('node:test');
-const assert = require('node:assert/strict');
-const vm = require('node:vm');
-const { readFileSync } = require('node:fs');
-const { join } = require('node:path');
-function setup(connect = async () => { throw Object.assign(Error('offline'), {code:'NOT_CONNECTED'}); }) {
-  const fields = {address:{value:'sip.example.com:5061'}, accessCode:{value:'fixture-code'}};
-  const button = {disabled:false,textContent:'连接'}, note = {hidden:true,textContent:''};
-  const events = {}, calls = [], reports = [];
-  const form = {
-    elements:{namedItem:name=>fields[name]},
-    querySelector:s=>s.includes('submit')?button:note,
-    addEventListener:(k,fn)=>events[k]=fn,
-    removeEventListener:k=>delete events[k],
-    reset(){ for(const field of Object.values(fields)) field.value=''; }
-  };
-  const context=vm.createContext({
-    ServerNavigation: {header:()=>"服务器 主机服务器 SIP 电话服务器"},
-    AbortController,
-    document:{getElementById:()=>form},
-    Forms:{header:t=>`<h1>${t}</h1>`,field:options=>JSON.stringify(options),report:(_form,error)=>{if(error)reports.push(error);return !!error;}},
-    Backend:{sipServer:{connect:options=>{calls.push(options);return connect(options);}}},
-    localStorage:{setItem(){throw Error('must not persist credentials');}},
-  });
-  vm.runInContext(readFileSync(join(__dirname,'..','sip-server.js'),'utf8'),context);
-  const page=vm.runInContext('SIPServer',context);page.mount();
-  return {page,fields,button,note,calls,reports,submit:()=>events.submit({preventDefault(){}})};
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const vm=require('node:vm');
+const {readFileSync}=require('node:fs');
+const {join}=require('node:path');
+function setup(operation=async()=>({state:'configuring'})) {
+ const fields={address:{value:''},accessCode:{value:''}},button={},note={dataset:{}},disconnect={addEventListener:(k,f)=>events.click=f,removeEventListener:k=>delete events[k]};
+ const events={},calls=[],reports=[],timers=new Map();let sequence=0;
+ let snapshot={state:'disconnected',configured:false,enabled:false};
+ const form={elements:{namedItem:k=>fields[k]},querySelector:s=>s.includes('submit')?button:s.includes('disconnect')?disconnect:note,addEventListener:(k,f)=>events[k]=f,removeEventListener:k=>delete events[k],reset(){fields.address.value='';fields.accessCode.value=''}};
+ const call=name=>async options=>{calls.push({name,...options});return operation(options)};
+ const context=vm.createContext({URL,AbortController,setTimeout:f=>{timers.set(++sequence,f);return sequence},clearTimeout:i=>timers.delete(i),ServerNavigation:{header:()=>"SIP 电话服务器"},document:{getElementById:()=>form},Forms:{field:x=>JSON.stringify(x),report:(_,e)=>{if(e)reports.push(e);return !!e}},Backend:{enabled:()=>true,sipServer:{get:async()=>{await Promise.resolve();return snapshot},connect:call('connect'),reconnect:call('reconnect'),disconnect:call('disconnect')}},localStorage:{setItem(){throw Error('credentials persisted')}}});
+ vm.runInContext(readFileSync(join(__dirname,'../sip-server.js'),'utf8'),context);
+ const page=vm.runInContext('SIPServer',context);page.mount();
+ return {page,fields,button,note,disconnect,calls,reports,timers,setStatus:x=>snapshot=x,ready:()=>new Promise(r=>setImmediate(r)),tick:async()=>{const [id,fn]=timers.entries().next().value||[];if(fn){timers.delete(id);await fn()}},submit:()=>events.submit({type:'submit',preventDefault(){}}),stop:()=>events.click({type:'click',preventDefault(){}})};
 }
-test('SIP server renders address, masked access code and connection action',()=>{
-  const f=setup(),html=f.page.render();
-  for(const s of ['SIP 电话服务器','接入地址','接入码','"type":"password"','>连接<'])assert.ok(html.includes(s));
-  assert.doesNotMatch(html,/已连接|连接成功/);
+test('single HTTPS form and backend-verified network status',async()=>{
+ const f=setup();await f.ready();const html=f.page.render();assert.ok(html.includes("sip.example.com/api/connect"));assert.match(html,/"type":"password"/);
+ f.fields.address.value='sip.example.com/api/connect';f.fields.accessCode.value='A'.repeat(43);await f.submit();
+ assert.equal(f.calls[0].body.address,'https://sip.example.com/api/connect');
+ assert.equal(f.calls.length,1);assert.equal(f.fields.accessCode.value,'');assert.equal(f.note.textContent,'配置中');assert.doesNotMatch(f.note.textContent,/已连接/);
+ f.setStatus({state:'connected',configured:true,enabled:true,address:f.fields.address.value});await f.tick();assert.equal(f.note.textContent,'VPN 已连接');assert.equal(f.note.dataset.failed,'false');assert.equal(f.disconnect.hidden,false);f.page.unmount();assert.equal(f.timers.size,0);
 });
-test('reserved submit sends contract once, clears secret and displays unavailable result',async()=>{
-  const f=setup();await f.submit();
-  assert.equal(f.calls.length,1);assert.equal(f.calls[0].body.accessCode,'fixture-code');
-  assert.equal(f.fields.accessCode.value,'');assert.equal(f.note.textContent,'SIP 电话服务尚未接入');
-  assert.equal(f.note.hidden,false);assert.equal(f.button.disabled,false);
+test('invalid URL or code does not submit',async()=>{
+ const f=setup();await f.ready();f.fields.address.value='sip.example.com:5061';await f.submit();assert.equal(f.reports.at(-1).field,'address');
+ f.fields.address.value='https://sip.example.com/api/connect';await f.submit();assert.equal(f.reports.at(-1).field,'accessCode');assert.equal(f.calls.length,0);f.page.unmount();
 });
-test('missing address and access code do not submit',async()=>{
-  const f=setup();f.fields.address.value='';await f.submit();assert.equal(f.reports.at(-1).field,'address');
-  f.fields.address.value='sip.example.com';f.fields.accessCode.value='';await f.submit();assert.equal(f.reports.at(-1).field,'accessCode');assert.equal(f.calls.length,0);
+test('reconnect and disconnect use saved configuration without an access code',async()=>{
+ const f=setup();f.setStatus({state:'connected',configured:true,enabled:true,address:'https://sip.example.com/api/connect'});await f.ready();
+ await f.submit();assert.equal(f.calls[0].name,'reconnect');assert.deepEqual(JSON.parse(JSON.stringify(f.calls[0].body)),{});await f.tick();await f.stop();assert.equal(f.calls[1].name,'disconnect');f.page.unmount();
 });
-test('duplicate submission is blocked and navigating away cancels and clears fields',async()=>{
-  let resolve;const f=setup(()=>new Promise(r=>resolve=r));
-  const pending=f.submit();await f.submit();assert.equal(f.calls.length,1);assert.equal(f.button.disabled,true);
-  f.page.unmount();assert.equal(f.calls[0].signal.aborted,true);assert.equal(f.fields.accessCode.value,'');
-  resolve({status:'connected'});await pending;assert.equal(f.note.hidden,true);
+test('duplicate submit blocked; unmount aborts and clears credentials and timers',async()=>{
+ let resolve;const f=setup(()=>new Promise(r=>resolve=r));await f.ready();f.fields.address.value='https://sip.example.com/api/connect';f.fields.accessCode.value='A'.repeat(43);
+ const pending=f.submit();await f.submit();assert.equal(f.calls.length,1);f.page.unmount();assert.equal(f.calls[0].signal.aborted,true);resolve({ok:true});await pending;assert.equal(f.fields.accessCode.value,'');assert.equal(f.timers.size,0);
 });
-test('reserved UI never treats an arbitrary successful response as a verified connection',async()=>{
-  const f=setup(async()=>({ok:true}));await f.submit();assert.doesNotMatch(f.note.textContent,/成功|已连接/);
+test('failed handshake never reports a working telephone',async()=>{
+ const f=setup();f.setStatus({state:'failed',configured:true,enabled:true,issue:'SIP_HANDSHAKE_TIMEOUT'});await f.ready();assert.equal(f.note.textContent,'VPN 握手超时');assert.doesNotMatch(f.note.textContent,/电话已连接|已送达/);f.page.unmount();
 });

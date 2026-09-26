@@ -26,6 +26,11 @@ jobs:
           node-version: '22'
       - run: node --test frontend/tests/*.test.cjs
       - run: python3 -m unittest discover -s tests
+      - name: Isolated SIP network lifecycle
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends wireguard-tools iptables
+          sudo unshare --net python3 tests/sip_network_netns.py
       - run: bash -n install.sh && bash -n deploy.sh && shellcheck install.sh deploy.sh
       - working-directory: backend
         env:

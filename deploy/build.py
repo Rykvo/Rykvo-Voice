@@ -65,7 +65,7 @@ def build(go, output):
             licenses(go, bundle / "licenses", runtime["version"])
             web = publish(ROOT / "frontend", bundle / "web")
             (bundle / "manifest.json").write_text(json.dumps(web, indent=2))
-            for path in ("install.sh", "VERSION", "deploy/nginx.conf", "deploy/rykvo-auth.service", "deploy/release.py", "deploy/70-rykvo-voice.rules", "deploy/70-rykvo-voice-pcsc.rules", "deploy/qmi-read.py", "deploy/rykvo-qmi.socket", "deploy/rykvo-qmi@.service", "deploy/rykvo-wifi.socket", "deploy/rykvo-wifi@.service"):
+            for path in ("install.sh", "VERSION", "deploy/nginx.conf", "deploy/rykvo-auth.service", "deploy/release.py", "deploy/70-rykvo-voice.rules", "deploy/70-rykvo-voice-pcsc.rules", "deploy/qmi-read.py", "deploy/sip-network.py", "deploy/rykvo-sip-network.socket", "deploy/rykvo-sip-network@.service", "deploy/rykvo-sip-network.service", "deploy/rykvo-qmi.socket", "deploy/rykvo-qmi@.service", "deploy/rykvo-wifi.socket", "deploy/rykvo-wifi@.service"):
                 shutil.copyfile(ROOT / path, bundle / path)
             (bundle / "install.sh").chmod(0o755)
             archive = output / f"rykvo-voice-linux-{arch}.tar.gz"

@@ -123,6 +123,7 @@ func main() {
 		secure = parsed.Scheme == "https"
 	}
 	api := &server{db: pool, origin: origin, secure: secure, limits: make(map[string]attempts), slots: make(chan struct{}, 2)}
+	api.sipNetwork = &sipNetworkManager{call: sipNetworkCall}
 	api.webRoot = os.Getenv("WEB_ROOT")
 	if info, err := os.Stat(api.webRoot); err != nil || !info.IsDir() {
 		log.Fatal("Invalid web root")
