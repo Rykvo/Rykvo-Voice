@@ -32,6 +32,7 @@ type Config struct {
 	Installer            ChildSAInstaller
 	IdentityType         uint8
 	APN                  string
+	DataNetwork          bool
 	AutoProposalFallback bool
 	Logger               *slog.Logger
 }
@@ -557,7 +558,7 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 		network.LocalIPv4 != nil,
 		network.LocalIPv6 != nil,
 	)
-	if len(network.PCSCF) == 0 {
+	if len(network.PCSCF) == 0 && !provider.config.DataNetwork {
 		return nil, errors.New("ike: responder did not provide a P-CSCF matching an assigned address family")
 	}
 	outboundEncryption, outboundIntegrity, inboundEncryption, inboundIntegrity, err := deriveChildSAKeys(
@@ -568,6 +569,9 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 	}
 	encryptionName, integrityName := espSuiteNames(childSuite)
 	name := tunnelName(request.DeviceID)
+	if provider.config.DataNetwork {
+		name = tunnelName(request.DeviceID + "\x00" + provider.config.APN)
+	}
 	relay := newSessionRelay(
 		transport,
 		ikeSuite,
@@ -581,6 +585,7 @@ func (provider *Provider) start(ctx context.Context, request vowifi.TunnelReques
 	cleanupPendingIKE = false
 	installed, err := provider.config.Installer.Install(ctx, ChildSAConfig{
 		Name:               name,
+		DataNetwork:        provider.config.DataNetwork,
 		OuterLocal:         append(net.IP(nil), transport.LocalAddr().IP...),
 		OuterRemote:        append(net.IP(nil), transport.RemoteAddr().IP...),
 		InnerLocalIPv4:     append(net.IP(nil), network.LocalIPv4...),

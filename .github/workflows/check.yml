@@ -48,6 +48,11 @@ jobs:
       - name: SIP TCP framing bounds
         working-directory: backend
         run: go test ./internal/hardware -run '^$' -fuzz '^FuzzWiFiSIPStream$' -fuzztime=20s -parallel=2
+      - name: Isolated IMS and MMS bearer routes
+        working-directory: backend
+        run: |
+          go test -c ./internal/vocat/vowifi/ike -o /tmp/rykvo-ike-netns.test
+          sudo unshare --net env VOCAT_NETNS_TEST=1 /tmp/rykvo-ike-netns.test -test.run 'TestLinux(UserspaceInstallerLifecycle|DataBearerRoutesAndCleanup)$'
       - name: MMS PDU bounds
         working-directory: backend
         run: go test ./internal/mms -run '^$' -fuzz '^FuzzPDU$' -fuzztime=20s -parallel=2

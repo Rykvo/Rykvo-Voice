@@ -16,8 +16,8 @@ EC20 没有原生 QMMSRECV。现有 WAP Push 短信解码/分片重组提取通�
 ## 当前边界
 
 - 需要蜂窝数据注册及运营商彩信业务；漫游遵守该 SIM 的数据漫游开关。
-- 不自动关闭 Wi-Fi Calling。Wi-Fi 会话启用时保留原主机 HTTP 通道，私有彩信网关仍需蜂窝承载，等待状态不代表适配完成。
-- 原生路径当前只支持 HTTP MMSC；不把 HTTPS 静默降级。通知 URL 限定与 MMSC 同源，不跟随重定向。不同域名的运营商下载地址需核实后单独适配。
+- Wi-Fi Calling 模式通过已验证 SIM 的 AKA 建立独立 MMS APN/ePDG 承载；不修改 IMS APN、不恢复蜂窝射频、不走主机普通网络。DNS/TCP 同时绑定该 SIM 的内层地址与 TUN，策略路由只作用于该源地址。运营商是否接受此 APN 必须实测。
+- 原生路径当前只支持 HTTP MMSC；不把 HTTPS 静默降级。通知 URL 默认限定与 MMSC 同源，不跟随重定向；T-Mobile US 的已观测 mpc.t-mobile.com 下载入口仅对匹配的 MMSC/归属地区开放。
 - 附件限于已验证的文字和 PNG/JPEG/GIF；运营商大小限制、套餐限制和最终投递仍须实卡验证。只有真实投递回执才可标记已送达。
 - 模块超时后不继续发送可能被当作数据的清理命令；此时保留 RAM 临时文件，避免干扰未完成的模块命令。
 
@@ -26,3 +26,7 @@ EC20 没有原生 QMMSRECV。现有 WAP Push 短信解码/分片重组提取通�
 默认测试不接触设备。显式设置 `RYKVO_MMS_FILE_TEST_PORT` 后，`TestMMSModemFileRoundTrip` 只验证专用 RAM 测试文件，不激活 PDP、不发送彩信；测试文件已存在时中止。可额外设置 RYKVO_MMS_FILE_TEST_INPUT 读取本机附件进行原字节回读验证，不记录内容、不提交运营商。
 
 参考：[Quectel MMS 应用说明](https://forums.quectel.com/uploads/short-url/1dHDGInW30kRmgeYRnDwzmqzz3t.pdf)、[文件接口](https://forums.quectel.com/uploads/short-url/9qrEyTIpmnu6obn9OaohxYOhPRi.pdf)、[EC20 TCP/IP](https://forums.quectel.com/uploads/short-url/6VIC0qyhQEFIEOSJROGSMbqezTq.pdf)。
+
+接收通知使用 MMS From 归入原会话，保留 SMS 网关与原始分片。M-Delivery.ind 投递报告保留作协议记录，不显示为空聊天；缺少发送端 Message-ID 关联时不推断已送达。
+
+Wi-Fi 实现参考：[AOSP MMS 网络选择](https://android.googlesource.com/platform/packages/services/Mms/+/f967d44cda77964d27df98e69c1e87687e2ec66f/src/com/android/mms/service/MmsNetworkManager.java)、[AOSP IWLAN 数据服务](https://android.googlesource.com/platform/packages/services/Iwlan/+/5911cf8d35bc0796f58b809f96bb830f7840ba2e/src/com/google/android/iwlan/IwlanDataService.java)。

@@ -46,6 +46,9 @@ type linuxXFRMHandle struct {
 func (*linuxXFRMHandle) DataplaneMode() string { return "xfrm" }
 
 func (installer linuxXFRMInstaller) Install(ctx context.Context, config ChildSAConfig) (ChildSAHandle, error) {
+	if config.DataNetwork {
+		return nil, errors.New("ike: data network requires an isolated userspace bearer")
+	}
 	if config.ProxyMode == vowifi.ProxyModeSOCKS5 || config.UDPEncapsulation {
 		return nil, errors.New("NAT-T and SOCKS5 require a user-space ESP/TUN installer using NATTPacketRelay; kernel XFRM cannot own the user-space UDP association")
 	}

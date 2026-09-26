@@ -56,9 +56,8 @@ func (s *System) ReceiveCellularMMS(ctx context.Context, c Candidate, identity, 
 }
 
 func mmsReceiveURL(p carrierconfig.Profile, raw string) (*url.URL, error) {
-	u, e := url.Parse(raw)
-	base, be := url.Parse(p.MMSC)
-	if e != nil || be != nil || len(raw) > 2048 || u.Scheme != "http" || u.User != nil || u.Fragment != "" || u.Hostname() == "" || strings.ContainsAny(raw, "\r\n\x00") || !strings.EqualFold(u.Host, base.Host) {
+	u, e := mms.ReceiveURL(p, raw)
+	if e != nil || u.Scheme != "http" {
 		return nil, errors.New("MMS_LOCATION_UNSUPPORTED")
 	}
 	return u, nil

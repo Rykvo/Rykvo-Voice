@@ -27,6 +27,11 @@ type cellularMMSTransport interface {
 	ReceiveCellularMMS(context.Context, hardware.Candidate, string, string, carrierconfig.Profile, string, string, func(mms.PDU) error) error
 }
 
+type wifiMMSTransport interface {
+	SendWiFiMMS(context.Context, hardware.Candidate, string, carrierconfig.Profile, string, string, string, *mms.Part) (string, error)
+	ReceiveWiFiMMS(context.Context, hardware.Candidate, string, string, carrierconfig.Profile, string, string, func(mms.PDU) error) error
+}
+
 func cellularRegistered(r hardware.Reading) bool {
 	return r.Registration == "home" || r.Registration == "roaming" || r.Registration == "registered"
 }
@@ -175,18 +180,11 @@ func (m *moduleManager) storeIncoming(ctx context.Context, module int64, line, c
 	if binary {
 		kind = "mms"
 		if count == total {
-			payload, e := hex.DecodeString(assembled)
-			if e == nil {
-				push, e := mms.Push(payload)
-				if e == nil && push.Type == 0x82 && push.Location != "" && push.Transaction != "" {
-					state = "download_pending"
-					metadata = map[string]any{"location": push.Location, "transaction": push.Transaction}
-					meta, _ = json.Marshal(metadata)
-				} else {
-					state = "unsupported_push"
-				}
-			} else {
-				state = "decode_error"
+			var peer string
+			state, peer, metadata = decodeMMSPush(assembled, v.From)
+			meta, _ = json.Marshal(metadata)
+			if _, e = tx.Exec(ctx, "UPDATE messages SET peer=$2 WHERE id=$1", id, peer); e != nil {
+				return e
 			}
 		}
 		assembled = ""
@@ -198,6 +196,9 @@ func (m *moduleManager) storeIncoming(ctx context.Context, module int64, line, c
 	return tx.Commit(ctx)
 }
 func (m *moduleManager) runMessages(ctx context.Context) {
+	if m.repairMMSNotifications(ctx) != nil {
+		return
+	}
 	// A crashed POST can have reached the network. Never replay an uncertain send.
 	if _, e := m.db.Exec(ctx, "UPDATE messages SET state='unknown',issue='SEND_INTERRUPTED' WHERE mine AND state='sending'"); e != nil {
 		return
@@ -268,6 +269,10 @@ func (m *moduleManager) processMessage(parent context.Context) {
 	}
 	if kind == "mms" && (profile.MMS.Status != "matched" || profile.MMS.Profile == nil) {
 		m.messageState(ctx, id, "waiting_network", "MMS_CONFIG_REQUIRED", nil)
+		return
+	}
+	if kind == "mms" && useWiFi && (!wifi.Enabled || !wifi.Registered) {
+		m.messageState(ctx, id, "waiting_network", "MMS_NETWORK_REQUIRED", nil)
 		return
 	}
 	if kind == "mms" && !useWiFi && (!cellularRegistered(sample.Reading) || sample.Reading.Registration == "roaming" && !roamingAllowed) {
@@ -344,6 +349,10 @@ func (m *moduleManager) processMessage(parent context.Context) {
 		m.messageState(finish, id, status, issue, result)
 		return
 	}
+	mmsProfile := *profile.MMS.Profile
+	if !useWiFi && sample.Reading.Registration == "roaming" && mmsProfile.RoamingProtocol != "" {
+		mmsProfile.Protocol = mmsProfile.RoamingProtocol
+	}
 	var native cellularMMSTransport
 	if !useWiFi {
 		native, _ = m.source.(cellularMMSTransport)
@@ -394,10 +403,7 @@ func (m *moduleManager) processMessage(parent context.Context) {
 			if body == "" && img == "" {
 				return errors.New("MMS_UNSUPPORTED_CONTENT")
 			}
-			peer := strings.TrimSuffix(p.From, "/TYPE=PLMN")
-			if !hardware.ValidSMS(peer, "x") {
-				peer = to
-			}
+			peer := mmsPeer(p.From, to)
 			finish, stop := context.WithTimeout(context.Background(), 5*time.Second)
 			defer stop()
 			tag, err := m.db.Exec(finish, "UPDATE messages SET body=$2,image=$3,peer=$4,state='received',issue='' WHERE id=$1 AND deleted_at IS NULL AND state='downloading'", id, body, img, peer)
@@ -407,22 +413,18 @@ func (m *moduleManager) processMessage(parent context.Context) {
 			return err
 		}
 		if native != nil {
-			e = native.ReceiveCellularMMS(ctx, sample.Candidate, sample.Candidate.Identity(sample.Reading), card, *profile.MMS.Profile, meta.Location, meta.Transaction, persist)
+			e = native.ReceiveCellularMMS(ctx, sample.Candidate, sample.Candidate.Identity(sample.Reading), card, mmsProfile, meta.Location, meta.Transaction, persist)
+		} else if transport, ok := m.wifiEngine.(wifiMMSTransport); ok {
+			e = transport.ReceiveWiFiMMS(ctx, sample.Candidate, card, id, *profile.MMS.Profile, meta.Location, meta.Transaction, persist)
 		} else {
-			var p mms.PDU
-			p, e = mms.Retrieve(ctx, *profile.MMS.Profile, meta.Location)
-			if e == nil {
-				e = persist(p)
-				if e == nil {
-					_ = mms.Acknowledge(ctx, *profile.MMS.Profile, meta.Transaction)
-				}
-			}
+			e = mms.ErrNetwork
 		}
+
 		if e != nil {
 			finish, stop := context.WithTimeout(context.Background(), 5*time.Second)
 			defer stop()
 			state := "failed"
-			if errors.Is(e, mms.ErrNetwork) {
+			if errors.Is(e, mms.ErrNetwork) || e.Error() == "MMS_IWLAN_UNAVAILABLE" || e.Error() == "MMS_BUSY" {
 				state = "waiting_network"
 			}
 			m.messageState(finish, id, state, e.Error(), nil)
@@ -435,19 +437,24 @@ func (m *moduleManager) processMessage(parent context.Context) {
 		return
 	}
 	if native != nil {
-		result, err := native.SendCellularMMS(ctx, sample.Candidate, sample.Candidate.Identity(sample.Reading), card, *profile.MMS.Profile, id, to, text, part)
+		result, err := native.SendCellularMMS(ctx, sample.Candidate, sample.Candidate.Identity(sample.Reading), card, mmsProfile, id, to, text, part)
 		status, issue := nativeMMSState(result, err)
 		finish, stop := context.WithTimeout(context.Background(), 5*time.Second)
 		defer stop()
 		m.messageState(finish, id, status, issue, result)
 		return
 	}
-	networkID, e := mms.Send(ctx, *profile.MMS.Profile, id, to, text, part)
+	var networkID string
+	if transport, ok := m.wifiEngine.(wifiMMSTransport); ok {
+		networkID, e = transport.SendWiFiMMS(ctx, sample.Candidate, card, mmsProfile, id, to, text, part)
+	} else {
+		e = mms.ErrNetwork
+	}
 	status, issue := "accepted", ""
 	if e != nil {
 		issue = e.Error()
 		status = "unknown"
-		if errors.Is(e, mms.ErrNetwork) {
+		if errors.Is(e, mms.ErrNetwork) || issue == "MMS_IWLAN_UNAVAILABLE" || issue == "MMS_BUSY" {
 			status = "waiting_network"
 		} else if issue == "MMS_REJECTED" {
 			status = "failed"

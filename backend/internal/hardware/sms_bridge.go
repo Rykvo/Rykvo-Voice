@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -69,15 +70,16 @@ func (e *smsEventEncoder) Encode(v any) error {
 }
 
 type smsClientSession struct {
-	ctx     context.Context
-	conn    net.Conn
-	writeMu sync.Mutex
-	mu      sync.Mutex
-	pending map[string]chan SMSReply
-	closed  chan struct{}
-	ready   chan struct{}
-	once    sync.Once
-	receive func(context.Context, SMSDelivery) error
+	ctx        context.Context
+	conn       net.Conn
+	writeMu    sync.Mutex
+	mu         sync.Mutex
+	pending    map[string]chan SMSReply
+	mmsPending map[string]chan mmsReply
+	closed     chan struct{}
+	ready      chan struct{}
+	once       sync.Once
+	receive    func(context.Context, SMSDelivery) error
 }
 
 func newSMSClientSession(ctx context.Context, c net.Conn, receive func(context.Context, SMSDelivery) error) *smsClientSession {
@@ -91,6 +93,19 @@ func (s *smsClientSession) write(c smsCommand) error {
 	return json.NewEncoder(s.conn).Encode(c)
 }
 func (s *smsClientSession) event(e wifiWorkerEvent) bool {
+	if e.MMSResult != nil {
+		s.mu.Lock()
+		ch := s.mmsPending[e.MMSResult.ID]
+		s.mu.Unlock()
+		if ch != nil {
+			select {
+			case ch <- *e.MMSResult:
+			default:
+				return false
+			}
+		}
+		return true
+	}
 	if e.SMSResult != nil {
 		s.mu.Lock()
 		ch := s.pending[e.SMSResult.ID]
@@ -157,14 +172,18 @@ func (client *VocatWorkerClient) SendSMS(ctx context.Context, c Candidate, iccid
 
 type smsSender func(context.Context, vowifi.SMSSubmitRequest) (vowifi.SMSSubmitResult, error)
 type smsWorker struct {
-	ctx     context.Context
-	encoder *smsEventEncoder
-	cancel  context.CancelFunc
-	mu      sync.Mutex
-	sender  smsSender
-	acks    map[string]chan bool
-	busy    bool
-	used    map[string]bool
+	ctx        context.Context
+	encoder    *smsEventEncoder
+	cancel     context.CancelFunc
+	mu         sync.Mutex
+	sender     smsSender
+	mmsHandler mmsHandler
+	mmsAcks    map[string]chan bool
+	mmsBusy    bool
+	mmsWait    sync.WaitGroup
+	acks       map[string]chan bool
+	busy       bool
+	used       map[string]bool
 }
 
 func newSMSWorker(ctx context.Context, e *smsEventEncoder, cancel context.CancelFunc) *smsWorker {
@@ -204,6 +223,12 @@ func (w *smsWorker) receive(ctx context.Context, v SMSDelivery) error {
 	return errors.New("SMS_STORAGE_UNCONFIRMED")
 }
 func (w *smsWorker) command(b []byte) bool {
+	var op struct {
+		Op string `json:"op"`
+	}
+	if json.Unmarshal(b, &op) == nil && strings.HasPrefix(op.Op, "mms-") {
+		return w.mmsCommand(b)
+	}
 	var c smsCommand
 	d := json.NewDecoder(bytes.NewReader(b))
 	d.DisallowUnknownFields()

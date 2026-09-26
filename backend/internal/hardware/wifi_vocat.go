@@ -226,11 +226,14 @@ func (engine *VocatWiFi) WiFi(ctx context.Context, c Candidate, identity, iccid 
 	if err != nil {
 		return errors.New("WIFI_CONNECTION_FAILED")
 	}
-	o, err := vowifi.New(vowifi.Dependencies{SIM: carrierSIM{adapter, emit}, AKA: adapter, Radio: vocatRadio{adapter, at, c.Network, engine.RestoreCellular}, Proxy: vocatDirectRoute{}, Tunnel: tunnel, IMS: registration, Phones: vocatPhoneStore{iccid: iccid, emit: emit}}, vowifi.Options{DeviceID: at.device, AllowIMSWithoutSMS: true, CleanupTimeout: 25 * time.Second})
+	dataTunnel := &mmsTunnelProvider{base: tunnel}
+	o, err := vowifi.New(vowifi.Dependencies{SIM: carrierSIM{adapter, emit}, AKA: adapter, Radio: vocatRadio{adapter, at, c.Network, engine.RestoreCellular}, Proxy: vocatDirectRoute{}, Tunnel: dataTunnel, IMS: registration, Phones: vocatPhoneStore{iccid: iccid, emit: emit}}, vowifi.Options{DeviceID: at.device, AllowIMSWithoutSMS: true, CleanupTimeout: 25 * time.Second})
 	if err != nil {
 		return errors.New("WIFI_CONNECTION_FAILED")
 	}
 	if engine.messaging != nil {
+		engine.messaging.setMMSHandler(dataTunnel.exchange)
+		defer func() { engine.messaging.setMMSHandler(nil); engine.messaging.mmsWait.Wait() }()
 		engine.messaging.setSender(o.SendSMS)
 		defer engine.messaging.setSender(nil)
 	}

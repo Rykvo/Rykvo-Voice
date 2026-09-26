@@ -49,6 +49,7 @@ func scanMessage(row interface{ Scan(...any) error }) (messageView, error) {
 	var hasImage bool
 	var at time.Time
 	e := row.Scan(&v.ID, &module, &v.LineID, &v.Number, &v.Text, &hasImage, &v.Mine, &v.Kind, &v.State, &v.Issue, &at, &v.Revision, &v.Deleted)
+	v.Deleted = v.Deleted || v.State == "mms_report"
 	v.SenderID = moduleID(module)
 	v.At = at.UnixMilli()
 	if hasImage {

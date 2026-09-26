@@ -17,10 +17,10 @@ type Part struct {
 	Data []byte
 }
 type PDU struct {
-	Type                                   byte
-	Transaction, MessageID, From, Location string
-	Status                                 byte
-	Parts                                  []Part
+	Type                                       byte
+	Transaction, MessageID, From, To, Location string
+	Status                                     byte
+	Parts                                      []Part
 }
 
 func uv(n int) []byte {
@@ -290,7 +290,7 @@ func Parse(b []byte) (PDU, error) {
 			p.Transaction, e = c.text()
 		case 0x8b:
 			p.MessageID, e = c.text()
-		case 0x92, 0x99:
+		case 0x92, 0x95, 0x99:
 			p.Status, e = c.oct()
 		case 0x83:
 			p.Location, e = c.text()
@@ -311,7 +311,9 @@ func Parse(b []byte) (PDU, error) {
 					}
 				}
 			}
-		case 0x96, 0x97, 0x93:
+		case 0x97:
+			p.To, e = c.encoded()
+		case 0x96, 0x93:
 			_, e = c.encoded()
 		case 0x84:
 			var ct string

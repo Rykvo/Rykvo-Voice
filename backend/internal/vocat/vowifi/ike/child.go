@@ -254,6 +254,7 @@ func parseConfiguration(item payload) (networkConfiguration, error) {
 
 type ChildSAConfig struct {
 	Name               string
+	DataNetwork        bool
 	OuterLocal         net.IP
 	OuterRemote        net.IP
 	InnerLocalIPv4     net.IP

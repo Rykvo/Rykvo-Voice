@@ -5,9 +5,9 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
-	"net"
 	"net/http"
 	"net/http/httptest"
+	"rykvo.local/auth/internal/carrierconfig"
 	"testing"
 )
 
@@ -52,10 +52,8 @@ func TestWAPPush(t *testing.T) {
 	}
 }
 func TestHostTransportRejectsLocalDestinations(t *testing.T) {
-	for _, ip := range []string{"127.0.0.1", "10.0.0.1", "192.168.1.1", "169.254.169.254", "100.100.100.200", "::1", "::ffff:127.0.0.1", "fe80::1", "2001:db8::1"} {
-		if publicIP(net.ParseIP(ip)) {
-			t.Fatal(ip)
-		}
+	if _, err := NewClient(carrierconfig.Profile{MMSC: "http://mms.example"}, nil); err == nil {
+		t.Fatal("unbound host transport accepted")
 	}
 	for _, s := range []string{"file:///etc/passwd", "http://a:b@x/", "http://x:22/", "https://x/#token"} {
 		if _, e := safeURL(s); e == nil {

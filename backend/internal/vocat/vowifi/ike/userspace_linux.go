@@ -71,7 +71,7 @@ func (installer linuxUserspaceInstaller) Install(
 	if !config.UDPEncapsulation {
 		return nil, errors.New("ike: user-space ESP relay requires negotiated UDP encapsulation")
 	}
-	if len(config.PCSCF) == 0 {
+	if len(config.PCSCF) == 0 && !config.DataNetwork {
 		return nil, errors.New("ike: user-space ESP requires at least one negotiated P-CSCF address")
 	}
 	if err := validateUserspaceRoutes(config); err != nil {
@@ -169,6 +169,9 @@ func validateUserspaceRoutes(config ChildSAConfig) error {
 	}
 	if config.InnerLocalIPv6 != nil && !validLocal(config.InnerLocalIPv6) {
 		return errors.New("ike: assigned inner IPv6 address is outside initiator traffic selectors")
+	}
+	if config.DataNetwork {
+		return nil // ESP still enforces both negotiated traffic selectors per packet.
 	}
 	matchingFamily := false
 	for _, pcscf := range config.PCSCF {
@@ -397,7 +400,7 @@ func (handle *linuxUserspaceHandle) configureFamily(
 	table uint32,
 	priority uint32,
 ) error {
-	if len(pcscf) == 0 {
+	if len(pcscf) == 0 && !handle.config.DataNetwork {
 		return nil
 	}
 	tableValue := strconv.FormatUint(uint64(table), 10)
@@ -433,15 +436,23 @@ func (handle *linuxUserspaceHandle) configureFamily(
 		"table", tableValue,
 		"unreachable", "default",
 	}
+	if handle.config.DataNetwork {
+		unreachableArguments = append(unreachableArguments, "metric", "32767")
+	}
 	if err := handle.run(ctx, "install fail-closed route", unreachableArguments...); err != nil {
 		return err
 	}
-	handle.recordCleanup(
-		"remove fail-closed route",
-		family, "route", "delete",
-		"table", tableValue,
-		"unreachable", "default",
-	)
+	unreachableArguments[2] = "delete"
+	handle.recordCleanup("remove fail-closed route", unreachableArguments...)
+	if handle.config.DataNetwork {
+		args := []string{family, "route", "add", "table", tableValue, "default", "dev", handle.config.Name, "src", local.String(), "metric", "100"}
+		if err := handle.run(ctx, "install bound data route", args...); err != nil {
+			return err
+		}
+		args[2] = "delete"
+		handle.recordCleanup("remove bound data route", args...)
+		return nil
+	}
 
 	for _, address := range pcscf {
 		hostPrefix := fmt.Sprintf("%s/%d", address.String(), bits)

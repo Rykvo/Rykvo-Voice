@@ -34,6 +34,7 @@ type wifiWorkerRequest struct {
 	RestoreOnly                              bool `json:"restoreOnly,omitempty"`
 }
 type wifiWorkerEvent struct {
+	MMSResult *mmsReply    `json:"mmsResult,omitempty"`
 	SMS       *SMSDelivery `json:"sms,omitempty"`
 	SMSResult *SMSReply    `json:"smsResult,omitempty"`
 
@@ -122,14 +123,14 @@ func wifiWorkerExchangeSMS(ctx context.Context, conn net.Conn, request wifiWorke
 		}
 	}()
 	scanner := bufio.NewScanner(conn)
-	scanner.Buffer(make([]byte, 1024), 32768)
+	scanner.Buffer(make([]byte, 1024), mmsIPCMax)
 	for scanner.Scan() {
 		var event wifiWorkerEvent
 		if json.Unmarshal(scanner.Bytes(), &event) != nil {
 			break
 		}
-		if event.SMS != nil || event.SMSResult != nil {
-			if sms == nil || event.CarrierConfig != nil || event.PhoneNumber != "" || event.Stage != "" || event.Done || event.Code != "" || (event.SMS != nil && event.SMSResult != nil) {
+		if event.SMS != nil || event.SMSResult != nil || event.MMSResult != nil {
+			if sms == nil || event.CarrierConfig != nil || event.PhoneNumber != "" || event.Stage != "" || event.Done || event.Code != "" || (event.SMS != nil && event.SMSResult != nil) || (event.MMSResult != nil && (event.SMS != nil || event.SMSResult != nil)) {
 				break
 			}
 			if !sms.event(event) {
@@ -221,7 +222,7 @@ func serveWiFiWorker(parent context.Context, input io.Reader, output io.Writer, 
 	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	scanner := bufio.NewScanner(input)
-	scanner.Buffer(make([]byte, 1024), 32768)
+	scanner.Buffer(make([]byte, 1024), mmsIPCMax)
 	var request wifiWorkerRequest
 	// stdin socket deadlines are not portable. Bound initial input explicitly;
 	// the single-session process exits even if a hostile peer leaves it idle.
