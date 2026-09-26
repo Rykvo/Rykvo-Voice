@@ -19,7 +19,7 @@ test('single HTTPS form and backend-verified network status',async()=>{
  f.fields.address.value='sip.example.com/api/connect';f.fields.accessCode.value='A'.repeat(43);await f.submit();
  assert.equal(f.calls[0].body.address,'https://sip.example.com/api/connect');assert.equal(f.fields.address.value,'https://sip.example.com/api/connect');
  assert.equal(f.calls.length,1);assert.equal(f.fields.accessCode.value,'');assert.equal(f.note.textContent,'配置中');assert.doesNotMatch(f.note.textContent,/已连接/);
- f.setStatus({state:'connected',configured:true,enabled:true,address:f.fields.address.value});await f.tick();assert.equal(f.note.textContent,'VPN 已连接');assert.equal(f.note.dataset.failed,'false');assert.equal(f.fields.address.readOnly,true);f.page.unmount();assert.equal(f.timers.size,0);
+ f.setStatus({state:'connected',configured:true,enabled:true,address:f.fields.address.value});await f.tick();assert.equal(f.note.textContent,'服务器已连接');assert.equal(f.note.dataset.failed,'false');assert.equal(f.fields.address.readOnly,true);f.page.unmount();assert.equal(f.timers.size,0);
 });
 test('invalid URL or code does not submit',async()=>{
  const f=setup();await f.ready();f.fields.address.value='sip.example.com:5061';await f.submit();assert.equal(f.reports.at(-1).field,'address');

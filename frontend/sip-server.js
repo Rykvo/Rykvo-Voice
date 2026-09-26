@@ -25,7 +25,7 @@ const SIPServer = (() => {
     const note = form.querySelector('[role="status"]');
     const busy = value.state === "configuring";
     note.textContent = value.issue ? (labels[value.issue] || "连接未完成，请重试")
-      : ({configuring:"配置中", connecting:"等待 VPN 握手", connected:"VPN 已连接", disconnected:"未连接", failed:"连接未完成"}[value.state] || "未连接");
+      : ({configuring:"配置中", connecting:"等待 VPN 握手", connected:"服务器已连接", disconnected:"未连接", failed:"连接未完成"}[value.state] || "未连接");
     note.dataset.failed = String(Boolean(value.issue) || value.state === "failed");
     note.hidden = false;
     const button = form.querySelector('[type="submit"]');
