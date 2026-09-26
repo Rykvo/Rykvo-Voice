@@ -81,10 +81,11 @@ func (c Candidate) Identity(r Reading) string {
 }
 
 type System struct {
-	carriers carrierCache
-	Sys      string
-	Dev      string
-	Readers  func(context.Context) ([]string, error)
+	carriers      carrierCache
+	Sys           string
+	Dev           string
+	Readers       func(context.Context) ([]string, error)
+	VoiceStateDir string
 }
 
 func NewSystem() *System { return &System{Sys: "/sys", Dev: "/dev"} }
@@ -94,11 +95,19 @@ func (s *System) Read(ctx context.Context, c Candidate) Reading {
 	if c.Kind == "reader" {
 		r = readCard(ctx, c)
 	} else {
+		if err := s.recoverVoiceCandidate(ctx, c); err != nil {
+			return Reading{Issue: "VOICE_AUDIO_RESTORE_PENDING"}
+		}
 		r = readAT(ctx, c)
 		if !r.Responsive && c.Control != "" && ctx.Err() == nil {
 			atIssue := r.Issue
 			r = readQMI(ctx, c)
 			r.Warnings = append(r.Warnings, "AT:"+atIssue)
+		}
+		if r.Responsive && r.IMEI != "" && CellularVoiceSupported(c) {
+			if err := s.recoverVoiceAudio(ctx, c, c.Identity(r)); err != nil {
+				r.Issue = "VOICE_AUDIO_RESTORE_PENDING"
+			}
 		}
 	}
 	// Plain AT ERROR does not distinguish an empty slot from an unreadable card.

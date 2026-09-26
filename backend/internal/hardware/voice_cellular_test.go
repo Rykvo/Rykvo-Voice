@@ -26,17 +26,19 @@ func TestCellularStateSeparatesPacketData(t *testing.T) {
 	}
 }
 func TestCellularHangupPreservesDataAndRestoresPCM(t *testing.T) {
-	p := &mmsTestPort{onWrite: func(b []byte) string {
+	p, _ := voiceTestModem()
+	write := p.onWrite
+	p.onWrite = func(b []byte) string {
 		if string(b) == "AT+CLCC\r" {
 			return "+CLCC: 1,1,0,1,0,\"\",128\r\nOK\r\n"
 		}
-		return "OK\r\n"
-	}}
-	c := &CellularCall{at: &atSession{port: p}, pcmBefore: "0,0", gpsBefore: "usbnmea"}
+		return write(b)
+	}
+	c := &CellularCall{at: &atSession{port: p}, audio: testVoiceAudio()}
 	if err := c.Hangup(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	want := "AT+CHUP\r|AT+CLCC\r|AT+QPCMV=0,0\r|AT+QGPSCFG=\"outport\",\"usbnmea\"\r"
+	want := "AT+CHUP\r|AT+CLCC\r|AT+QPCMV?\r|AT+QPCMV=0,0\r|AT+QPCMV?\r|AT+QGPSCFG=\"outport\"\r|AT+QGPSCFG=\"outport\",\"usbnmea\"\r|AT+QGPSCFG=\"outport\"\r|AT+QMIC?\r|AT+QMIC=20577,14567\r|AT+QMIC?\r"
 	if got := strings.Join(p.commands, "|"); got != want {
 		t.Fatal(got)
 	}
@@ -48,7 +50,7 @@ func TestCellularHangupDoesNotReleaseLiveVoice(t *testing.T) {
 		}
 		return "OK\r\n"
 	}}
-	c := &CellularCall{at: &atSession{port: p}, pcmBefore: "0,0", gpsBefore: "none"}
+	c := &CellularCall{at: &atSession{port: p}, audio: testVoiceAudio()}
 	if c.Hangup(context.Background()) == nil || len(p.commands) != 2 {
 		t.Fatal(p.commands)
 	}
@@ -71,13 +73,15 @@ func TestATLateReplyCannotConfirmHangup(t *testing.T) {
 }
 
 func TestCellularPeerAlreadyEndedStillConfirmsIdle(t *testing.T) {
-	p := &mmsTestPort{onWrite: func(b []byte) string {
+	p, _ := voiceTestModem()
+	write := p.onWrite
+	p.onWrite = func(b []byte) string {
 		if string(b) == "AT+CHUP\r" {
 			return "ERROR\r\n"
 		}
-		return "OK\r\n"
-	}}
-	c := &CellularCall{at: &atSession{port: p}, pcmBefore: "0,0", gpsBefore: "none"}
+		return write(b)
+	}
+	c := &CellularCall{at: &atSession{port: p}, audio: testVoiceAudio()}
 	if err := c.Hangup(context.Background()); err != nil {
 		t.Fatal(err)
 	}

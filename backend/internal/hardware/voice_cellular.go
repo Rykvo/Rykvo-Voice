@@ -13,13 +13,14 @@ import (
 
 // One module gate covers AT and its USB NMEA PCM port for the whole call.
 type CellularCall struct {
-	mu                   sync.Mutex
-	at                   *atSession
-	pcm                  atPort
-	pcmBefore, gpsBefore string
-	flow                 atomic.Bool
-	closed               atomic.Bool
-	writeMu              sync.Mutex
+	mu      sync.Mutex
+	at      *atSession
+	pcm     atPort
+	audio   voiceAudioState
+	journal string
+	flow    atomic.Bool
+	closed  atomic.Bool
+	writeMu sync.Mutex
 }
 
 func CellularVoiceSupported(c Candidate) bool {
@@ -47,6 +48,9 @@ func (s *System) OpenCellularCall(ctx context.Context, c Candidate, identity, ca
 	if !found {
 		return nil, errors.New("DEVICE_CHANGED")
 	}
+	if err = s.recoverVoiceAudio(ctx, c, identity); err != nil {
+		return nil, err
+	}
 	a, err := openWiFiSession(ctx, c, identity)
 	if err != nil {
 		return nil, err
@@ -69,51 +73,34 @@ func (s *System) OpenCellularCall(ctx context.Context, c Candidate, identity, ca
 	if state, err := v.State(ctx); err != nil || state != "idle" {
 		return nil, errors.New("VOICE_BUSY")
 	}
-	lines, err = a.exchange(ctx, "AT+QPCMV?", 3*time.Second)
+	v.audio = voiceAudioState{Identity: identity, Key: c.Key}
+	v.audio.PCM, err = readVoiceAudio(ctx, a, "pcm")
 	if err != nil {
 		return nil, errors.New("VOICE_UNSUPPORTED")
 	}
-	for _, line := range lines {
-		if strings.HasPrefix(line, "+QPCMV:") {
-			f := fields(line)
-			if len(f) == 1 && f[0] == "0" {
-				v.pcmBefore = "0"
-			}
-			if len(f) == 2 && f[0] == "0" && (f[1] == "0" || f[1] == "1" || f[1] == "2") {
-				v.pcmBefore = "0," + f[1]
-			}
-		}
-	}
-	if v.pcmBefore == "" {
+	if !strings.HasPrefix(v.audio.PCM, "0") {
 		return nil, errors.New("VOICE_AUDIO_BUSY")
 	}
-	lines, err = a.exchange(ctx, `AT+QGPSCFG="outport"`, 3*time.Second)
+	v.audio.GPS, err = readVoiceAudio(ctx, a, "gps")
 	if err != nil {
 		return nil, errors.New("VOICE_GPS_STATE_UNKNOWN")
 	}
-	for _, line := range lines {
-		if strings.HasPrefix(line, "+QGPSCFG:") {
-			f := fields(line)
-			if len(f) == 2 && f[0] == "outport" && (f[1] == "none" || f[1] == "usbnmea" || f[1] == "uartdebug") {
-				v.gpsBefore = f[1]
-			}
-		}
-	}
-	if v.gpsBefore == "" {
-		return nil, errors.New("VOICE_GPS_STATE_UNKNOWN")
+	v.audio.Mic, err = readVoiceAudio(ctx, a, "mic")
+	if err != nil {
+		return nil, errors.New("VOICE_MIC_STATE_UNKNOWN")
 	}
 	v.pcm, err = openAT(c.Audio)
 	if err != nil || v.pcm == nil {
 		return nil, errors.New("VOICE_AUDIO_BUSY")
 	}
-	if v.gpsBefore != "none" {
-		if _, err = a.exchange(ctx, `AT+QGPSCFG="outport","none"`, 3*time.Second); err != nil {
-			failed = false
-			return v, err
-		}
+	stop := discardCellularPCM(ctx, v.pcm)
+	defer stop()
+	err = s.prepareVoiceAudio(ctx, v)
+	if v.journal == "" {
+		return nil, err
 	}
-	if _, err = a.exchange(ctx, "AT+QPCMV=1,0", 3*time.Second); err != nil {
-		failed = false
+	failed = false
+	if err != nil {
 		return v, err
 	}
 	v.flow.Store(true)
@@ -125,7 +112,6 @@ func (s *System) OpenCellularCall(ctx context.Context, c Candidate, identity, ca
 			v.flow.Store(true)
 		}
 	}
-	failed = false
 	return v, nil
 }
 func (v *CellularCall) Dial(ctx context.Context, number string) error {
@@ -194,6 +180,8 @@ func (v *CellularCall) Hangup(ctx context.Context) error {
 	if v.closed.Load() {
 		return io.EOF
 	}
+	stop := discardCellularPCM(ctx, v.pcm)
+	defer stop()
 	// Some firmware returns ERROR if the peer already ended the call.
 	// The following CLCC confirmation, not that return code, decides cleanup.
 	_, _ = v.at.exchange(ctx, "AT+CHUP", 5*time.Second)
@@ -202,13 +190,7 @@ func (v *CellularCall) Hangup(ctx context.Context) error {
 	if err != nil || stateErr != nil || state != "idle" {
 		return errors.New("VOICE_HANGUP_UNCONFIRMED")
 	}
-	if _, err = v.at.exchange(ctx, "AT+QPCMV="+v.pcmBefore, 3*time.Second); err != nil {
-		return err
-	}
-	if _, err = v.at.exchange(ctx, `AT+QGPSCFG="outport","`+v.gpsBefore+`"`, 3*time.Second); err != nil {
-		return err
-	}
-	return nil
+	return v.restoreAudio(ctx)
 }
 func (v *CellularCall) ReadPCM(ctx context.Context) ([]int16, error) {
 	buf := make([]byte, 320)

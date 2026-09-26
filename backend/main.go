@@ -135,6 +135,7 @@ func main() {
 	defer listener.Close()
 	moduleContext, stopModules := context.WithCancel(ctx)
 	system := hardware.NewSystem()
+	system.VoiceStateDir = "/var/lib/rykvo-voice/voice-audio"
 	var wifi wifiSource = system
 	switch os.Getenv("RYKVO_WIFI_ENGINE") {
 	case "", "legacy":

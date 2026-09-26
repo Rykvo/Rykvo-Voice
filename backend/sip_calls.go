@@ -367,7 +367,7 @@ func (c *sipOutgoing) run(sample moduleSample, network sipAccountNetwork, bind, 
 		defer func() { <-peerDone }()
 		if device != nil {
 			for {
-				clean, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+				clean, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 				err := device.Hangup(clean)
 				cancel()
 				if err == nil {
