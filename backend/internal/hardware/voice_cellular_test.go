@@ -69,3 +69,16 @@ func TestATLateReplyCannotConfirmHangup(t *testing.T) {
 		t.Fatal("cancelled command queued")
 	}
 }
+
+func TestCellularPeerAlreadyEndedStillConfirmsIdle(t *testing.T) {
+	p := &mmsTestPort{onWrite: func(b []byte) string {
+		if string(b) == "AT+CHUP\r" {
+			return "ERROR\r\n"
+		}
+		return "OK\r\n"
+	}}
+	c := &CellularCall{at: &atSession{port: p}, pcmBefore: "0,0", gpsBefore: "none"}
+	if err := c.Hangup(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}

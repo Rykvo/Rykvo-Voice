@@ -211,7 +211,8 @@ func (s *server) sipAccountsAPI(ctx context.Context, w http.ResponseWriter, r *h
 			reply(w, 200, map[string]any{"data": accounts[0]})
 			return
 		}
-		reply(w, 200, map[string]any{"data": map[string]any{"items": accounts, "network": network, "networkReady": networkErr == nil, "callsReady": false}})
+		outbound := networkErr == nil && s.sipGateway != nil && s.modules != nil && len(s.modules.cellularVoiceSamples()) > 0
+		reply(w, 200, map[string]any{"data": map[string]any{"items": accounts, "network": network, "networkReady": networkErr == nil, "callsReady": outbound, "incomingReady": false}})
 		return
 	}
 	var input sipAccountInput

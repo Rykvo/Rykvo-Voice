@@ -53,6 +53,7 @@ type sipOutgoing struct {
 	rtp        *ims.ClientRTP
 	answered   bool
 	accepted   atomic.Bool
+	acceptedAt time.Time
 	final      atomic.Bool
 	record     string
 }
@@ -207,7 +208,7 @@ func (c *sipCalls) inviteLocked(req *sip.Request, tx sip.ServerTransaction, port
 		_ = tx.Respond(sip.NewResponseFromRequest(req, 503, "Voice Unavailable", nil))
 		return
 	}
-	if req.Contact() == nil || req.GetHeader("Record-Route") != nil || req.To().Params.Has("tag") || !validDialNumber(req.Recipient.User) {
+	if req.Contact() == nil || req.Contact().Address.Wildcard || req.Contact().Address.Host == "" || req.GetHeader("Record-Route") != nil || req.To().Params.Has("tag") || !validDialNumber(req.Recipient.User) {
 		_ = tx.Respond(sip.NewResponseFromRequest(req, 400, "Bad Call Request", nil))
 		return
 	}
@@ -323,7 +324,10 @@ func (c *sipOutgoing) respond(code int, reason string, body []byte) error {
 		c.final.Store(true)
 	}
 	if code == 200 {
-		c.accepted.Store(true)
+		if !c.accepted.Load() {
+			c.acceptedAt = time.Now()
+			c.accepted.Store(true)
+		}
 	}
 	r := sip.NewResponseFromRequest(c.request, code, reason, body)
 	r.AppendHeader(&c.contact)
@@ -552,7 +556,7 @@ func (c *sipOutgoing) endPeer() {
 		// End the modem/media immediately; SIP BYE waits for ACK or its deadline.
 		select {
 		case <-c.ack:
-		case <-time.After(32 * time.Second):
+		case <-time.After(max(0, time.Until(c.acceptedAt.Add(32*time.Second)))):
 		}
 
 		bye := sip.NewRequest(sip.BYE, c.request.Contact().Address)

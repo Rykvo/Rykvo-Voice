@@ -194,10 +194,9 @@ func (v *CellularCall) Hangup(ctx context.Context) error {
 	if v.closed.Load() {
 		return io.EOF
 	}
-	_, err := v.at.exchange(ctx, "AT+CHUP", 5*time.Second)
-	if err != nil {
-		return err
-	}
+	// Some firmware returns ERROR if the peer already ended the call.
+	// The following CLCC confirmation, not that return code, decides cleanup.
+	_, _ = v.at.exchange(ctx, "AT+CHUP", 5*time.Second)
 	lines, err := v.at.exchange(ctx, "AT+CLCC", 3*time.Second)
 	state, stateErr := cellularCallState(lines)
 	if err != nil || stateErr != nil || state != "idle" {

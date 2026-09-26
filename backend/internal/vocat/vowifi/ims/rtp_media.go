@@ -287,9 +287,6 @@ func (media *rtpMedia) receive() {
 		}
 		media.mu.Lock()
 		remote, codec, payload := media.remote, media.codec, media.payloadType
-		if remote != nil && remote.IP.Equal(source.IP) && remote.Port != source.Port {
-			remote.Port = source.Port // symmetric RTP/NAT port learning
-		}
 		media.mu.Unlock()
 		if remote == nil || !remote.IP.Equal(source.IP) || count < 12 || packet[0]>>6 != 2 || packet[1]&0x7f != payload {
 			continue
@@ -304,6 +301,21 @@ func (media *rtpMedia) receive() {
 		if header >= count {
 			continue
 		}
+		if packet[0]&0x20 != 0 {
+			padding := int(packet[count-1])
+			if padding == 0 || padding >= count-header {
+				continue
+			}
+			count -= padding
+		}
+		if count-header > 1600 {
+			continue
+		}
+		media.mu.Lock()
+		if media.remote != nil && media.remote.IP.Equal(source.IP) {
+			media.remote.Port = source.Port // learn only from validated RTP
+		}
+		media.mu.Unlock()
 		samples := make([]int16, count-header)
 		for index, encoded := range packet[header:count] {
 			if codec == "PCMA" {
