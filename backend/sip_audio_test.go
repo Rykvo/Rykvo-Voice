@@ -36,6 +36,29 @@ func TestSIPGatewayPCMQueueBoundsAndSilence(t *testing.T) {
 	}
 }
 
+func TestSIPGatewayPCMStartupKeepsPartialSpeech(t *testing.T) {
+	var q cellularPCMQueue
+	p := make([]int16, 800)
+	for i := range p {
+		p[i] = int16(i - 400)
+	}
+	q.push(p[:480])
+	out := make([]int16, 800)
+	if q.pop(out) != -1 || q.n != 480 {
+		t.Fatal("partial startup speech consumed before reserve")
+	}
+	q.push(p[480:])
+	if q.pop(out) != 800 || !reflect.DeepEqual(out, p) {
+		t.Fatal("startup padding cut a speech block")
+	}
+	if q.pop(out) != 0 {
+		t.Fatal("missing samples were not counted")
+	}
+	if dropped := q.push(make([]int16, 3000)); dropped != 600 {
+		t.Fatal("overflow count", dropped)
+	}
+}
+
 func TestSIPGatewayPCMPlaybackClockAndCancellation(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -71,7 +94,7 @@ func TestSIPGatewayPCMPlaybackClockAndCancellation(t *testing.T) {
 			}, func(p []int16) error {
 				events <- written{append([]int16(nil), p...), time.Now()}
 				return nil
-			})
+			}, nil)
 		}()
 		synctest.Wait()
 		capture()
@@ -154,7 +177,7 @@ func TestSIPGatewayPCMAudioErrorsStopWorkers(t *testing.T) {
 						return errAudio
 					}
 					return nil
-				})
+				}, nil)
 				if !errors.Is(err, errAudio) || !readerDone.Load() {
 					t.Fatal("error swallowed or reader leaked", err)
 				}
@@ -172,7 +195,7 @@ func TestSIPGatewayPCMCancelledBeforeStart(t *testing.T) {
 	}, func([]int16) error {
 		t.Error("cancelled call wrote USB audio")
 		return nil
-	})
+	}, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatal(err)
 	}

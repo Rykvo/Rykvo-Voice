@@ -102,7 +102,7 @@ func TestCancelWaitsForInviteFinalAndLateAcceptanceIsClosed(t *testing.T) {
 	if state.EndedAt != nil || state.MediaReady {
 		t.Fatal("CANCEL acknowledgement released carrier call")
 	}
-	c.media.downlink <- []int16{1, 2}
+	c.media.jitter.push(1, 0, 1, []int16{1, 2}, time.Now())
 	if _, err := c.media.ReadPCM(context.Background()); !errors.Is(err, io.EOF) {
 		t.Fatal("closed audio still readable", err)
 	}

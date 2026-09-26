@@ -36,3 +36,4 @@ func (r *ClientRTP) Answer(public net.IP) []byte                  { return r.med
 func (r *ClientRTP) ReadPCM(ctx context.Context) ([]int16, error) { return r.media.ReadPCM(ctx) }
 func (r *ClientRTP) WritePCM(pcm []int16) error                   { return r.media.WritePCM(pcm) }
 func (r *ClientRTP) Close() error                                 { return r.media.Close() }
+func (r *ClientRTP) ReceiveStats() RTPReceiveStats                { return r.media.jitter.snapshot() }

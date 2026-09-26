@@ -14,11 +14,13 @@ type cellularPCMQueue struct {
 	mu      sync.Mutex
 	samples [3 * cellularPCMBlock]int16
 	head, n int
+	primed  bool
 }
 
-func (q *cellularPCMQueue) push(samples []int16) {
+func (q *cellularPCMQueue) push(samples []int16) int {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	dropped := max(0, q.n+len(samples)-len(q.samples))
 	for _, sample := range samples {
 		if q.n == len(q.samples) {
 			q.head = (q.head + 1) % len(q.samples)
@@ -27,21 +29,35 @@ func (q *cellularPCMQueue) push(samples []int16) {
 		q.samples[(q.head+q.n)%len(q.samples)] = sample
 		q.n++
 	}
+	return dropped
 }
 
-func (q *cellularPCMQueue) pop(block []int16) {
+func (q *cellularPCMQueue) pop(block []int16) int {
 	clear(block)
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if !q.primed && q.n < len(block) {
+		return -1 // Preserve the first partial speech block until it is complete.
+	}
+	q.primed = true
+	filled := min(q.n, len(block))
 	for i := 0; i < len(block) && q.n > 0; i++ {
 		block[i] = q.samples[q.head]
 		q.head = (q.head + 1) % len(q.samples)
 		q.n--
 	}
+	return filled
+}
+
+type cellularPCMStats struct {
+	warmup, missing, dropped, lateWrites atomic.Uint64
 }
 
 // Keep USB playback clocked even when RTP packets arrive in bursts or pause.
-func playCellularPCM(ctx context.Context, read func(context.Context) ([]int16, error), write func([]int16) error) error {
+func playCellularPCM(ctx context.Context, read func(context.Context) ([]int16, error), write func([]int16) error, stats *cellularPCMStats) error {
+	if stats == nil {
+		stats = &cellularPCMStats{}
+	}
 	ctx, cancel := context.WithCancel(ctx)
 	var queue cellularPCMQueue
 	readErr := make(chan error, 1)
@@ -57,14 +73,20 @@ func playCellularPCM(ctx context.Context, read func(context.Context) ([]int16, e
 			if ctx.Err() != nil {
 				return
 			}
-			queue.push(samples)
+			stats.dropped.Add(uint64(queue.push(samples)))
 		}
 	}()
 	defer func() { cancel(); <-done }()
+	var previousWrite time.Time
 	writeBlock := func(block []int16) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		now := time.Now()
+		if !previousWrite.IsZero() && now.Sub(previousWrite) > 150*time.Millisecond {
+			stats.lateWrites.Add(1)
+		}
+		previousWrite = now
 		if err := write(block); err != nil {
 			return fmt.Errorf("modem write: %w", err)
 		}
@@ -86,7 +108,11 @@ func playCellularPCM(ctx context.Context, read func(context.Context) ([]int16, e
 		case err := <-readErr:
 			return err
 		case <-tick.C:
-			queue.pop(block)
+			if filled := queue.pop(block); filled < 0 {
+				stats.warmup.Add(uint64(len(block)))
+			} else {
+				stats.missing.Add(uint64(len(block) - filled))
+			}
 			if err := writeBlock(block); err != nil {
 				return err
 			}

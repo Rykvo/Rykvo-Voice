@@ -33,9 +33,11 @@ type rtpMedia struct {
 	timestamp uint32
 	ssrc      uint32
 
-	downlink chan []int16
-	closed   chan struct{}
-	close    sync.Once
+	readMu sync.Mutex
+	jitter rtpJitter
+	wake   chan struct{}
+	closed chan struct{}
+	close  sync.Once
 }
 
 func newRTPMedia(local net.IP) (*rtpMedia, error) {
@@ -55,7 +57,7 @@ func newRTPMediaAt(local net.IP, port int) (*rtpMedia, error) {
 	media := &rtpMedia{
 		conn: connection, sequence: binary.BigEndian.Uint16(seed[:2]),
 		timestamp: binary.BigEndian.Uint32(seed[2:6]), ssrc: binary.BigEndian.Uint32(seed[6:]),
-		downlink: make(chan []int16, 64), closed: make(chan struct{}),
+		wake: make(chan struct{}, 1), closed: make(chan struct{}),
 	}
 	go media.receive()
 	return media, nil
@@ -220,18 +222,37 @@ lines:
 }
 
 func (media *rtpMedia) ReadPCM(ctx context.Context) ([]int16, error) {
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-media.closed:
-		return nil, io.EOF
-	case samples := <-media.downlink:
+	media.readMu.Lock()
+	defer media.readMu.Unlock()
+	timer := time.NewTimer(time.Hour)
+	timer.Stop()
+	defer timer.Stop()
+	for {
 		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		case <-media.closed:
 			return nil, io.EOF
 		default:
 		}
-		return samples, nil
+		samples, wait := media.jitter.pop(time.Now())
+		if samples != nil {
+			return samples, nil
+		}
+		var tick <-chan time.Time
+		if wait > 0 {
+			timer.Reset(wait)
+			tick = timer.C
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-media.closed:
+			return nil, io.EOF
+		case <-media.wake:
+		case <-tick:
+		}
+		timer.Stop()
 	}
 }
 
@@ -311,11 +332,6 @@ func (media *rtpMedia) receive() {
 		if count-header > 1600 {
 			continue
 		}
-		media.mu.Lock()
-		if media.remote != nil && media.remote.IP.Equal(source.IP) {
-			media.remote.Port = source.Port // learn only from validated RTP
-		}
-		media.mu.Unlock()
 		samples := make([]int16, count-header)
 		for index, encoded := range packet[header:count] {
 			if codec == "PCMA" {
@@ -324,16 +340,14 @@ func (media *rtpMedia) receive() {
 				samples[index] = muLawToLinear(encoded)
 			}
 		}
-		select {
-		case media.downlink <- samples:
-		default:
-			// Keep real-time behavior by dropping the oldest queued packet.
-			select {
-			case <-media.downlink:
-			default:
+		if media.jitter.push(binary.BigEndian.Uint16(packet[2:4]), binary.BigEndian.Uint32(packet[4:8]), binary.BigEndian.Uint32(packet[8:12]), samples, time.Now()) {
+			media.mu.Lock()
+			if media.remote != nil && media.remote.IP.Equal(source.IP) {
+				media.remote.Port = source.Port // learn only from current-stream RTP
 			}
+			media.mu.Unlock()
 			select {
-			case media.downlink <- samples:
+			case media.wake <- struct{}{}:
 			default:
 			}
 		}

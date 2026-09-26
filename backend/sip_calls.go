@@ -359,9 +359,18 @@ func (c *sipOutgoing) run(sample moduleSample, network sipAccountNetwork, bind, 
 	defer func() { <-gate }()
 	var device cellularVoice
 	var audio sync.WaitGroup
+	var playback cellularPCMStats
 	defer func() {
 		c.stop()
 		audio.Wait()
+		if c.rtp != nil && c.record != "" {
+			var flowDropped uint64
+			if d, ok := device.(interface{ DroppedPCMSamples() uint64 }); ok {
+				flowDropped = d.DroppedPCMSamples()
+			}
+			log.Printf("SIP call %s audio: RTP=%+v USB={Warmup:%d Missing:%d Dropped:%d LateWrites:%d FlowDropped:%d}",
+				c.record, c.rtp.ReceiveStats(), playback.warmup.Load(), playback.missing.Load(), playback.dropped.Load(), playback.lateWrites.Load(), flowDropped)
+		}
 		peerDone := make(chan struct{})
 		go func() { defer close(peerDone); c.endPeer() }()
 		defer func() { <-peerDone }()
@@ -527,7 +536,7 @@ media:
 	audio.Add(1)
 	go func() {
 		defer audio.Done()
-		if err := playCellularPCM(c.ctx, c.rtp.ReadPCM, device.WritePCM); err != nil {
+		if err := playCellularPCM(c.ctx, c.rtp.ReadPCM, device.WritePCM, &playback); err != nil {
 			c.mediaFailed("uplink", err)
 		}
 	}()

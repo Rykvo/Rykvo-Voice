@@ -25,6 +25,17 @@ func TestCellularStateSeparatesPacketData(t *testing.T) {
 		}
 	}
 }
+
+func TestCellularPCMFlowDropsAreObservable(t *testing.T) {
+	v := &CellularCall{}
+	if err := v.WritePCM(make([]int16, 800)); err != nil || v.DroppedPCMSamples() != 800 {
+		t.Fatal(err, v.DroppedPCMSamples())
+	}
+	v.closed.Store(true)
+	if v.WritePCM(make([]int16, 800)) == nil || v.DroppedPCMSamples() != 800 {
+		t.Fatal("closed stream counted as flow control")
+	}
+}
 func TestCellularHangupPreservesDataAndRestoresPCM(t *testing.T) {
 	p, _ := voiceTestModem()
 	write := p.onWrite

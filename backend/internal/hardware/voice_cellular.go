@@ -13,14 +13,15 @@ import (
 
 // One module gate covers AT and its USB NMEA PCM port for the whole call.
 type CellularCall struct {
-	mu      sync.Mutex
-	at      *atSession
-	pcm     atPort
-	audio   voiceAudioState
-	journal string
-	flow    atomic.Bool
-	closed  atomic.Bool
-	writeMu sync.Mutex
+	mu          sync.Mutex
+	at          *atSession
+	pcm         atPort
+	audio       voiceAudioState
+	journal     string
+	flow        atomic.Bool
+	flowDropped atomic.Uint64
+	closed      atomic.Bool
+	writeMu     sync.Mutex
 }
 
 func CellularVoiceSupported(c Candidate) bool {
@@ -211,6 +212,7 @@ func (v *CellularCall) WritePCM(pcm []int16) error {
 		return io.EOF
 	}
 	if !v.flow.Load() {
+		v.flowDropped.Add(uint64(len(pcm)))
 		return nil
 	}
 	v.writeMu.Lock()
@@ -232,6 +234,7 @@ func (v *CellularCall) WritePCM(pcm []int16) error {
 	}
 	return nil
 }
+func (v *CellularCall) DroppedPCMSamples() uint64 { return v.flowDropped.Load() }
 func (v *CellularCall) Close() {
 	if !v.closed.Swap(true) {
 		if v.pcm != nil {

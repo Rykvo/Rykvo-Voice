@@ -47,6 +47,7 @@ jobs:
         run: >-
           go test -race ./internal/vocat/vowifi/...
           && go test ./internal/vocat/vowifi -run '^$' -fuzz '^FuzzISIMDecoders$' -fuzztime=20s -parallel=2
+          && go test ./internal/vocat/vowifi/ims -run '^$' -fuzz '^FuzzRTPJitterWindow$' -fuzztime=20s -parallel=2
       - name: EAP packet bounds
         working-directory: backend
         run: go test ./internal/hardware -run '^$' -fuzz '^FuzzWiFiEAPPacket$' -fuzztime=20s -parallel=2
