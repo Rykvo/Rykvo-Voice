@@ -6,10 +6,21 @@ import (
 	"strings"
 )
 
-// originatingSMSPublicIdentity is only for sessions whose public identity was
-// generated for REGISTER. TS 24.229 5.1.1.1A / 5.1.2A.1.1 prohibit reusing that
-// temporary identity in originating SMS. Explicit identities use the unchanged
-// messagePublicIdentity policy instead.
+// Auto-discovered identities register the subscription; MO SMS uses the
+// registrar's default identity. Explicit operator configuration stays explicit.
+func (s *Session) originatingSMSIdentity(preferred string) (string, string, error) {
+	if s.identity.temporaryPublic {
+		return originatingSMSPublicIdentity(s.identity.public, s.evidence.AssociatedIdentities)
+	}
+	if s.request.Identity.ProvisionedIMS != nil && s.provider.config.PublicIdentity == "" {
+		return originatingSMSPublicIdentity("", s.evidence.AssociatedIdentities)
+	}
+	identity, source := messagePublicIdentity(s.identity.public, preferred, s.evidence.AssociatedIdentities)
+	return identity, source, nil
+}
+
+// The first P-Associated-URI is the network default (TS 24.229 5.1.1.2.1).
+// Exclude a generated REGISTER-only identity when supplied.
 func originatingSMSPublicIdentity(temporary string, associated []string) (string, string, error) {
 	values := splitHeaderValues(associated)
 	if len(values) > 0 {

@@ -290,3 +290,30 @@ func TestMOTemporaryIdentityWithoutDefaultNeverSends(t *testing.T) {
 	case <-time.After(30 * time.Millisecond):
 	}
 }
+
+func TestISIMOriginatingSMSUsesCurrentNetworkDefault(t *testing.T) {
+	s, seen, _ := smsPSITestSession(t, &recordingAKA{result: vowifi.AKAResult{RES: []byte{1, 2, 3, 4}}})
+	registered := s.identity.public
+	provisioned := &vowifi.ProvisionedIMSIdentity{PrivateIdentity: "subscriber@example.test", Domain: "example.test", PublicIdentities: []string{registered}}
+	for _, current := range []string{"tel:+12025550100", "sip:+12025550101@ims.example.test;user=phone"} {
+		s.mu.Lock()
+		s.identity.temporaryPublic = false
+		s.request.Identity.ProvisionedIMS = provisioned
+		s.evidence.AssociatedIdentities = []string{"<" + current + ">", "<" + registered + ">"}
+		s.mu.Unlock()
+		r := smsPSITestSubmit(t, s, seen)
+		if publicIdentityURI(r.value("From")) != current || publicIdentityURI(r.value("P-Preferred-Identity")) != current {
+			t.Fatalf("ISIM origin did not follow registrar: %v", r.Headers)
+		}
+		if s.identity.public != registered || s.request.Identity.ProvisionedIMS != provisioned {
+			t.Fatal("changed registration or ISIM identity")
+		}
+	}
+	s.mu.Lock()
+	s.evidence.AssociatedIdentities = nil
+	s.mu.Unlock()
+	r, err := s.SendSMS(context.Background(), vowifi.SMSSubmitRequest{Recipient: "+12025550123", Text: "OFFLINE TEST"})
+	if err == nil || r.PartsAttempted != 0 {
+		t.Fatalf("missing default: %+v %v", r, err)
+	}
+}

@@ -1085,9 +1085,7 @@ func (session *Session) SendSMS(ctx context.Context, request vowifi.SMSSubmitReq
 	// Preflight before attempting any part. The MESSAGE builder rechecks the
 	// current registration evidence under mu immediately before constructing it.
 	session.mu.Lock()
-	if session.identity.temporaryPublic {
-		_, _, err = originatingSMSPublicIdentity(session.identity.public, session.evidence.AssociatedIdentities)
-	}
+	_, _, err = session.originatingSMSIdentity("")
 	session.mu.Unlock()
 	if err != nil {
 		result.SubmissionStatus = "failed"
@@ -1248,8 +1246,8 @@ func (session *Session) sendSIPMessageWithIdentity(
 	cseq := session.cseq
 	session.cseq++
 	var identity, identitySource string
-	if session.identity.temporaryPublic && contentType == smsContentType && inReplyTo == "" {
-		identity, identitySource, err = originatingSMSPublicIdentity(session.identity.public, session.evidence.AssociatedIdentities)
+	if contentType == smsContentType && inReplyTo == "" {
+		identity, identitySource, err = session.originatingSMSIdentity(preferredIdentity)
 		if err != nil {
 			session.mu.Unlock()
 			return nil, err
