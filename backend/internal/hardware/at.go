@@ -17,8 +17,10 @@ type atPort interface {
 }
 
 type atSession struct {
-	port   atPort
-	buffer string
+	port    atPort
+	buffer  string
+	onLine  func(string)
+	pending string
 }
 
 // Commands are generated here, never supplied by an HTTP caller.
@@ -29,6 +31,18 @@ func (s *atSession) query(ctx context.Context, command string) ([]string, error)
 func (s *atSession) exchange(ctx context.Context, command string, timeout time.Duration) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+	// Finish an interrupted command before issuing another; late OKs are not
+	// evidence that a later hangup or configuration change succeeded.
+	if s.pending != "" {
+		_, err := s.readResponse(ctx, s.pending)
+		if s.pending != "" {
+			return nil, err
+		}
+	}
+	if ctx.Err() != nil {
+		return nil, errTimeout
+	}
+	s.pending = command
 	data := []byte(command + "\r")
 	for len(data) > 0 {
 		if ctx.Err() != nil {
@@ -40,6 +54,10 @@ func (s *atSession) exchange(ctx context.Context, command string, timeout time.D
 		}
 		data = data[n:]
 	}
+	return s.readResponse(ctx, command)
+}
+
+func (s *atSession) readResponse(ctx context.Context, command string) ([]string, error) {
 	lines := []string{}
 	total := 0
 	for {
@@ -55,10 +73,22 @@ func (s *atSession) exchange(ctx context.Context, command string, timeout time.D
 			if line == "" || line == command {
 				continue
 			}
+			if s.onLine != nil {
+				s.onLine(line)
+			}
 			if line == "OK" {
+				s.pending = ""
 				return lines, nil
 			}
+			if line == "NO CARRIER" || line == "BUSY" || line == "NO ANSWER" {
+				if !strings.HasPrefix(command, "ATD") {
+					continue
+				}
+				s.pending = ""
+				return nil, errors.New("CALL_ENDED")
+			}
 			if line == "ERROR" || strings.HasPrefix(line, "+CME ERROR") || strings.HasPrefix(line, "+CMS ERROR") {
+				s.pending = ""
 				if strings.HasPrefix(line, "+CME ERROR:") {
 					code := strings.TrimSpace(strings.TrimPrefix(line, "+CME ERROR:"))
 					if code == "10" || strings.EqualFold(code, "SIM not inserted") {

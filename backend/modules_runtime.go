@@ -176,7 +176,7 @@ func (m *moduleManager) run(ctx context.Context) {
 	}
 }
 func sameEndpoint(a, b hardware.Candidate) bool {
-	if a.Generation != b.Generation || a.Control != b.Control || a.Reader != b.Reader || len(a.Ports) != len(b.Ports) {
+	if a.Generation != b.Generation || a.Control != b.Control || a.Reader != b.Reader || a.Audio != b.Audio || len(a.Ports) != len(b.Ports) {
 		return false
 	}
 	for i := range a.Ports {

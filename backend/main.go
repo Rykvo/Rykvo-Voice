@@ -150,13 +150,13 @@ func main() {
 	sipContext, stopSIP := context.WithCancel(ctx)
 	api.sipGateway = newSIPGateway(api)
 	go api.sipGateway.run(sipContext)
-	defer func() { stopSIP(); <-api.sipGateway.done }()
 	messageContext, stopMessages := context.WithCancel(ctx)
 	messageDone := make(chan struct{})
 	go func() { defer close(messageDone); api.modules.runMessages(messageContext) }()
 	defer func() { stopMessages(); <-messageDone }()
 	go api.modules.run(moduleContext)
 	defer func() { stopModules(); <-api.modules.done }()
+	defer func() { stopSIP(); <-api.sipGateway.done }()
 	if dir := os.Getenv("TUNNEL_DIR"); dir != "" {
 		api.tunnels, err = newTunnelManager(ctx, pool, dir, os.Getenv("TUNNEL_BIN"))
 		if err != nil {

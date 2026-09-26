@@ -209,3 +209,15 @@ CREATE TABLE IF NOT EXISTS sip_account_modules (
  module_id bigint NOT NULL REFERENCES modules(id),
  PRIMARY KEY(account_id,module_id)
 );
+
+CREATE TABLE IF NOT EXISTS sip_call_records (
+ id text PRIMARY KEY,
+ account_id text NOT NULL,
+ module_id text NOT NULL,
+ peer text NOT NULL,
+ state text NOT NULL DEFAULT 'dialing',
+ started_at timestamptz NOT NULL DEFAULT now(),
+ answered_at timestamptz,
+ ended_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS sip_call_records_account ON sip_call_records(account_id,started_at DESC);

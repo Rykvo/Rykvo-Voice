@@ -256,3 +256,43 @@ func TestLegacyMobileDigestChallenge(t *testing.T) {
 		}
 	}
 }
+
+func TestInviteGrantRequiresCurrentAuthenticatedRegistration(t *testing.T) {
+	for _, mode := range []string{"valid", "wrong-password", "wrong-source", "deleted", "expired"} {
+		t.Run(mode, func(t *testing.T) {
+			r := New()
+			r.Replace([]Account{fixtureAccount("test-secret", 1)})
+			reg := request(t, "A", 1)
+			authorize(t, r, reg, "test-secret", "MD5")
+			if r.Handle(reg, 20001).StatusCode != 200 {
+				t.Fatal("register")
+			}
+			req := request(t, "call", 2)
+			req.Method = sip.INVITE
+			req.CSeq().MethodName = sip.INVITE
+			req.Recipient.User = "12345"
+			password := "test-secret"
+			if mode == "wrong-password" {
+				password = "wrong"
+			}
+			if mode == "wrong-source" {
+				req.SetSource("127.0.0.1:5091")
+			}
+			authorize(t, r, req, password, "MD5")
+			if mode == "deleted" {
+				r.Replace(nil)
+			}
+			if mode == "expired" {
+				r.now = func() time.Time { return time.Now().Add(10 * time.Minute) }
+			}
+			a, current, res := r.AuthenticateInvite(req, 20001)
+			if mode == "valid" {
+				if res != nil || a.ID != "account-1" || current.Source != "127.0.0.1:5090" {
+					t.Fatal(a, reg, res)
+				}
+			} else if res == nil {
+				t.Fatal("invalid invite granted")
+			}
+		})
+	}
+}

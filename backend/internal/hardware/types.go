@@ -27,6 +27,7 @@ type Candidate struct {
 	Control    string
 	Network    string
 	Reader     string
+	Audio      string
 }
 
 type Reading struct {

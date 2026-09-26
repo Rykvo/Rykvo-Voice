@@ -32,10 +32,13 @@ type sipGateway struct {
 	registrar *sipregistrar.Registrar
 	listeners map[string]*sipListener // guarded by sipAccountsMu
 	done      chan struct{}
+	calls     *sipCalls
 }
 
 func newSIPGateway(s *server) *sipGateway {
-	return &sipGateway{server: s, registrar: sipregistrar.New(), listeners: map[string]*sipListener{}, done: make(chan struct{})}
+	g := &sipGateway{server: s, registrar: sipregistrar.New(), listeners: map[string]*sipListener{}, done: make(chan struct{})}
+	g.calls = newSIPCalls(g)
+	return g
 }
 func localSIPAddresses() []string {
 	var result []string
@@ -66,6 +69,7 @@ func localSIPAddresses() []string {
 }
 func (g *sipGateway) run(ctx context.Context) {
 	defer close(g.done)
+	g.calls.ctx = ctx
 	ticker := time.NewTicker(3 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -76,6 +80,12 @@ func (g *sipGateway) run(ctx context.Context) {
 		g.server.sipAccountsMu.Unlock()
 		select {
 		case <-ctx.Done():
+			g.server.sipAccountsMu.Lock()
+			for _, call := range g.calls.active {
+				call.stop()
+			}
+			g.server.sipAccountsMu.Unlock()
+			g.calls.wait.Wait()
 			g.server.sipAccountsMu.Lock()
 			for key, l := range g.listeners {
 				l.close()
@@ -146,6 +156,7 @@ func (g *sipGateway) refreshLocked(ctx context.Context) {
 		}
 	}
 	g.registrar.Replace(enabled)
+	g.calls.syncLocked(ctx, enabled)
 }
 func (g *sipGateway) readAccounts(ctx context.Context) ([]sipregistrar.Account, error) {
 	rows, err := g.server.db.Query(ctx, `SELECT id,username,port,credential_revision,digest_md5,digest_sha256 FROM sip_accounts ORDER BY id`)
@@ -189,14 +200,31 @@ func (g *sipGateway) listen(address string, port int) (*sipListener, error) {
 	}
 	handle := func(req *sip.Request, tx sip.ServerTransaction) {
 		g.server.sipAccountsMu.Lock()
+		defer g.server.sipAccountsMu.Unlock()
 		res := g.registrar.Handle(req, port)
 		_ = tx.Respond(res)
-		g.server.sipAccountsMu.Unlock()
+		if req.Method == sip.REGISTER && res.StatusCode == 200 && g.server.db != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			if accounts, err := g.readAccounts(ctx); err == nil {
+				g.calls.syncLocked(ctx, accounts)
+			}
+		}
 	}
-	srv.OnAck(func(*sip.Request, sip.ServerTransaction) {})
+	dialog := func(req *sip.Request, tx sip.ServerTransaction) {
+		g.server.sipAccountsMu.Lock()
+		defer g.server.sipAccountsMu.Unlock()
+		g.calls.dialogLocked(req, tx)
+	}
+	srv.OnAck(dialog)
+	srv.OnBye(dialog)
 	srv.OnRegister(handle)
 	srv.OnOptions(handle)
-	srv.OnInvite(handle)
+	srv.OnInvite(func(req *sip.Request, tx sip.ServerTransaction) {
+		g.server.sipAccountsMu.Lock()
+		defer g.server.sipAccountsMu.Unlock()
+		g.calls.inviteLocked(req, tx, port, address, ua)
+	})
 	srv.OnNoRoute(func(req *sip.Request, tx sip.ServerTransaction) {
 		_ = tx.Respond(sip.NewResponseFromRequest(req, 405, "Method Not Allowed", nil))
 	})

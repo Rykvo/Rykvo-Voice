@@ -44,12 +44,13 @@ type sipAccountInput struct {
 }
 
 type sipAccountNetwork struct {
-	Mode        string `json:"mode"`
-	BindAddress string `json:"-"`
-	Host        string `json:"host"`
-	Start       int    `json:"start"`
-	End         int    `json:"end"`
-	Default     int    `json:"default"`
+	Mode          string `json:"mode"`
+	BindAddress   string `json:"-"`
+	PublicAddress string `json:"-"`
+	Host          string `json:"host"`
+	Start         int    `json:"start"`
+	End           int    `json:"end"`
+	Default       int    `json:"default"`
 }
 
 func (s *server) sipAccountNetwork(ctx context.Context, r *http.Request) (sipAccountNetwork, error) {
@@ -87,6 +88,7 @@ func (s *server) sipAccountNetwork(ctx context.Context, r *http.Request) (sipAcc
 		network.Start, network.End, network.Default = n.Start, n.End, n.Start
 		network.Mode = "cloud"
 		network.BindAddress = n.BindAddress
+		network.PublicAddress = n.PublicAddress
 		network.Host = n.Server
 		if network.Host == "" {
 			network.Host = n.PublicAddress
@@ -188,6 +190,9 @@ func (s *server) sipAccountsAPI(ctx context.Context, w http.ResponseWriter, r *h
 			a.Status, a.IP = "offline", network.Host
 			if s.sipGateway != nil && s.sipGateway.registrar.Online(a.ID) {
 				a.Status = "online"
+				if s.sipGateway.calls != nil && s.sipGateway.calls.router.Status(a.ID) == "busy" {
+					a.Status = "busy"
+				}
 			}
 			if networkErr != nil {
 				a.IP = "—"

@@ -39,7 +39,10 @@ type rtpMedia struct {
 }
 
 func newRTPMedia(local net.IP) (*rtpMedia, error) {
-	address := &net.UDPAddr{IP: local, Port: 0}
+	return newRTPMediaAt(local, 0)
+}
+func newRTPMediaAt(local net.IP, port int) (*rtpMedia, error) {
+	address := &net.UDPAddr{IP: local, Port: port}
 	connection, err := net.ListenUDP("udp", address)
 	if err != nil {
 		return nil, fmt.Errorf("ims: open RTP socket: %w", err)

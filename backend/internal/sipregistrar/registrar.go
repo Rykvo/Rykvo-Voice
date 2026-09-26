@@ -137,6 +137,33 @@ func challengeAlgorithms(req *sip.Request) []string {
 func (r *Registrar) Handle(req *sip.Request, port int) *sip.Response {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	return r.handleLocked(req, port, false)
+}
+func (r *Registrar) AuthenticateInvite(req *sip.Request, port int) (Account, Registration, *sip.Response) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if req.Method != sip.INVITE {
+		return Account{}, Registration{}, response(req, 405, "Method Not Allowed")
+	}
+	res := r.handleLocked(req, port, true)
+	if res != nil {
+		return Account{}, Registration{}, res
+	}
+	a := r.accounts[accountKey(req.From().Address.User, port)]
+	return a, r.current[a.ID], nil
+}
+func (r *Registrar) Registrations() map[string]Registration {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.sweep(r.now())
+	result := make(map[string]Registration, len(r.current))
+	for id, v := range r.current {
+		v.Contact = nil
+		result[id] = v
+	}
+	return result
+}
+func (r *Registrar) handleLocked(req *sip.Request, port int, voice bool) *sip.Response {
 	now := r.now()
 	r.sweep(now)
 	if req.From() == nil || req.To() == nil || req.CallID() == nil || req.CSeq() == nil || req.CSeq().SeqNo == 0 || req.CSeq().MethodName != req.Method || len(req.Body()) > 4096 {
@@ -214,6 +241,9 @@ func (r *Registrar) Handle(req *sip.Request, port int) *sip.Response {
 			res := response(req, 200, "OK")
 			res.AppendHeader(sip.NewHeader("Allow", "REGISTER, OPTIONS"))
 			return res
+		}
+		if voice {
+			return nil
 		}
 		res := response(req, 503, "Voice Service Unavailable")
 		res.AppendHeader(sip.NewHeader("Retry-After", "30"))

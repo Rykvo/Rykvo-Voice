@@ -224,6 +224,9 @@ func orderPorts(c *Candidate) {
 	// Never probe diagnostics or GNSS interfaces as a fallback AT terminal.
 	ports := c.Ports[:0]
 	for _, p := range c.Ports {
+		if c.Kind == "usb" && c.Vendor == "2c7c" && c.Product == "0125" && p.Interface == 1 {
+			c.Audio = p.Path
+		}
 		if rank(p) < 9 {
 			ports = append(ports, p)
 		}
