@@ -2,12 +2,34 @@ package ims
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
+	"fmt"
 	"math"
 	"net"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestG711DecodeReference(t *testing.T) {
+	// All 256 codewords, signed little-endian PCM, independent audioop reference.
+	for _, tc := range []struct {
+		decode func(byte) int16
+		hash   string
+	}{
+		{aLawToLinear, "e04788d110e58ff8c70c93b8480190d973e3b67876b6119abbaec766cc75c174"},
+		{muLawToLinear, "3dab54339e520bb2c924826e3b72a917a2b612e9fd12fc867500f1d983a75827"},
+	} {
+		var pcm [512]byte
+		for i := 0; i < 256; i++ {
+			binary.LittleEndian.PutUint16(pcm[i*2:], uint16(tc.decode(byte(i))))
+		}
+		if got := fmt.Sprintf("%x", sha256.Sum256(pcm[:])); got != tc.hash {
+			t.Fatal(got)
+		}
+	}
+}
 
 func TestRTPMediaCarriesPCMOverPCMA(t *testing.T) {
 	left, err := newRTPMedia(net.IPv4(127, 0, 0, 1))

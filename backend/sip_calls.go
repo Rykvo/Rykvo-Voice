@@ -437,6 +437,14 @@ func (c *sipOutgoing) run(sample moduleSample, network sipAccountNetwork, bind, 
 			return
 		}
 	}
+	var mediaActive atomic.Bool
+	audio.Add(1)
+	go func() {
+		defer audio.Done()
+		if err := forwardCellularPCM(c.ctx, &mediaActive, device.ReadPCM, c.rtp.WritePCM); err != nil {
+			c.mediaFailed("downlink", err)
+		}
+	}()
 	op, opCancel = context.WithTimeout(c.ctx, 8*time.Second)
 	err = device.Dial(op, c.request.Recipient.User)
 	opCancel()
@@ -515,33 +523,12 @@ media:
 	if err != nil {
 		return
 	}
-	audio.Add(2)
+	mediaActive.Store(true)
+	audio.Add(1)
 	go func() {
 		defer audio.Done()
-		for {
-			pcm, e := device.ReadPCM(c.ctx)
-			if e != nil {
-				c.mediaFailed("modem-read", e)
-				return
-			}
-			if e = c.rtp.WritePCM(pcm); e != nil {
-				c.mediaFailed("rtp-write", e)
-				return
-			}
-		}
-	}()
-	go func() {
-		defer audio.Done()
-		for {
-			pcm, e := c.rtp.ReadPCM(c.ctx)
-			if e != nil {
-				c.mediaFailed("rtp-read", e)
-				return
-			}
-			if e = device.WritePCM(pcm); e != nil {
-				c.mediaFailed("modem-write", e)
-				return
-			}
+		if err := playCellularPCM(c.ctx, c.rtp.ReadPCM, device.WritePCM); err != nil {
+			c.mediaFailed("uplink", err)
 		}
 	}()
 	for {

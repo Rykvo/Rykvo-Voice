@@ -177,7 +177,7 @@ func TestSIPGatewayCallTransactionSurvivesAnswer(t *testing.T) {
 					}
 					media.WriteToUDP(packet[:n], peer)
 				}
-				if device.writes.Load() == 0 || device.hangups.Load() != 0 {
+				if device.nonzeroWrites.Load() == 0 || device.hangups.Load() != 0 {
 					t.Fatal("audio not bridged")
 				}
 				send("BYE", "bye", ";tag=server", 2, "")
@@ -207,7 +207,7 @@ func (*voiceTestTX) Err() error                         { return nil }
 func (*voiceTestTX) Acks() <-chan *sip.Request          { return nil }
 func (*voiceTestTX) OnCancel(sip.FnTxCancel) bool       { return true }
 
-type voiceTestDevice struct{ dialed, closed, hangups, writes atomic.Int32 }
+type voiceTestDevice struct{ dialed, closed, hangups, writes, nonzeroWrites atomic.Int32 }
 
 func (v *voiceTestDevice) Dial(context.Context, string) error    { v.dialed.Add(1); return nil }
 func (v *voiceTestDevice) State(context.Context) (string, error) { return "active", nil }
@@ -216,6 +216,12 @@ func (v *voiceTestDevice) Close()                                { v.closed.Add(
 func (v *voiceTestDevice) WritePCM(p []int16) error {
 	if len(p) > 0 {
 		v.writes.Add(1)
+	}
+	for _, sample := range p {
+		if sample != 0 {
+			v.nonzeroWrites.Add(1)
+			break
+		}
 	}
 	return nil
 }
@@ -319,10 +325,10 @@ func TestSIPGatewayCellularDialogAndBidirectionalMedia(t *testing.T) {
 	}
 	udp.WriteToUDP(uplink, &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: mediaPort})
 	deadline := time.Now().Add(time.Second)
-	for device.writes.Load() == 0 && time.Now().Before(deadline) {
+	for device.nonzeroWrites.Load() == 0 && time.Now().Before(deadline) {
 		time.Sleep(time.Millisecond)
 	}
-	if device.writes.Load() == 0 {
+	if device.nonzeroWrites.Load() == 0 {
 		t.Fatal("uplink missing")
 	}
 	if c.router.Status("a") != telephony.Busy {
