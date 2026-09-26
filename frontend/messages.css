@@ -368,6 +368,8 @@ main[data-page="messages"] #page-content > .page-enter {
   line-height: 1.45;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+  -webkit-user-select: text;
+  user-select: text;
 }
 .msg-bubble:before {
   content: "";

@@ -481,6 +481,13 @@ test("chat scrollbar is hidden without disabling scrolling",()=>{
   assert.doesNotMatch(css,/msg-code-group/);
 });
 
+test("message bubble text permits native drag selection and copying",()=>{
+  const css=readFileSync(join(__dirname,"../messages.css"),"utf8");
+  const bubble=css.match(/\.msg-bubble \{([^}]+)\}/)[1];
+  assert.match(bubble,/-webkit-user-select: text/);
+  assert.match(bubble,/\n\s*user-select: text/);
+});
+
 test("waiting MMS is not an active spinner and error details are escaped",()=>{
  const app=setup(undefined,true);app.server();
  app.publish([{number:"+13322500550",mine:true,kind:"mms",state:"waiting_network",issue:'MMS_<"bad">'}]);
