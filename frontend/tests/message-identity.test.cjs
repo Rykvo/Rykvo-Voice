@@ -46,6 +46,8 @@ test('only a delivery receipt is shown as delivered; pending states have spinner
   for(const state of ['unknown','partial','new-state']) assert.equal(identity.delivery({mine:true,state}),'failed');
   assert.equal(identity.delivery({mine:true,state:'accepted'}),'failed');
   assert.equal(identity.delivery({mine:true,state:'accepted',kind:'sms'}),'pending');
+  assert.equal(identity.delivery({mine:true,state:'accepted',kind:'mms'}),'pending');
+  assert.equal(identity.delivery({mine:true,state:'unknown',kind:'mms',issue:'MMS_DELIVERY_UNCONFIRMED'}),'failed');
   assert.equal(identity.delivery({mine:true,state:'unknown',kind:'sms',issue:'SMS_DELIVERY_UNCONFIRMED'}),'failed');
   for(const state of ['failed','expired','cancelled']) assert.equal(identity.delivery({mine:true,state}),'failed');
   assert.equal(identity.delivery({mine:true,state:'delivered'}),'delivered');

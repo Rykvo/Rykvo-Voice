@@ -24,13 +24,12 @@ func (m *moduleManager) resumeMMSDownloads(ctx context.Context) error {
 	return err
 }
 
-// Only Retrieved confirms delivery. Missing or ambiguous IDs never imply success.
+// MMSC IDs are scoped to the sending SIM. Report To may name that SIM, not the peer.
 func (m *moduleManager) applyMMSReports(ctx context.Context) {
 	_, _ = m.db.Exec(ctx, `WITH matched AS (
  SELECT r.id report,r.metadata->>'status' status,min(s.id) id,count(DISTINCT s.id) n
  FROM messages r JOIN messages s ON s.iccid=r.iccid AND s.mine AND s.kind='mms'
  AND NULLIF(s.result->>'messageId','')=r.metadata->>'messageId'
- AND ltrim(s.peer,'+')=ltrim(replace(r.metadata->>'recipient','/TYPE=PLMN',''),'+')
  AND r.created_at>=s.created_at
  WHERE NOT r.mine AND r.kind='mms' AND r.state='mms_report'
  AND s.created_at>now()-interval '7 days'
@@ -43,6 +42,8 @@ func (m *moduleManager) applyMMSReports(ctx context.Context) {
  issue=CASE WHEN o.delivered THEN '' ELSE 'MMS_STATUS_'||o.failure END
  FROM outcomes o WHERE m.id=o.id AND m.state IN ('accepted','unknown') AND m.deleted_at IS NULL
  AND (o.delivered OR o.failure IS NOT NULL)`)
+	_, _ = m.db.Exec(ctx, `UPDATE messages SET state='unknown',issue='MMS_DELIVERY_UNCONFIRMED'
+ WHERE mine AND kind='mms' AND state='accepted' AND updated_at<now()-interval '2 minutes'`)
 }
 
 func decodeMMSPush(raw, gateway string) (state, peer string, metadata map[string]any) {

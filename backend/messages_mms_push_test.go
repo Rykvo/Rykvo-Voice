@@ -81,9 +81,10 @@ func testMMSReportMatching(t *testing.T, ctx context.Context, m *moduleManager, 
 		{130, "89000000000000000722", "12025550123/TYPE=PLMN", "network", "failed", false},
 		{131, "89000000000000000722", "+12025550123/TYPE=PLMN", "network", "accepted", false},
 		{129, "89000000000000000723", "+12025550123/TYPE=PLMN", "network", "accepted", false},
-		{129, "89000000000000000722", "+12025550999/TYPE=PLMN", "network", "accepted", false},
+		{129, "89000000000000000722", "+12025550999/TYPE=PLMN", "network", "delivered", false},
 		{129, "89000000000000000722", "+12025550123/TYPE=PLMN", "", "accepted", false},
 		{129, "89000000000000000722", "+12025550123/TYPE=PLMN", "network", "accepted", true},
+		{129, "89000000000000000722", "+12025550123/TYPE=PLMN", "network", "accepted", false},
 	} {
 		id := fmt.Sprintf("mms-report-out-%d", n)
 		network := tc.network
@@ -94,7 +95,16 @@ func testMMSReportMatching(t *testing.T, ctx context.Context, m *moduleManager, 
 		if tc.duplicate {
 			exec(`INSERT INTO messages(id,module_id,iccid,line_id,peer,mine,kind,state,result) SELECT id||'-duplicate',module_id,iccid,line_id,peer,mine,kind,'delivered',result FROM messages WHERE id=$1`, id)
 		}
-		exec(`INSERT INTO messages(id,module_id,iccid,line_id,peer,mine,kind,state,metadata) VALUES($1,$2,$3,'mms-report-fixture','gateway',false,'mms','mms_report',jsonb_build_object('messageId',$4::text,'recipient',$5::text,'status',$6::int))`, id+"-report", module, tc.card, network, tc.recipient, tc.status)
+		reportID := network
+		if n == 7 {
+			reportID = "unrelated-message-id"
+		}
+		exec(`INSERT INTO messages(id,module_id,iccid,line_id,peer,mine,kind,state,metadata) VALUES($1,$2,$3,'mms-report-fixture','gateway',false,'mms','mms_report',jsonb_build_object('messageId',$4::text,'recipient',$5::text,'status',$6::int))`, id+"-report", module, tc.card, reportID, tc.recipient, tc.status)
+
+		// A late real receipt must also resolve an unconfirmed send.
+		if n == 0 {
+			exec("UPDATE messages SET state='unknown',issue='MMS_DELIVERY_UNCONFIRMED' WHERE id=$1", id)
+		}
 		m.applyMMSReports(ctx)
 		m.applyMMSReports(ctx)
 		var state string
