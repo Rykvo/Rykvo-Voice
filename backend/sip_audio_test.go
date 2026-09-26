@@ -42,8 +42,24 @@ func TestSIPGatewayPCMPlaybackClockAndCancellation(t *testing.T) {
 		defer cancel()
 		input := make(chan []int16)
 		done := make(chan error, 1)
+		type written struct {
+			samples []int16
+			at      time.Time
+		}
+		events := make(chan written, 32)
 		var blocks [][]int16
 		var times []time.Time
+		capture := func() {
+			for {
+				select {
+				case event := <-events:
+					blocks = append(blocks, event.samples)
+					times = append(times, event.at)
+				default:
+					return
+				}
+			}
+		}
 		go func() {
 			done <- playCellularPCM(ctx, func(ctx context.Context) ([]int16, error) {
 				select {
@@ -53,12 +69,12 @@ func TestSIPGatewayPCMPlaybackClockAndCancellation(t *testing.T) {
 					return nil, ctx.Err()
 				}
 			}, func(p []int16) error {
-				blocks = append(blocks, append([]int16(nil), p...))
-				times = append(times, time.Now())
+				events <- written{append([]int16(nil), p...), time.Now()}
 				return nil
 			})
 		}()
 		synctest.Wait()
+		capture()
 		if len(blocks) != 2 {
 			t.Fatal("USB reserve missing", len(blocks))
 		}
@@ -71,11 +87,13 @@ func TestSIPGatewayPCMPlaybackClockAndCancellation(t *testing.T) {
 			input <- p
 		}
 		synctest.Wait()
+		capture()
 		if len(blocks) != 2 {
 			t.Fatal("network burst bypassed playback clock")
 		}
 		time.Sleep(100 * time.Millisecond)
 		synctest.Wait()
+		capture()
 		if len(blocks) != 3 {
 			t.Fatal(len(blocks))
 		}
@@ -86,6 +104,7 @@ func TestSIPGatewayPCMPlaybackClockAndCancellation(t *testing.T) {
 		}
 		time.Sleep(300 * time.Millisecond)
 		synctest.Wait()
+		capture()
 		if len(blocks) != 6 {
 			t.Fatal("silence stopped USB playback", len(blocks))
 		}
@@ -110,6 +129,7 @@ func TestSIPGatewayPCMPlaybackClockAndCancellation(t *testing.T) {
 		}
 		time.Sleep(time.Second)
 		synctest.Wait()
+		capture()
 		if len(blocks) != 6 {
 			t.Fatal("audio continued after revocation")
 		}

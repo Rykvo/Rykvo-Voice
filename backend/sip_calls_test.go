@@ -207,16 +207,13 @@ func (*voiceTestTX) Err() error                         { return nil }
 func (*voiceTestTX) Acks() <-chan *sip.Request          { return nil }
 func (*voiceTestTX) OnCancel(sip.FnTxCancel) bool       { return true }
 
-type voiceTestDevice struct{ dialed, closed, hangups, writes, nonzeroWrites atomic.Int32 }
+type voiceTestDevice struct{ dialed, closed, hangups, nonzeroWrites atomic.Int32 }
 
 func (v *voiceTestDevice) Dial(context.Context, string) error    { v.dialed.Add(1); return nil }
 func (v *voiceTestDevice) State(context.Context) (string, error) { return "active", nil }
 func (v *voiceTestDevice) Hangup(context.Context) error          { v.hangups.Add(1); return nil }
 func (v *voiceTestDevice) Close()                                { v.closed.Add(1) }
 func (v *voiceTestDevice) WritePCM(p []int16) error {
-	if len(p) > 0 {
-		v.writes.Add(1)
-	}
 	for _, sample := range p {
 		if sample != 0 {
 			v.nonzeroWrites.Add(1)
