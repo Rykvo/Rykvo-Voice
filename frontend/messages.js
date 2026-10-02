@@ -1,0 +1,553 @@
+// 会话列表、聊天内容与输入栏独立更新。
+const Messages = (() => {
+  const key = "rykvo-voice-messages-v1";
+  const { $, escape: esc, toast } = UI;
+  const senderKey = "rykvo-voice-sms-sender-v1";
+  const savedSender = UI.read(senderKey, "random");
+  let defaultSender = Lines.valid(savedSender) ? savedSender : "random";
+  function senderId(thread = current()) {
+    if (!thread) return defaultSender;
+    const id =
+      thread?.senderId ||
+      thread?.messages.findLast(
+        (message) => message.mine && Lines.recorded(message.senderId),
+      )?.senderId;
+    return Lines.recorded(id) ? id : "";
+  }
+  function senderHTML() {
+    if (active !== "new") return "";
+    return `<div class="msg-recipient msg-sender"><label for="msg-from">发件人：</label>${Lines.select("msg-from", "发件人", senderId())}</div>`;
+  }
+  const title = thread => thread?.name || Countries.format(thread?.number || "", thread?.region);
+  const emptyReceived = message => message && !message.mine && message.state === "received" && !message.image && !message.text?.trim();
+  function avatar(thread) {
+    const item = MessageIdentity.avatar(thread?.number || "", thread?.name || "");
+    return `<span class="msg-avatar avatar-${item.color}" aria-hidden="true">${esc(item.text)}</span>`;
+  }
+  let noteTarget = null, savingNote = false;
+  let searchMatches = new Set(), searchStatus = "", listLimit = 80;
+  function editNote() {
+    const thread = current();
+    if (!thread) return;
+    noteTarget = {id:thread.id, remote:thread.remote, lineId:thread.lineId, number:thread.number};
+    UI.modal("备注", `<form id="message-note-form"><div class="msg-note-toolbar"><button type="button" data-msg-note-cancel>取消</button><button type="submit">保存</button></div><div class="msg-note-person">${avatar(thread)}<div><strong>${esc(title(thread))}</strong><span>${esc(thread.number)}</span></div></div><label class="msg-note-field" for="msg-note-name">备注名称<input id="msg-note-name" name="name" value="${esc(thread.name || "")}" placeholder="例如：Rykvo" maxlength="48" autocomplete="off"><span id="msg-note-count">${Array.from(thread.name || "").length}/24</span></label></form>`);
+    $("#msg-note-name").focus();
+  }
+  async function saveNote(form) {
+    if (savingNote || !noteTarget) return;
+    const target = noteTarget, name = $("#msg-note-name").value.trim();
+    if (Array.from(name).length > 24) {toast("备注最多 24 个字");return;}
+    savingNote = true;
+    const button = form.querySelector('[type="submit"]'); button.disabled = true;
+    try {
+      if (target.remote) await MessageData.saveContact({lineId:target.lineId, number:target.number, name});
+      else {
+        const next = threads.map(t => t.id === target.id ? {...t, name} : t);
+        if (!UI.write(key, next.filter(t => !t.remote))) return;
+        threads = next;
+        updateList();
+        $("#msg-chat-header").innerHTML = headerHTML();
+      }
+      if (noteTarget === target && form.isConnected) $("#dialog").close();
+    } catch { toast("备注未保存，请重试"); }
+    finally { savingNote = false; button.disabled = false; }
+  }
+  const safeImage = (value) =>
+    typeof value === "string" &&
+    /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(value);
+  let threads;
+  try {
+    threads = JSON.parse(localStorage.getItem(key) || "null");
+    if (!Array.isArray(threads)) throw 0;
+    threads = threads
+      .filter(
+        (t) =>
+          t &&
+          typeof t.id === "string" &&
+          /^\+?\d{3,20}$/.test(t.number) &&
+          Array.isArray(t.messages),
+      )
+      .map((t) => ({
+        ...t,
+        messages: t.messages
+          .filter(
+            (m) => m && typeof m.text === "string" && Number.isFinite(m.at),
+          )
+          .map((m) => ({ ...m, image: safeImage(m.image) ? m.image : null })),
+      }));
+  } catch {
+    threads = [];
+  }
+  const transcriptPageSize = 80;
+  let transcriptTail = null;
+  let unsubscribe = null, sending = false, pendingSubmit = null, attachmentRead = 0;
+  let active = threads[0]?.id || "",
+    view = "list",
+    query = "",
+    drafts = {},
+    newNumber = "",
+    attachment = null;
+  function clearAttachment() { attachmentRead++; attachment = null; }
+  function save() {
+    return UI.write(key, threads.filter(t => !t.remote));
+  }
+  function current() {
+    return threads.find((t) => t.id === active);
+  }
+  function time(at) {
+    const d = new Date(at);
+    return d.toDateString() === new Date().toDateString()
+      ? d.toLocaleTimeString("zh-CN", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })
+      : d.toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" });
+  }
+  function listHTML() {
+    const rows = threads
+      .filter(
+        (t) =>
+          t.number.includes(query.replace(/\s/g, "")) ||
+          (t.name || "").toLowerCase().includes(query.toLowerCase()) ||
+          Countries.regionName(t.region).includes(query) ||
+          searchMatches.has(t.id) ||
+          (t.preview?.text || "").toLowerCase().includes(query.toLowerCase()) ||
+          t.messages.some((m) =>
+            m.text.toLowerCase().includes(query.toLowerCase()),
+          ),
+      )
+      .sort(
+        (a, b) => ((b.preview || b.messages.at(-1))?.at || 0) - ((a.preview || a.messages.at(-1))?.at || 0),
+      );
+    return (
+      rows.slice(0, listLimit).map((t) => {
+        const last = t.preview || t.messages.at(-1);
+        return `<button class="msg-thread ${active === t.id ? "selected" : ""}" data-msg-thread="${esc(t.id)}" aria-pressed="${active === t.id}"><span class="msg-unread ${t.unread ? "visible" : ""}" aria-label="${t.unread ? "未读" : ""}"></span>${avatar(t)}<span class="msg-thread-copy"><span class="msg-thread-top"><strong>${t.name ? `<span class="msg-thread-name">${esc(t.name)}</span><span class="msg-thread-number">${esc(t.number)}</span>` : esc(title(t))}</strong><time>${last ? time(last.at) : ""}</time><span aria-hidden="true">›</span></span><span class="msg-preview">${esc(emptyReceived(last) ? "无文本内容" : last?.text || (last?.image ? "照片" : ""))}</span></span></button>`;
+      })
+        .join("") + (rows.length > listLimit ? '<button type="button" class="msg-more-threads" data-msg-action="more-threads">更多会话</button>' : "") ||
+      (query && searchStatus ? "" : `<p class="msg-empty">${query ? "没有找到信息" : "暂无信息"}</p>`)
+    );
+  }
+  function updateList() {
+    const node = $("#msg-thread-list");
+    if (!node) return;
+    const html = listHTML();
+    if (node.listHTML === html) return;
+    const top = node.scrollTop;
+    node.innerHTML = html; node.listHTML = html; node.scrollTop = top;
+  }
+  function headerHTML() {
+    return active === "new"
+      ? `<button class="msg-back" data-msg-action="back" aria-label="返回会话列表">‹ 信息</button><h2 class="msg-new-title">新信息</h2><button class="msg-text-button" data-msg-action="cancel">取消</button>`
+      : `<button class="msg-back" data-msg-action="back" aria-label="返回会话列表">‹ 信息</button><button class="msg-contact" data-msg-action="note" aria-label="编辑备注">${avatar(current())}<span class="msg-contact-name">${esc(title(current()))}</span>${current()?.name ? `<small class="msg-contact-number">${esc(current().number)}</small>` : ""}</button>`;
+  }
+  function render() {
+    const empty = active !== "new" && !current();
+    return `<div class="messages-app" data-view="${view}"><aside class="msg-sidebar" aria-label="会话列表"><header class="msg-list-header"><h1>信息</h1><button class="msg-icon-button" data-msg-action="compose" aria-label="新建信息"><img src="assets/compose.png" alt=""></button></header><label class="msg-search"><span aria-hidden="true"><svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m13 13 4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><input id="msg-search" type="search" placeholder="搜索" aria-label="搜索信息" value="${esc(query)}"></label><small class="msg-sync" data-message-sync role="status" ${searchStatus ? "" : "hidden"}>${esc(searchStatus)}</small><div class="msg-thread-list scroll-area" id="msg-thread-list">${listHTML()}</div></aside><section class="msg-chat" aria-label="信息对话">${empty ? '<div class="msg-empty-state">暂无信息</div>' : `<header class="msg-chat-header" id="msg-chat-header">${headerHTML()}</header><div class="msg-recipient" id="msg-recipient" ${active === "new" ? "" : "hidden"}><label for="msg-to">收件人：</label><input id="msg-to" type="tel" inputmode="tel" placeholder="手机号码" aria-label="收件人手机号" value="${esc(newNumber)}" maxlength="21"></div>${senderHTML()}<nav class="msg-history" id="msg-history" aria-label="信息分页" hidden></nav><div class="msg-transcript" id="msg-transcript" role="log" aria-label="聊天内容" aria-live="polite"></div><div class="msg-composer-area"><div class="msg-attachment" id="msg-attachment" hidden></div><form class="msg-composer" id="ipad-message-form"><button type="button" class="msg-attach-button" data-msg-action="attach" aria-label="添加照片"><img src="assets/message-plus.png" alt=""></button><input hidden id="msg-file" type="file" accept=".jpg,.jpeg,.png,.gif"><div class="msg-input-wrap"><textarea id="msg-input" aria-label="信息内容" placeholder="短信" rows="1" maxlength="2000">${esc(drafts[active] || "")}</textarea><button class="msg-send" type="submit" aria-label="发送信息" disabled><img src="assets/message-send.png" alt=""><span class="msg-spinner" aria-hidden="true"></span></button></div></form></div>`}</section></div>`;
+  }
+  function bubbleHTML(message, previous, next) {
+    const date = new Date(message.at);
+    const showTime = !previous || date.toDateString() !== new Date(previous.at).toDateString() ||
+      message.at - previous.at >= 300000;
+    const grouped = next && message.mine === next.mine && next.at >= message.at &&
+      next.at - message.at < 300000 && date.toDateString() === new Date(next.at).toDateString();
+    const portrait = message.mine ? "" : grouped
+      ? '<span class="msg-avatar-space" aria-hidden="true"></span>' : avatar(current());
+    return `${showTime ? `<div class="msg-date">${UI.day(message.at)} ${UI.time(message.at)}</div>` : ""}<div class="msg-line ${message.mine ? "outgoing" : "incoming"}${grouped ? " grouped" : ""}">${portrait}<div class="msg-content"><div class="msg-bubble ${message.image ? "with-image" : ""}">${message.image ? `<img src="${esc(message.image)}" alt="信息中的照片" loading="lazy" decoding="async">` : ""}${emptyReceived(message) ? '<span class="msg-placeholder">无文本内容</span>' : message.text ? `<span>${esc(message.text)}</span>` : ""}</div>${deliveryHTML(message)}</div></div>`;
+  }
+  function scrollToLatest() {
+    const node = $("#msg-transcript");
+    if (node) node.scrollTop = node.scrollHeight;
+  }
+  function transcript() {
+    const node = $("#msg-transcript");
+    if (!node) return;
+    const thread = current(), all = thread?.messages || [];
+    let end = transcriptTail ? all.findIndex(m => m.id === transcriptTail) + 1 : all.length;
+    if (end < 1) { end = all.length; transcriptTail = null; }
+    const start = Math.max(0, end - transcriptPageSize), items = all.slice(start, end);
+    const history = $("#msg-history");
+    if (history) {
+      const remote = thread?.history, earlier = thread?.remotePaged ? remote?.earlier : start > 0;
+      const newer = thread?.remotePaged ? remote?.newer : end < all.length;
+      const disabled = remote?.busy ? " disabled" : "";
+      history.hidden = !earlier && !newer && !remote?.error;
+      history.innerHTML = remote?.error ? `<span role="status">${esc(remote.error)}</span><button type="button" data-msg-action="latest">最新</button>`
+        : `${earlier ? `<button type="button" data-msg-action="earlier"${disabled}>更早的信息</button>` : ""}${newer ? `<span><button type="button" data-msg-action="newer"${disabled}>更新的信息</button><button type="button" data-msg-action="latest"${disabled}>最新</button></span>` : ""}`;
+    }
+    const nearEnd = node.scrollHeight - node.scrollTop - node.clientHeight < 60;
+    if (!node.children) {
+      node.innerHTML = items.map((message, index) => bubbleHTML(message, items[index - 1], items[index + 1])).join("");
+      return;
+    }
+    const existing = new Map([...node.children].map(child => [child.dataset.messageId, child]));
+    const keep = new Set();
+    let cursor = node.firstElementChild;
+    items.forEach((message, index) => {
+      const id = message.id || String(index), html = bubbleHTML(message, items[index - 1], items[index + 1]);
+      let row = existing.get(id);
+      if (!row) { row = document.createElement("div"); row.dataset.messageId = id; }
+      if (row.messageHTML !== html) { row.innerHTML = html; row.messageHTML = html; }
+      if (row !== cursor) node.insertBefore(row, cursor); else cursor = cursor.nextElementSibling;
+      keep.add(id);
+    });
+    for (const [id, row] of existing) if (!keep.has(id)) row.remove();
+    if (!transcriptTail && !thread?.history?.pinned && (nearEnd || !existing.size)) { node.followLatest = true; scrollToLatest(); }
+  }
+
+  function renderAttachment() {
+    const area = $("#msg-attachment");
+    if (!area) return;
+    area.hidden = !attachment;
+    area.innerHTML = attachment
+      ? `<img src="${attachment.data}" alt="待发送照片"><button type="button" data-msg-action="remove-photo" aria-label="移除照片">×</button>`
+      : "";
+  }
+  function updateSend() {
+    const input = $("#msg-input"),
+      btn = $(".msg-send");
+    if (!input || !btn) return;
+    btn.disabled = sending || (!input.value.trim() && !attachment);
+    btn.classList.toggle("is-sending", sending);
+    btn.setAttribute("aria-busy", String(sending));
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 120) + "px";
+  }
+  function deliveryHTML(message) {
+    if (!message.remote) return "";
+    if (!message.mine) {
+      const labels = {receiving:"正在接收", download_pending:"彩信待接收", downloading:"正在接收", waiting_network:"等待彩信网络", failed:"彩信接收失败", expired:"彩信已过期", decode_error:"信息解码异常", unsupported_push:"暂不支持的信息类型"};
+      return labels[message.state] ? `<small class="msg-delivery${message.state === "failed" ? " failed" : ""}" role="status" title="${esc(message.issue || "")}">${labels[message.state]}</small>` : "";
+    }
+    const state = MessageIdentity.delivery(message);
+    if (!state) return "";
+    if (message.state === "waiting_network")
+      return `<small class="msg-delivery" role="status" title="${esc(message.issue || "")}">等待网络</small>`;
+    if (message.state === "failed" && message.issue === "RESULT_TIMEOUT")
+      return '<small class="msg-delivery failed" role="status" title="30 分钟未取得明确结果，请勿重复发送">结果超时</small>';
+    if (message.state === "failed" && message.issue === "MESSAGE_EXPIRED")
+      return '<small class="msg-delivery failed" role="status">排队超时</small>';
+    if (message.kind === "sms" && message.state === "unknown" && message.issue === "SMS_OUTCOME_UNKNOWN")
+      return '<small class="msg-delivery failed" role="status" title="未收到明确应答，结果未确认，请勿重复发送">发送未确认</small>';
+    const labels = {sent: "已送达", delivered: "已送达", failed: "尚未送达"};
+    const hint = state === "sent" ? "运营商已接受" : message.issue || (["unknown", "partial"].includes(message.state) ? "尚未收到送达确认" : "");
+    return `<small class="msg-delivery${state === "failed" ? " failed" : ""}" role="status" title="${esc(hint)}">${state === "pending" ? '<span class="msg-spinner" aria-label="发送中"></span>' : labels[state]}</small>`;
+  }
+  function syncRemote(records, contacts = [], meta = {}) {
+    const old = current(), previous = JSON.stringify(old?.messages || []);
+    const resolve = MessageIdentity.resolver([...records, ...contacts, ...(meta.history?.items || [])]);
+    searchMatches = new Set(meta.search?.text === query ? (meta.search.items || []).map(item => MessageIdentity.threadId(item, resolve(item))) : []);
+    searchStatus = meta.search?.text === query ? meta.search.error || (meta.search.busy ? "搜索中" : meta.search.more ? "结果较多，请缩小搜索范围" : "") : "";
+    const status = $("[data-message-sync]");
+    if (status) { status.hidden = !searchStatus; status.textContent = searchStatus; }
+    const names = new Map();
+    for (const contact of contacts) {
+      const key = JSON.stringify([contact.lineId, resolve(contact)]);
+      if (!names.has(key) || names.get(key).revision < contact.revision) names.set(key, contact);
+    }
+    const grouped = new Map(), oldThreads = new Map(threads.map(t => [t.id, t]));
+    for (const message of records) {
+      if (message.deleted) continue;
+      const number = resolve(message), id = MessageIdentity.threadId(message, number);
+      let thread = grouped.get(id);
+      if (!thread) {
+        thread = {id, remote:true, number, senderId:message.senderId, lineId:message.lineId,
+          name:names.get(JSON.stringify([message.lineId, number]))?.name || "",
+          unread:oldThreads.get(id)?.unread || false, remotePaged:meta.paged === true, numbers:[], messages:[]};
+        grouped.set(id, thread);
+      }
+      thread.messages.push(message);
+      if (!thread.numbers.includes(message.number)) thread.numbers.push(message.number);
+    }
+    for (const thread of grouped.values()) {
+      thread.messages.sort((a,b) => a.at-b.at || a.id.localeCompare(b.id));
+      if (thread.remotePaged) {
+        thread.preview = thread.messages.at(-1);
+        const scope = meta.history?.scope;
+        if (scope && scope.moduleId === thread.senderId && scope.lineId === thread.lineId && scope.numbers.every(number => thread.numbers.includes(number))) {
+          thread.messages = meta.history.items; thread.history = meta.history;
+        } else thread.messages = [];
+      }
+    }
+    threads = [...threads.filter(t => !t.remote), ...grouped.values()];
+    if (old?.remote && !current()) {
+      const ids = new Set(old.messages.map(m => m.id));
+      const replacement = threads.find(t => t.messages.some(m => ids.has(m.id)));
+      if (replacement) {
+        if (drafts[active]) drafts[replacement.id] = drafts[active];
+        delete drafts[active]; active = replacement.id;
+      }
+    }
+    if (active !== "new" && !current()) {
+      const next = threads[0]?.id || "";
+      if (active !== next) {
+        active = next;
+        if ($(".messages-app")) { refresh(); return; }
+      }
+    }
+    updateList();
+    if (old?.name !== current()?.name || old?.number !== current()?.number) {
+      const header = $("#msg-chat-header"); if (header) header.innerHTML = headerHTML();
+    }
+    if (previous !== JSON.stringify(current()?.messages || []) || old?.name !== current()?.name || meta.paged) transcript();
+    if (meta.paged && $(".messages-app")) MessageData.watch(current());
+  }
+  function unmount() { attachmentRead++; unsubscribe?.(); unsubscribe = null; }
+  function mount() {
+    if (typeof MessageData !== "undefined" && !unsubscribe && MessageData.enabled()) {
+      unsubscribe = () => {};
+      unsubscribe = MessageData.subscribe(syncRemote);
+    }
+    if (!$(".messages-app")) return;
+    transcript();
+    renderAttachment();
+    updateSend();
+    if (typeof MessageData !== "undefined" && MessageData.enabled()) MessageData.watch?.(current());
+  }
+  function showThread(id) {
+    transcriptTail = null;
+    active = id;
+    view = "chat";
+    clearAttachment();
+    const t = current();
+    if (t) {
+      t.unread = false;
+      save();
+    }
+    refresh();
+  }
+  function refresh() {
+    const root = $(".messages-app");
+    if (!root) return;
+    const scrollTop = $("#msg-thread-list").scrollTop;
+    root.outerHTML = render();
+    mount();
+    $("#msg-thread-list").scrollTop = scrollTop;
+  }
+  async function send() {
+    if (sending) return;
+    if (typeof MessageData === "undefined" || !MessageData.enabled()) {toast("信息服务暂不可用");return;}
+    const input = $("#msg-input"), text = input.value.trim();
+    if (!text && !attachment) return;
+    const isNew = active === "new", thread = current();
+    const number = isNew ? $("#msg-to").value.replace(/[\s()-]/g, "") : thread?.number;
+    if (!/^\+?\d{3,15}$/.test(number || "")) {toast("请输入有效的手机号码");return;}
+    const selected = Lines.resolve(thread ? senderId(thread) : defaultSender, attachment ? "mms" : "sms");
+    const item = ModuleData.items.find(item => item.id === selected), line = item?.sims.find(sim => sim.enabled);
+    if (!item || !line) {toast(attachment ? "暂无彩信配置就绪的模块" : "暂无短信服务就绪的模块");return;}
+    if (thread?.lineId && thread.lineId !== line.id) {toast("原 SIM 已切换，请重新选择发件人");return;}
+    const payload = {moduleId:item.id,lineId:line.id,to:number,text,image:attachment?.data || ""};
+    const signature = JSON.stringify(payload);
+    if (!pendingSubmit || pendingSubmit.signature !== signature) pendingSubmit = {signature,requestId:Http.id()};
+    sending = true; updateSend();
+    const originalActive = active;
+    try {
+      const result = await MessageData.send({...payload,requestId:pendingSubmit.requestId});
+      pendingSubmit = null;
+      if (active !== originalActive) return;
+      const id = threads.find(t => t.messages.some(m => m.id === result.id))?.id || MessageIdentity.threadId(result);
+      active = id; newNumber = ""; delete drafts.new; drafts[id] = ""; clearAttachment();
+      if (isNew) refresh(); else {input.value="";renderAttachment();transcript();}
+    } catch (error) {
+      const labels = {INVALID_IMAGE:"请选择有效的 JPG、PNG 或 GIF 图片",MMS_TOO_LARGE:"图片大小超过 1 MiB",MESSAGE_RATE_LIMIT:"发送过于频繁，请稍后再试",DEVICE_CHANGED:"SIM 状态已变化，请刷新后重试",REQUEST_CONFLICT:"发送请求冲突，请核实记录"};
+      toast(labels[error.code] || "提交结果待确认，再次提交将核对同一请求");
+    } finally {sending = false;updateSend();}
+  }
+  async function removeThreads(id) {
+    const remote = threads.filter(t => t.remote && (!id || t.id === id));
+    const paged = remote.some(t => t.remotePaged);
+    if (remote.length) {
+      try {
+        const thread = remote[0];
+        await MessageData.removeThreads(id ? { moduleId:thread.senderId, lineId:thread.lineId, numbers:thread.numbers } : { all:true });
+      } catch {toast("删除未完成，请稍后重试");return;}
+    }
+    const index = threads.findIndex((thread) => thread.id === id);
+    const next = paged ? threads.filter(thread => thread.remote || id && thread.id !== id) : id ? threads.filter((thread) => thread.id !== id) : [];
+    if (!UI.write(key, next.filter(t => !t.remote))) return;
+    threads = next;
+    const activeRemoved = (!id || active === id) && !next.some(thread => thread.id === active);
+    if (id) delete drafts[id];
+    else drafts = {};
+    if (activeRemoved) {
+      active =
+        threads[Math.min(Math.max(index, 0), threads.length - 1)]?.id || "";
+      clearAttachment();
+      newNumber = "";
+      if (!threads.length) view = "list";
+      refresh();
+    } else if ($("#msg-thread-list")) {
+      updateList();
+    }
+    toast(id ? "会话已删除" : "会话已全部删除");
+  }
+  document.addEventListener("contextmenu", (event) => {
+    const list = event.target.closest("#msg-thread-list");
+    if (!list) return;
+    const id = event.target.closest("[data-msg-thread]")?.dataset.msgThread;
+    const record = threads.find((item) => item.id === id);
+    ContextMenu.open(event, [
+      {
+        label: "复制",
+        disabled: !record,
+        action: () => {
+          if (record) return UI.copy(record.number);
+        },
+      },
+      {
+        label: "删除",
+        danger: true,
+        disabled: !id,
+        action: () =>
+          ContextMenu.confirm("删除这条会话？", () => removeThreads(id)),
+      },
+      {
+        label: "全部删除",
+        danger: true,
+        disabled: !threads.length,
+        action: () =>
+          ContextMenu.confirm(
+            "删除全部会话？",
+            () => removeThreads(),
+            "全部删除",
+          ),
+      },
+    ]);
+  });
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-msg-note-cancel]")) { $("#dialog").close(); return; }
+    if (!e.target.closest(".messages-app")) return;
+    const thread = e.target.closest("[data-msg-thread]");
+    if (thread) {
+      showThread(thread.dataset.msgThread);
+      return;
+    }
+    const action = e.target.closest("[data-msg-action]")?.dataset.msgAction;
+    if (!action) return;
+    if (action === "more-threads") { listLimit += 80; updateList(); return; }
+    if (["earlier", "newer", "latest"].includes(action)) {
+      if (current()?.remotePaged) {
+        const id = active;
+        MessageData.page(action)?.then(() => {
+          if (active !== id) return;
+          const node = $("#msg-transcript");
+          if (node) { node.followLatest = action === "latest"; node.scrollTop = action === "latest" ? node.scrollHeight : 0; }
+        });
+        return;
+      }
+      const items = current()?.messages || [];
+      const end = transcriptTail ? items.findIndex(m => m.id === transcriptTail) + 1 : items.length;
+      const next = action === "earlier" ? Math.max(transcriptPageSize, end - transcriptPageSize) : Math.min(items.length, end + transcriptPageSize);
+      transcriptTail = action === "latest" || next >= items.length ? null : items[next - 1]?.id;
+      transcript();
+      const node = $("#msg-transcript");
+      if (node) { node.followLatest = !transcriptTail; node.scrollTop = transcriptTail ? 0 : node.scrollHeight; }
+      return;
+    }
+    if (action === "compose") {
+      transcriptTail = null;
+      active = "new";
+      view = "chat";
+      newNumber = "";
+      clearAttachment();
+      refresh();
+      $("#msg-to").focus();
+    }
+    if (action === "back") {
+      view = "list";
+      $(".messages-app").dataset.view = view;
+    }
+    if (action === "cancel") {
+      active = threads[0]?.id || "";
+      view = "list";
+      clearAttachment();
+      newNumber = "";
+      refresh();
+    }
+    if (action === "attach") $("#msg-file").click();
+    if (action === "remove-photo") {
+      clearAttachment();
+      renderAttachment();
+      updateSend();
+    }
+    if (action === "note") editNote();
+  });
+  document.addEventListener("input", (e) => {
+    if (e.target.id === "msg-note-name") $("#msg-note-count").textContent = `${Array.from(e.target.value).length}/24`;
+    if (e.target.id === "msg-input") {
+      drafts[active] = e.target.value;
+      updateSend();
+    }
+    if (e.target.id === "msg-to") newNumber = e.target.value;
+    if (e.target.id === "msg-search") {
+      query = e.target.value.trim();
+      listLimit = 80;
+      updateList();
+      if (typeof MessageData !== "undefined" && MessageData.enabled()) MessageData.search?.(query);
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (
+      e.target.id === "msg-input" &&
+      e.key === "Enter" &&
+      !e.shiftKey &&
+      !e.isComposing
+    ) {
+      e.preventDefault();
+      send();
+    }
+  });
+  document.addEventListener("submit", (e) => {
+    if (e.target.id === "message-note-form") { e.preventDefault(); saveNote(e.target); return; }
+    if (e.target.id === "ipad-message-form") {
+      e.preventDefault();
+      send();
+    }
+  });
+  document.addEventListener("change", (e) => {
+    if (e.target.id === "msg-from") {
+      if (active !== "new") return;
+      const id = e.target.value;
+      if (Lines.valid(id) && UI.write(senderKey, id)) defaultSender = id;
+      e.target.value = defaultSender;
+      return;
+    }
+    if (e.target.id !== "msg-file") return;
+    const picker = e.target, file = picker.files[0], ticket = ++attachmentRead;
+    picker.value = "";
+    if (!file) return;
+    const extension = /\.(jpe?g|png|gif)$/i.exec(file.name)?.[1].toLowerCase();
+    if (!extension || !file.size) { toast("请选择 JPG、PNG 或 GIF 图片"); return; }
+    if (file.size > 1024 * 1024) { toast("图片大小超过 1 MiB"); return; }
+    const kind = extension === "jpg" || extension === "jpeg" ? "jpeg" : extension;
+    const target = active, reader = new FileReader();
+    reader.onload = () => {
+      if (ticket !== attachmentRead || active !== target || $("#msg-file") !== picker || !$("#msg-attachment")) return;
+      const encoded = String(reader.result).split(",")[1] || "";
+      let header = "";
+      try { header = atob(encoded.slice(0, 16)); } catch { /* Invalid file data. */ }
+      const valid = kind === "jpeg" ? header.startsWith("\xff\xd8\xff")
+        : kind === "png" ? header.startsWith("\x89PNG\r\n\x1a\n")
+        : /^GIF8[79]a/.test(header);
+      if (!valid) { toast("图片格式与内容不符"); return; }
+      attachment = { data: `data:image/${kind};base64,${encoded}` };
+      renderAttachment();
+      updateSend();
+    };
+    reader.onerror = () => toast("照片读取失败，请重试");
+    reader.readAsDataURL(file);
+  });
+  document.addEventListener("scroll", event => {
+    const node = event.target;
+    if (node.id === "msg-transcript") node.followLatest = !transcriptTail && !current()?.history?.pinned && node.scrollHeight - node.scrollTop - node.clientHeight < 60;
+  }, true);
+  document.addEventListener(
+    "load",
+    (event) => {
+      if (event.target.matches?.("#msg-transcript img") && $("#msg-transcript")?.followLatest) scrollToLatest();
+    },
+    true,
+  );
+  return { render, mount, unmount };
+})();

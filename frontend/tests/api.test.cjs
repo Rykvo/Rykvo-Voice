@@ -1,0 +1,354 @@
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const vm = require("node:vm");
+const { readFileSync } = require("node:fs");
+const { join } = require("node:path");
+const source = readFileSync(join(__dirname, "..", "api.js"), "utf8");
+
+function setup(mode = "all", base = "") {
+  const requests = [],
+    timers = new Map(),
+    streams = [];
+  let next = 0,
+    respond = async () =>
+      new Response(JSON.stringify({ data: { ok: true } }), {
+        headers: { "Content-Type": "application/json" },
+      });
+  const context = vm.createContext({
+    document: {
+      querySelector: (selector) =>
+        selector === "base"
+          ? { getAttribute: () => base }
+          : mode === "all" ||
+              (mode === "session" && selector.includes('"session-api"')) ||
+              (mode === "tunnel" && selector.includes('"tunnel-api"')) ||
+              (mode === "sipNetwork" && selector.includes('"sip-network-api"')) ||
+              (mode === "sipAccounts" && selector.includes('"sip-accounts-api"'))
+            ? { content: "enabled" }
+            : null,
+    },
+    URLSearchParams,
+    FormData,
+    AbortController,
+    crypto: require("node:crypto").webcrypto,
+    setTimeout(fn) {
+      timers.set(++next, fn);
+      return next;
+    },
+    clearTimeout(id) {
+      timers.delete(id);
+    },
+    fetch(url, options) {
+      requests.push({ url, ...options });
+      return respond(url, options);
+    },
+    EventSource: class {
+      constructor(url) {
+        this.url = url;
+        streams.push(this);
+      }
+      close() {
+        this.closed = true;
+      }
+    },
+  });
+  vm.runInContext(
+    readFileSync(join(__dirname, "..", "http.js"), "utf8") +
+      "\n" +
+      readFileSync(join(__dirname, "..", "shared.js"), "utf8"),
+    context,
+  );
+  vm.runInContext(source, context);
+  return {
+    api: vm.runInContext("Backend", context),
+    requests,
+    timers,
+    streams,
+    respond(fn) {
+      respond = fn;
+    },
+  };
+}
+
+test("public mount prefixes API while LAN keeps root", async () => {
+  for (const base of ["", "/gly/"]) {
+    const f = setup("all", base);
+    await f.api.session.get();
+    await f.api.tunnel.get();
+    const prefix = base ? "/gly" : "";
+    assert.equal(f.requests[0].url, `${prefix}/api/session`);
+    assert.equal(f.requests[1].url, `${prefix}/api/tunnel`);
+  }
+});
+
+test("module API omits retired search and selection endpoints", () => {
+  const { api } = setup();
+  assert.equal(api.modules.networks, undefined);
+  assert.equal(api.modules.scanNetworks, undefined);
+  assert.equal(typeof api.modules.updateLine, "function");
+  assert.equal(typeof api.modules.installESIM, "function");
+});
+
+test("static mode never sends requests or opens event streams", async () => {
+  const f = setup("off");
+  assert.equal(f.api.enabled(), false);
+  await assert.rejects(f.api.modules.list(), { code: "NOT_CONNECTED" });
+  assert.equal(f.api.subscribe, undefined);
+  assert.equal(f.requests.length, 0);
+  assert.equal(f.streams.length, 0);
+});
+
+test("session-only mode does not enable unfinished business APIs", async () => {
+  const f = setup("session");
+  assert.equal(f.api.enabled("session"), true);
+  assert.equal(f.api.enabled(), false);
+  await f.api.session.get();
+  await assert.rejects(f.api.modules.list(), { code: "NOT_CONNECTED" });
+  await assert.rejects(f.api.tunnel.get(), { code: "NOT_CONNECTED" });
+  assert.equal(f.requests.length, 1);
+});
+test("all feature groups expose callable frozen methods", async () => {
+  const f = setup();
+  const groups = [
+    "session",
+    "modules",
+    "callRecords",
+    "messages",
+    "sip",
+    "administrator",
+    "developer",
+    "retention",
+    "visibility",
+    "tunnel",
+  ];
+  const params = Object.fromEntries(
+    [
+      "moduleId",
+      "lineId",
+      "apnId",
+      "recordId",
+      "conversationId",
+      "messageId",
+      "attachmentId",
+      "accountId",
+      "jobId",
+    ].map((id) => [id, "test-id"]),
+  );
+  for (const group of groups) {
+    assert.ok(Object.isFrozen(f.api[group]));
+    for (const fn of Object.values(f.api[group])) await fn({ params });
+  }
+  assert.equal(f.api.calls, undefined);
+  assert.equal(f.requests.length, groups.reduce((count, group) => count + Object.keys(f.api[group]).length, 0));
+  assert.ok(
+    f.requests.every((r) => r.url.startsWith("/api/") && !r.url.includes(":")),
+  );
+  assert.equal(f.timers.size, 0);
+});
+test("tunnel-only enablement does not enable unrelated endpoints", async () => {
+  const f = setup("tunnel");
+  await f.api.tunnel.get();
+  await assert.rejects(f.api.sip.list(), { code: "NOT_CONNECTED" });
+  assert.equal(f.requests.length, 1);
+});
+test("path and query parameters are encoded with same-origin credentials", async () => {
+  const f = setup();
+  await f.api.modules.get({
+    params: { moduleId: "module/一" },
+    query: { search: "a&b", cursor: "", limit: 0, unused: undefined },
+  });
+  assert.equal(
+    f.requests[0].url,
+    "/api/modules/module%2F%E4%B8%80?search=a%26b&limit=0",
+  );
+  assert.equal(f.requests[0].credentials, "same-origin");
+  assert.equal(f.requests[0].cache, "no-store");
+  assert.equal(f.requests[0].redirect, "error");
+  for (const moduleId of [undefined, "", ".", ".."])
+    await assert.rejects(f.api.modules.get({ params: { moduleId } }), {
+      code: "INVALID_ARGUMENT",
+    });
+  await assert.rejects(f.api.modules.list({ body: {} }), {
+    code: "INVALID_ARGUMENT",
+  });
+  assert.equal(f.requests.length, 1);
+});
+test("writes carry CSRF and reusable idempotency keys without storing secrets", async () => {
+  const f = setup();
+  f.api.setCSRFToken("test-csrf");
+  await f.api.messages.send({
+    body: { number: "+12025550123", text: "hello" },
+    idempotencyKey: "same-operation",
+  });
+  const r = f.requests[0];
+  assert.equal(r.headers["X-CSRF-Token"], "test-csrf");
+  assert.equal(r.headers["Idempotency-Key"], "same-operation");
+  assert.equal(r.headers["Content-Type"], "application/json");
+  assert.equal(JSON.parse(r.body).text, "hello");
+  f.api.setCSRFToken(null);
+  await f.api.session.logout();
+  assert.ok(f.requests[1].headers["Idempotency-Key"]);
+  assert.equal(f.requests[1].headers["X-CSRF-Token"], undefined);
+});
+test("204 and JSON envelopes are accepted, malformed responses rejected", async () => {
+  const f = setup();
+  f.respond(async () => new Response(null, { status: 204 }));
+  assert.equal(await f.api.session.logout(), null);
+  for (const body of ["broken", "null", '"text"', '{"error":{}}']) {
+    f.respond(
+      async () =>
+        new Response(body, { headers: { "Content-Type": "application/json" } }),
+    );
+    await assert.rejects(f.api.session.get(), { code: "INVALID_RESPONSE" });
+  }
+  assert.equal(f.timers.size, 0);
+});
+test("HTTP errors keep status and field but never display server secrets", async () => {
+  const f = setup();
+  f.respond(
+    async () =>
+      new Response(
+        JSON.stringify({
+          error: {
+            code: "DENIED",
+            message: "private-token",
+            field: "username",
+          },
+        }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      ),
+  );
+  await assert.rejects(
+    f.api.session.get(),
+    (e) =>
+      e.status === 403 &&
+      e.code === "DENIED" &&
+      e.field === "username" &&
+      !e.message.includes("private-token"),
+  );
+  assert.equal(f.requests.length, 1);
+});
+test("timeouts and caller aborts do not retry writes and clear timers", async () => {
+  const f = setup();
+  f.respond(
+    (url, options) =>
+      new Promise((resolve, reject) =>
+        options.signal.addEventListener("abort", () =>
+          reject(new Error("aborted")),
+        ),
+      ),
+  );
+  const pending = f.api.messages.send({ body: {} });
+  const checked = assert.rejects(pending, { code: "TIMEOUT" });
+  [...f.timers.values()][0]();
+  await checked;
+  assert.equal(f.requests.length, 1);
+  assert.equal(f.timers.size, 0);
+  const controller = new AbortController();
+  const aborted = assert.rejects(
+    f.api.modules.list({ signal: controller.signal }),
+    { code: "ABORTED" },
+  );
+  controller.abort();
+  await aborted;
+  await assert.rejects(f.api.modules.list({ signal: controller.signal }), {
+    code: "ABORTED",
+  });
+  assert.equal(f.requests.length, 2);
+  assert.equal(f.timers.size, 0);
+});
+test("serialization and network failures release request resources", async () => {
+  const f = setup(),
+    circular = {};
+  circular.self = circular;
+  await assert.rejects(f.api.messages.send({ body: circular }));
+  assert.equal(f.timers.size, 0);
+  assert.equal(f.requests.length, 0);
+  f.respond(async () => {
+    throw Error("offline");
+  });
+  await assert.rejects(f.api.messages.send({ body: {} }), { code: "NETWORK" });
+  assert.equal(f.requests.length, 1);
+  assert.equal(f.timers.size, 0);
+});
+test("unused backend placeholders and unused event stream are removed",()=>{
+ const {api}=setup();
+ for(const name of ['conversations','attachments','preferences','updates','jobs','subscribe']) assert.equal(api[name],undefined);
+ assert.equal(api.callRecords.remove,undefined); assert.equal(api.callRecords.removeAll,undefined);
+});
+
+test("integration scopes stay offline without their feature flags", async () => {
+  for (const mode of ["session", "tunnel", "none"]) {
+    const f = setup(mode);
+    await assert.rejects(f.api.sipServer.connect({body:{address:"sip.example.com",accessCode:"test"}}), {code:"NOT_CONNECTED"});
+    await assert.rejects(f.api.emergencyAddress.start({params:{moduleId:"module-03",lineId:"line-03"}}), {code:"NOT_CONNECTED"});
+    assert.equal(f.requests.length, 0);
+  }
+});
+test("integration contracts retain line scope and credentials stay out of URL", async () => {
+  const f = setup();
+  await f.api.sipServer.connect({body:{address:"sip.example.com",accessCode:"secret-fixture"}});
+  await f.api.emergencyAddress.start({params:{moduleId:"module-03",lineId:"line/03"}});
+  assert.equal(f.requests[0].url, "/api/settings/sip-server/connect");
+  assert.equal(JSON.parse(f.requests[0].body).accessCode, "secret-fixture");
+  assert.equal(f.requests[1].url, "/api/modules/module-03/lines/line%2F03/emergency-address/session");
+  assert.equal(f.requests[1].method, "POST");
+});
+
+ test("SIP network scope leaves host tunnel and module APIs independent",async()=>{
+ const f=setup("sipNetwork");await f.api.sipServer.get();await f.api.sipServer.logout({body:{}});
+ assert.equal(f.requests[0].url,"/api/settings/sip-server");assert.equal(f.requests[1].url,"/api/settings/sip-server/logout");
+ await assert.rejects(f.api.tunnel.connect({body:{}}),{code:"NOT_CONNECTED"});await assert.rejects(f.api.modules.list(),{code:"NOT_CONNECTED"});
+ });
+
+test("SIP account management does not enable messages or global tunnel APIs", async () => {
+  const f = setup("sipAccounts");
+  await f.api.sip.list();
+  assert.equal(f.requests[0].url, "/api/sip/accounts");
+  await assert.rejects(f.api.messages.send({body:{number:"1001"}}),{code:"NOT_CONNECTED"});
+  await assert.rejects(f.api.tunnel.connect({body:{}}),{code:"NOT_CONNECTED"});
+});
+
+test("emergency page polling and cancellation keep the SIM and session scope",async()=>{
+ const f=setup();const params={moduleId:"module-08",lineId:"line/08",sessionId:"session/fixture"};
+ await f.api.emergencyAddress.get({params});await f.api.emergencyAddress.cancel({params});
+ for(const request of f.requests) assert.equal(request.url,"/api/modules/module-08/lines/line%2F08/emergency-address/session/session%2Ffixture");
+ assert.equal(f.requests[0].method,"GET");assert.equal(f.requests[1].method,"DELETE");
+});
+
+
+test("retention uses the production session feature flag at root and public mount", async () => {
+  const html = readFileSync(join(__dirname, "..", "index.html"), "utf8");
+  assert.match(html, /name="session-api" content="enabled"/);
+  assert.doesNotMatch(html, /name="backend-api" content="enabled"/);
+  for (const base of ["", "/gly/"]) {
+    const f = setup("session", base);
+    f.respond(async () => new Response(JSON.stringify({ data: { days: 30, revision: 2, issue: "" } }), { headers: { "Content-Type": "application/json" } }));
+    assert.equal(f.api.enabled("retention"), true);
+    const result = await f.api.retention.get(); assert.equal(result.days, 30);
+    f.api.setCSRFToken("cleanup-fixture");
+    await f.api.retention.update({ body: { days: 0, revision: 2 } });
+    assert.ok(f.requests.every(r => r.url === `${base ? "/gly" : ""}/api/settings/retention`));
+    assert.equal(f.requests[1].method, "PUT");
+    assert.equal(f.requests[1].headers["X-CSRF-Token"], "cleanup-fixture");
+    assert.deepEqual(JSON.parse(f.requests[1].body), { days: 0, revision: 2 });
+  }
+  const offline = setup("off"); await assert.rejects(offline.api.retention.get(), { code: "NOT_CONNECTED" });
+  assert.equal(offline.requests.length, 0);
+});
+
+
+test("contact settings share the production session scope and protect static previews", async () => {
+  const f = setup("session", "/gly/");
+  await f.api.contact.get(); await f.api.contact.update({ body: { url: "https://example.com", revision: 1 } });
+  assert.ok(f.requests.every(r => r.url === "/gly/api/settings/contact"));
+  const off = setup("off"); await assert.rejects(off.api.contact.get(), { code: "NOT_CONNECTED" });
+});
+
+test("software update and version use the authenticated session capability", async () => {
+  const f = setup("session", "/gly/");
+  await f.api.version.get();
+  await f.api.softwareUpdate.get();
+  await f.api.softwareUpdate.apply({body:{ticket:"a".repeat(32)}});
+  assert.deepEqual(f.requests.map(r=>r.url), ["/gly/api/version","/gly/api/software-update","/gly/api/software-update/apply"]);
+});

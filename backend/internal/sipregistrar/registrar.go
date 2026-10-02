@@ -1,0 +1,365 @@
+// Package sipregistrar authenticates SIP clients; it never infers call readiness.
+package sipregistrar
+
+import (
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
+	"fmt"
+	"net"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/emiago/sipgo/sip"
+	"github.com/icholy/digest"
+)
+
+const Realm = "rykvo"
+const ttl = 5 * time.Minute
+
+type Account struct {
+	ID, Username      string
+	Port              int
+	Revision          int64
+	MD5, SHA256       []byte
+	LowBandwidthAudio bool
+}
+type Registration struct {
+	ID, Account, CallID, Instance, Source, Transport string
+	Listener                                         string
+	Sequence                                         uint32
+	Expires                                          time.Time
+	Contact                                          *sip.ContactHeader
+}
+type nonce struct {
+	source, username string
+	port             int
+	expires          time.Time
+	count            int
+}
+type rate struct {
+	start time.Time
+	count int
+}
+type Registrar struct {
+	mu       sync.Mutex
+	accounts map[string]Account
+	current  map[string]Registration
+	nonces   map[string]nonce
+	rates    map[string]rate
+	now      func() time.Time
+}
+
+func New() *Registrar {
+	return &Registrar{accounts: map[string]Account{}, current: map[string]Registration{}, nonces: map[string]nonce{}, rates: map[string]rate{}, now: time.Now}
+}
+func accountKey(username string, port int) string { return fmt.Sprintf("%d/%s", port, username) }
+
+// Replace is called under the same mutation gate as authenticated handlers.
+func (r *Registrar) Replace(accounts []Account) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	next := make(map[string]Account, len(accounts))
+	valid := map[string]bool{}
+	for _, a := range accounts {
+		key := accountKey(a.Username, a.Port)
+		old, ok := r.accounts[key]
+		if ok && old.ID == a.ID && old.Revision == a.Revision {
+			valid[a.ID] = true
+		}
+		next[key] = a
+	}
+	for id, reg := range r.current {
+		if !valid[reg.Account] {
+			delete(r.current, id)
+		}
+	}
+	r.accounts = next
+}
+func (r *Registrar) OfflinePort(port int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, a := range r.accounts {
+		if a.Port == port {
+			for id, reg := range r.current {
+				if reg.Account == a.ID {
+					delete(r.current, id)
+				}
+			}
+		}
+	}
+}
+func (r *Registrar) Online(id string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, reg := range r.current {
+		if reg.Account == id && reg.Expires.After(r.now()) {
+			return true
+		}
+	}
+	return false
+}
+func (r *Registrar) sweep(now time.Time) {
+	for k, v := range r.current {
+		if !v.Expires.After(now) {
+			delete(r.current, k)
+		}
+	}
+	for k, v := range r.nonces {
+		if !v.expires.After(now) {
+			delete(r.nonces, k)
+		}
+	}
+	for k, v := range r.rates {
+		if now.Sub(v.start) >= time.Minute {
+			delete(r.rates, k)
+		}
+	}
+}
+func response(req *sip.Request, code int, reason string) *sip.Response {
+	res := sip.NewResponseFromRequest(req, code, reason, nil)
+	res.AppendHeader(sip.NewHeader("Server", "Rykvo Voice"))
+	return res
+}
+
+// Legacy mobile clients stop at an unsupported first Digest challenge.
+// MD5 is already supported; keep nonce, password and replay checks unchanged.
+func challengeAlgorithms(req *sip.Request) []string {
+	if h := req.GetHeader("User-Agent"); h != nil {
+		ua := h.Value()
+		if strings.HasPrefix(ua, "Zoiper v2.") || strings.HasPrefix(ua, "PortSIP UC Client iOS - v12.") {
+			return []string{"MD5"}
+		}
+	}
+	return []string{"SHA-256", "MD5"}
+}
+
+// Handle authenticates registration and capability requests; calls use AuthenticateInvite.
+func (r *Registrar) Handle(req *sip.Request, port int) *sip.Response {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.handleLocked(req, port, false)
+}
+func (r *Registrar) AuthenticateInvite(req *sip.Request, port int) (Account, Registration, *sip.Response) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if req.Method != sip.INVITE {
+		return Account{}, Registration{}, response(req, 405, "Method Not Allowed")
+	}
+	res := r.handleLocked(req, port, true)
+	if res != nil {
+		return Account{}, Registration{}, res
+	}
+	a := r.accounts[accountKey(req.From().Address.User, port)]
+	reg, _ := r.endpoint(a.ID, req)
+	return a, reg, nil
+}
+
+// Requests remain bound to an authenticated registered network endpoint.
+func (r *Registrar) endpoint(account string, req *sip.Request) (Registration, bool) {
+	for _, reg := range r.current {
+		if reg.Account == account && reg.Source == req.Source() && reg.Transport == req.Transport() {
+			return reg, true
+		}
+	}
+	return Registration{}, false
+}
+func (r *Registrar) Registrations() map[string]Registration {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.sweep(r.now())
+	result := make(map[string]Registration, len(r.current))
+	for id, v := range r.current {
+		if v.Contact != nil {
+			v.Contact = v.Contact.Clone()
+		}
+		result[id] = v
+	}
+	return result
+}
+func (r *Registrar) handleLocked(req *sip.Request, port int, voice bool) *sip.Response {
+	now := r.now()
+	r.sweep(now)
+	if req.From() == nil || req.To() == nil || req.CallID() == nil || req.CSeq() == nil || req.CSeq().SeqNo == 0 || req.CSeq().MethodName != req.Method || len(req.Body()) > 4096 {
+		return response(req, 400, "Bad Request")
+	}
+	if req.Method != sip.REGISTER && req.Method != sip.OPTIONS && req.Method != sip.INVITE {
+		return response(req, 405, "Method Not Allowed")
+	}
+	host, _, _ := net.SplitHostPort(req.Source())
+	if host == "" {
+		return response(req, 400, "Bad Request")
+	}
+	bucket := r.rates[host]
+	if bucket.start.IsZero() {
+		bucket.start = now
+	}
+	bucket.count++
+	if len(r.rates) >= 2048 && bucket.count == 1 {
+		return response(req, 503, "Service Unavailable")
+	}
+	r.rates[host] = bucket
+	if bucket.count > 120 {
+		return response(req, 429, "Too Many Requests")
+	}
+	username := req.From().Address.User
+	if len(username) > 64 || len(req.CallID().Value()) > 256 {
+		return response(req, 400, "Bad Request")
+	}
+	a, exists := r.accounts[accountKey(username, port)]
+	if req.Method == sip.REGISTER && req.To().Address.User != username {
+		return response(req, 403, "Forbidden")
+	}
+	authorized := false
+	if h := req.GetHeader("Authorization"); h != nil && len(h.Value()) <= 2048 {
+		c, err := digest.ParseCredentials(h.Value())
+		if err == nil && exists && c.Username == username && c.Realm == Realm && c.URI == req.Recipient.String() && c.QOP == "auth" && c.Nc > 0 && len(c.Cnonce) > 0 && len(c.Cnonce) <= 256 && !c.Userhash {
+			n, ok := r.nonces[c.Nonce]
+			algorithm := strings.ToUpper(c.Algorithm)
+			hash := a.MD5
+			if algorithm == "SHA-256" {
+				hash = a.SHA256
+			}
+			if ok && n.source == req.Source()+"/"+req.Transport() && n.port == port && n.username == username && c.Nc > n.count && (algorithm == "MD5" || algorithm == "SHA-256" || algorithm == "") {
+				expected, e := digest.Digest(&digest.Challenge{Realm: Realm, Nonce: c.Nonce, Algorithm: algorithm, QOP: []string{"auth"}}, digest.Options{Method: string(req.Method), URI: c.URI, Username: username, A1: hex.EncodeToString(hash), Count: c.Nc, Cnonce: c.Cnonce})
+				if e == nil && subtle.ConstantTimeCompare([]byte(strings.ToLower(c.Response)), []byte(expected.Response)) == 1 {
+					authorized = true
+					n.count = c.Nc
+					r.nonces[c.Nonce] = n
+				}
+			}
+		}
+	}
+	if !authorized {
+		if len(r.nonces) >= 2048 {
+			return response(req, 503, "Service Unavailable")
+		}
+		var seed [24]byte
+		if _, err := rand.Read(seed[:]); err != nil {
+			return response(req, 503, "Service Unavailable")
+		}
+		value := hex.EncodeToString(seed[:])
+		r.nonces[value] = nonce{source: req.Source() + "/" + req.Transport(), username: username, port: port, expires: now.Add(time.Minute)}
+		res := response(req, 401, "Unauthorized")
+		for _, algorithm := range challengeAlgorithms(req) {
+			res.AppendHeader(sip.NewHeader("WWW-Authenticate", fmt.Sprintf(`Digest realm="%s", nonce="%s", algorithm=%s, qop="auth"`, Realm, value, algorithm)))
+		}
+		return res
+	}
+	if req.Method != sip.REGISTER {
+		_, ok := r.endpoint(a.ID, req)
+		if !ok {
+			return response(req, 403, "Forbidden")
+		}
+		if req.Method == sip.OPTIONS {
+			res := response(req, 200, "OK")
+			res.AppendHeader(sip.NewHeader("Allow", "REGISTER, OPTIONS"))
+			return res
+		}
+		if voice {
+			return nil
+		}
+		res := response(req, 503, "Voice Service Unavailable")
+		res.AppendHeader(sip.NewHeader("Retry-After", "30"))
+		return res
+	}
+	contacts := req.GetHeaders("Contact")
+	if len(contacts) != 1 || req.Contact() == nil || len(contacts[0].Value()) > 1024 {
+		return response(req, 400, "Bad Contact")
+	}
+	contact := req.Contact()
+	seconds := int(ttl / time.Second)
+	raw, has := contact.Params.Get("expires")
+	if !has {
+		if h := req.GetHeader("Expires"); h != nil {
+			raw, has = h.Value(), true
+		}
+	}
+	if has {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 0 || n > 86400 {
+			return response(req, 400, "Bad Expires")
+		}
+		seconds = n
+	}
+	if seconds > int(ttl/time.Second) {
+		seconds = int(ttl / time.Second)
+	}
+	if seconds > 0 && seconds < 60 {
+		res := response(req, 423, "Interval Too Brief")
+		res.AppendHeader(sip.NewHeader("Min-Expires", "60"))
+		return res
+	}
+	callID := req.CallID().Value()
+	instance := contact.Params.GetOr("+sip.instance", "")
+	if instance == "" {
+		instance = contact.Address.String()
+	}
+	if len(instance) > 512 {
+		return response(req, 400, "Bad Contact")
+	}
+	var old Registration
+	registered := false
+	for _, reg := range r.current {
+		if reg.Account == a.ID && sameLogin(req, reg) {
+			old, registered = reg, true
+			break
+		}
+	}
+	if contact.Address.Wildcard && seconds == 0 && registered && old.CallID == callID {
+		instance = old.Instance
+	}
+	same := registered && old.CallID == callID && old.Instance == instance
+	if same && req.CSeq().SeqNo <= old.Sequence {
+		return response(req, 500, "CSeq Out of Order")
+	}
+	if seconds == 0 {
+		if registered {
+			delete(r.current, old.ID)
+		}
+	} else {
+		if contact.Address.Wildcard || contact.Address.Host == "" {
+			return response(req, 400, "Bad Contact")
+		}
+		id := old.ID
+		if !registered {
+			if len(r.current) >= 2048 {
+				return response(req, 503, "Registration Capacity")
+			}
+			var seed [16]byte
+			if _, err := rand.Read(seed[:]); err != nil {
+				return response(req, 503, "Service Unavailable")
+			}
+			id = hex.EncodeToString(seed[:])
+		}
+		r.current[id] = Registration{ID: id, Account: a.ID, CallID: callID, Instance: instance, Sequence: req.CSeq().SeqNo, Source: req.Source(), Transport: req.Transport(), Listener: req.Destination(), Expires: now.Add(time.Duration(seconds) * time.Second), Contact: contact.Clone()}
+	}
+	res := response(req, 200, "OK")
+	if seconds > 0 {
+		h := contact.Clone()
+		h.Params.Add("expires", strconv.Itoa(seconds))
+		res.AppendHeader(h)
+	}
+	res.AppendHeader(sip.NewHeader("Expires", strconv.Itoa(seconds)))
+	return res
+}
+
+// A new Call-ID is not a new phone. Without a stable instance ID, accept only
+// the same authenticated Contact and network endpoint while a binding is live.
+func sameLogin(req *sip.Request, old Registration) bool {
+	contact := req.Contact()
+	if contact.Address.Wildcard {
+		return old.CallID == req.CallID().Value() && old.Source == req.Source() && old.Transport == req.Transport()
+	}
+	if old.Contact == nil {
+		return false
+	}
+	instance := strings.Trim(contact.Params.GetOr("+sip.instance", ""), "\" ")
+	previous := strings.Trim(old.Contact.Params.GetOr("+sip.instance", ""), "\" ")
+	if instance != "" || previous != "" {
+		return instance != "" && instance == previous
+	}
+	return old.Contact.Address.String() == contact.Address.String() && old.Source == req.Source() && old.Transport == req.Transport()
+}

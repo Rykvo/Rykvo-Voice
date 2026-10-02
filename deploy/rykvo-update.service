@@ -1,0 +1,13 @@
+[Unit]
+Description=Rykvo Voice local update installer
+After=postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /opt/rykvo-manager/deploy/local-update.py run
+StateDirectory=rykvo-update
+StateDirectoryMode=0700
+TimeoutStartSec=1800
+TimeoutStopSec=120
+KillMode=control-group
+UMask=0077

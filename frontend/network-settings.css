@@ -1,0 +1,110 @@
+.network-page { width: min(100%, 860px); container: network-layout / inline-size; }
+.network-page .form-toolbar { margin-bottom: 20px; }
+.network-page .form-header { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; margin: 0 0 28px; }
+.network-page .form-emblem { width: 44px; height: 44px; margin: 0; border-radius: 14px; }
+.network-page .form-emblem img { width: 26px; height: 26px; }
+.network-page .form-header h1 { margin: 0; font-size: 25px; letter-spacing: -.6px; }
+.network-page .data-table-wrap { border: 1px solid var(--border); border-radius: 20px; background: var(--surface); box-shadow: 0 4px 20px #15243c03; overflow: hidden; }
+.network-page .data-table { width: 100%; table-layout: fixed; }
+.network-page .data-table th:first-child { width: 36%; }
+.network-page .data-table th:nth-child(2), .network-page .data-table th:nth-child(3) { width: 22%; }
+.network-page .data-table th:last-child { width: 20%; }
+.network-page .data-table thead th { padding: 13px 20px; font-size: 12px; font-weight: 500; background: var(--page); }
+.network-page .data-table thead th:first-child { padding-left: 72px; }
+.network-page .data-table td, .network-page .data-table tbody th { padding: 20px; vertical-align: top; }
+.network-page .data-table th:nth-child(2), .network-page .data-table th:nth-child(3), .network-page .data-table td:nth-child(2), .network-page .data-table td:nth-child(3) { text-align: center; }
+.network-page .data-table td:last-child, .network-page .data-table th:last-child { text-align: right; }
+.network-identity { display: flex; align-items: flex-start; gap: 12px; min-height: 50px; }
+.network-symbol { display: grid; place-items: center; flex: 0 0 40px; height: 40px; border-radius: 12px; background: var(--page); color: var(--muted); }
+.network-symbol.primary-network { background: color-mix(in srgb, var(--blue) 9%, var(--surface)); color: var(--blue); }
+.network-symbol svg { width: 23px; height: 23px; }
+.network-copy { min-width: 0; }
+.network-label { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 27px; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.network-default { border-radius: 5px; padding: 2px 6px; background: var(--page); color: var(--muted); font-size: 10px; font-weight: 400; line-height: 1.5; white-space: nowrap; }
+.network-role { display: block; margin-top: 5px; color: var(--muted); font-size: 11px; line-height: 18px; font-weight: 400; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.network-dot { display: inline-block; width: 5px; height: 5px; margin: 0 5px 2px 0; border-radius: 50%; background: var(--muted); }
+.network-dot.connected { background: #34c759; }
+.network-control { display: flex; flex-direction: column; align-items: center; min-height: 50px; }
+.network-mobile-label { display: none; }
+.network-page .data-table .form-switch { margin: 0; vertical-align: middle; }
+.network-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+.network-page .network-actions .text-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 30px; padding: 5px 8px; border-radius: 8px; font-size: 12px; white-space: nowrap; }
+.network-page .network-actions .network-detail { background: var(--page); }
+.network-page .network-actions .text-button:hover { background: color-mix(in srgb, var(--blue) 9%, var(--surface)); }
+.network-detail > span { color: var(--muted); font-size: 17px; line-height: 1; }
+#network-error, .network-load-error { color: var(--red, #d5483b); font-size: 13px; }
+#network-error:empty, .network-load-error[hidden], .network-vpn-actions [hidden] { display: none; }
+.network-empty { text-align: center; padding: 36px; color: var(--muted); }
+
+#dialog:has(#network-edit) { width: min(600px, calc(100vw - 32px)); padding: 24px; border-radius: 24px; overflow: clip; scrollbar-gutter: auto; animation: none; }
+#dialog:has(#network-edit[data-details]) { height: min(720px, calc(100dvh - 32px)); }
+#dialog:has(#network-edit) #dialog-content { display: flex; flex-direction: column; max-height: calc(100dvh - 82px); min-height: 0; overflow: clip; }
+#dialog:has(#network-edit[data-details]) #dialog-content { height: 100%; }
+#dialog:has(#network-edit) #dialog-title { flex: none; margin: 0; padding: 2px 36px 20px 0; background: var(--surface); font-size: 20px; letter-spacing: -.4px; overflow-wrap: anywhere; }
+#dialog:has(#network-edit) .dialog-close { top: 20px; right: 20px; z-index: 2; }
+#dialog:has(#network-edit) .form-switch { flex-shrink: 0; }
+#network-edit { gap: 0; }
+#network-edit[data-details] { display: block; flex: 1; min-height: 0; padding: 2px; overflow-y: auto; overscroll-behavior: contain; overflow-anchor: none; scrollbar-width: none; }
+#network-edit[data-details]::-webkit-scrollbar { display: none; }
+.network-info { padding: 0 16px; border-radius: 15px; background: var(--field-bg, #f5f5f7); }
+.network-name { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; height: 43px; padding: 0; border: 0; border-bottom: 1px solid var(--border); background: transparent; color: inherit; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.network-name > span:last-child { overflow-wrap: anywhere; text-align: right; }
+.network-chevron { margin-left: 10px; color: var(--muted); }
+.network-details { margin: 0; font-size: 13px; }
+.network-details > div { display: flex; align-items: baseline; gap: 16px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+.network-details > div:last-child { border-bottom: 0; }
+.network-details dt { color: var(--muted); flex-shrink: 0; }
+.network-details dd { flex: 1; min-width: 0; margin: 0; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.network-vpn { margin-top: 24px; }
+.network-vpn h3 { margin: 0 0 14px; font-size: 15px; font-weight: 600; }
+.network-vpn-field { display: block; margin: 0 0 14px; color: var(--muted); font-size: 12px; }
+.network-vpn-field input, .network-vpn-field textarea { display: block; width: 100%; box-sizing: border-box; margin-top: 7px; padding: 11px 13px; border: 1px solid transparent; border-radius: 12px; background: var(--field-bg, #f1f1f4); color: var(--text, #202124); font: inherit; font-size: 13px; line-height: 1.65; }
+.network-vpn-field textarea { resize: none; height: 88px; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.network-vpn-field input:focus, .network-vpn-field textarea:focus { outline: 2px solid var(--blue, #007aff); outline-offset: 1px; }
+.network-vpn .network-details { margin-top: 4px; }
+.network-vpn-actions { display: flex; align-items: center; gap: 18px; margin-top: 14px; }
+.network-vpn-actions .text-button { min-height: 38px; padding: 6px 0; font-size: 13px; }
+.network-vpn-remove { color: var(--red, #d5483b); }
+.network-vpn-save { margin-left: auto; min-height: 38px; padding: 8px 22px; border: 0; border-radius: 10px; background: var(--blue, #007aff); color: white; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.network-vpn-save:disabled { opacity: .5; cursor: default; }
+.network-diagnostics { margin-top: 18px; color: var(--muted); font-size: 12px; }
+.network-diagnostics summary { cursor: pointer; padding: 10px 0; }
+.network-diagnostics .network-details { padding: 0 12px; border-radius: 12px; background: var(--field-bg, #f5f5f7); font-size: 12px; }
+.network-rename { display: flex; align-items: center; gap: 10px; height: 43px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.network-rename input { flex: 1; width: 0; min-width: 0; padding: 5px 8px; border: 0; border-radius: 6px; background: var(--surface); color: inherit; font: inherit; }
+.network-rename .text-button { flex-shrink: 0; padding: 5px 0; font-size: 12px; }
+.network-modules { max-height: min(65dvh, 480px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.network-module { display: grid; grid-template-columns: 44px minmax(0, 1fr) minmax(60px, 120px) 44px; align-items: center; gap: 12px; min-height: 58px; padding: 12px 4px; border-bottom: 1px solid var(--border); }
+.network-module:last-child { border-bottom: 0; }
+.network-module-id { font-weight: 600; overflow-wrap: anywhere; }
+.network-module-number { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.network-module small { color: var(--muted); text-align: right; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.network-module:has(input:focus-visible) { outline: 2px solid var(--blue); outline-offset: -2px; border-radius: 8px; }
+
+@container network-layout (max-width: 720px) {
+  .network-page .form-toolbar { margin-bottom: 12px; }
+  .network-page .form-header h1 { font-size: 23px; }
+  .network-page .data-table-wrap { border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: visible; }
+  .network-page .data-table, .network-page .data-table tbody { display: block; }
+  .network-page .data-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .network-page .data-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; padding: 16px; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); box-shadow: 0 3px 12px #15243c03; }
+  .network-page .data-table tbody tr + tr { margin-top: 14px; }
+  .network-page .data-table tbody th, .network-page .data-table tbody td { display: block; width: auto; min-width: 0; padding: 0; }
+  .network-page .data-table tbody th:first-child { grid-column: 1 / -1; width: auto; }
+  .network-page .data-table .network-main-cell, .network-page .data-table .network-vpn-cell { padding: 12px 8px; border-radius: 12px; background: var(--page); }
+  .network-mobile-label { display: block; margin-bottom: 10px; color: var(--muted); font-size: 12px; line-height: 18px; text-align: center; }
+  .network-page .data-table .form-switch input { top: -8.5px; bottom: auto; height: 44px; }
+  .network-page .data-table .network-actions-cell { grid-column: 1 / -1; }
+  .network-actions { gap: 10px; }
+  .network-page .network-actions .text-button { flex: 1; min-height: 44px; padding: 10px; border-radius: 10px; background: var(--page); font-size: 13px; }
+}
+@media (max-width: 640px) {
+  #dialog:has(#network-edit) { padding: 20px 16px; border-radius: 20px; }
+  #dialog:has(#network-edit) .dialog-close { top: 10px; right: 10px; width: 44px; height: 44px; }
+  #dialog:has(#network-edit) #dialog-title { padding-right: 46px; }
+  .network-vpn-field input, .network-vpn-field textarea, .network-rename input { font-size: 16px; }
+  .network-vpn-field textarea { height: 104px; line-height: 1.5; }
+  .network-vpn-actions { gap: 14px; }
+  .network-vpn-actions .text-button, .network-vpn-save { min-height: 44px; }
+  .network-module { grid-template-columns: 30px minmax(0, 1fr) minmax(45px, 80px) 44px; gap: 8px; font-size: 13px; }
+}

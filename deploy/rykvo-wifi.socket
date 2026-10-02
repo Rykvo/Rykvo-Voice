@@ -1,0 +1,14 @@
+[Unit]
+Description=Rykvo Voice private VoWiFi socket
+
+[Socket]
+ListenStream=/run/rykvo-voice-wifi.sock
+SocketUser=rykvo_voice
+SocketGroup=rykvo_voice
+SocketMode=0600
+Accept=yes
+MaxConnections=16
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target

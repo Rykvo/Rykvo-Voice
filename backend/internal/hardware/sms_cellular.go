@@ -1,0 +1,374 @@
+package hardware
+
+import (
+	"context"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"io"
+	"rykvo.local/auth/internal/vocat/device"
+	"rykvo.local/auth/internal/vocat/vowifi"
+	"strconv"
+	"strings"
+	"time"
+)
+
+func (s *System) cellularSession(ctx context.Context, c Candidate, identity, card string) (*atSession, error) {
+	found, e := s.Discover(ctx)
+	if e != nil {
+		return nil, e
+	}
+	valid := false
+	for _, v := range found {
+		if v.Key == c.Key && v.Generation == c.Generation {
+			c = v
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return nil, errors.New("DEVICE_CHANGED")
+	}
+	at, e := openWiFiSession(ctx, c, identity)
+	if e != nil {
+		return nil, e
+	}
+	a := &vocatAT{session: at, device: c.Key, iccid: card}
+	if e = a.verify(ctx); e != nil {
+		at.port.Close()
+		return nil, e
+	}
+	mode, e := wifiRadioMode(ctx, at)
+	if e != nil || mode != 1 {
+		at.port.Close()
+		return nil, errors.New("SMS_NOT_READY")
+	}
+	return at, nil
+}
+func (s *System) cellSMS(ctx context.Context, c Candidate, identity, card string) (*atSession, error) {
+	at, e := s.cellularSession(ctx, c, identity, card)
+	if e != nil {
+		return nil, e
+	}
+	if _, e = at.query(ctx, "AT+CMGF=0"); e != nil {
+		at.port.Close()
+		return nil, e
+	}
+	if e = ensureSMSReports(ctx, at.query); e != nil {
+		at.port.Close()
+		return nil, e
+	}
+	return at, nil
+}
+
+// Persist SMS/WAP Push and reports; direct URCs are lost between serial sessions.
+func ensureSMSReports(ctx context.Context, query func(context.Context, string) ([]string, error)) error {
+	lines, err := query(ctx, "AT+CNMI?")
+	if err != nil {
+		return err
+	}
+	for _, line := range lines {
+		if !strings.HasPrefix(line, "+CNMI:") {
+			continue
+		}
+		values := fields(line)
+		if len(values) != 5 {
+			break
+		}
+		for i, maximum := range []int{2, 3, 2, 2, 1} {
+			n, e := strconv.Atoi(values[i])
+			if e != nil || n < 0 || n > maximum {
+				return errors.New("INVALID_RESPONSE")
+			}
+		}
+		if values[1] == "1" && values[3] == "2" {
+			return nil
+		}
+		values[1], values[3] = "1", "2"
+		_, err = query(ctx, "AT+CNMI="+strings.Join(values, ","))
+		return err
+	}
+	return errors.New("INVALID_RESPONSE")
+}
+func smsATWrite(ctx context.Context, at *atSession, data []byte) error {
+	for len(data) > 0 {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		n, e := at.port.Write(data)
+		if e != nil {
+			return e
+		}
+		if n == 0 {
+			return io.ErrShortWrite
+		}
+		data = data[n:]
+	}
+	return nil
+}
+func smsATRead(ctx context.Context, at *atSession, prompt bool) (int, error) {
+	reference := -1
+	size := 0
+	for {
+		if ctx.Err() != nil {
+			return -1, errors.New("SMS_OUTCOME_UNKNOWN")
+		}
+		if prompt {
+			if i := strings.Index(at.buffer, ">"); i >= 0 {
+				at.buffer = at.buffer[i+1:]
+				return 0, nil
+			}
+		}
+		if i := strings.IndexAny(at.buffer, "\r\n"); i >= 0 {
+			line := strings.TrimSpace(at.buffer[:i])
+			at.buffer = at.buffer[i+1:]
+			if line == "ERROR" || strings.HasPrefix(line, "+CMS ERROR") || strings.HasPrefix(line, "+CME ERROR") {
+				return -1, errors.New("SMS_REJECTED")
+			}
+			if strings.HasPrefix(line, "+CMGS:") {
+				v, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "+CMGS:")))
+				if err != nil || v < 0 || v > 255 {
+					return -1, errors.New("SMS_OUTCOME_UNKNOWN")
+				}
+				reference = v
+			}
+			if line == "OK" && !prompt && reference >= 0 && reference <= 255 {
+				return reference, nil
+			}
+			continue
+		}
+		b := make([]byte, 1024)
+		n, e := at.port.Read(b)
+		if e != nil {
+			return -1, errors.New("SMS_OUTCOME_UNKNOWN")
+		}
+		at.buffer += string(b[:n])
+		size += n
+		if size > 8192 {
+			return -1, errors.New("SMS_OUTCOME_UNKNOWN")
+		}
+	}
+}
+func (s *System) SendCellularSMS(ctx context.Context, c Candidate, identity, card, to, text string) (vowifi.SMSSubmitResult, error) {
+	result := vowifi.SMSSubmitResult{To: to}
+	if !ValidSMS(to, text) {
+		return result, errors.New("INVALID_MESSAGE")
+	}
+	parts, e := device.PrepareSMSSubmitTPDUs(to, text)
+	if e != nil || len(parts) > 32 {
+		return result, errors.New("INVALID_MESSAGE")
+	}
+	result.PartsTotal = len(parts)
+	at, e := s.cellSMS(ctx, c, identity, card)
+	if e != nil {
+		return result, errors.New("SMS_NOT_READY")
+	}
+	defer at.port.Close()
+	for _, p := range parts {
+		call, cancel := context.WithTimeout(ctx, 45*time.Second)
+		command := fmt.Sprintf("AT+CMGS=%d\r", len(p.TPDU))
+		e = smsATWrite(call, at, []byte(command))
+		if e == nil {
+			_, e = smsATRead(call, at, true)
+		}
+		if e != nil {
+			// Abort text-entry mode before any TPDU has been submitted. Never send Ctrl-Z here.
+			abort, stop := context.WithTimeout(context.Background(), time.Second)
+			_ = smsATWrite(abort, at, []byte{27})
+			stop()
+			cancel()
+			return result, e
+		}
+		result.PartsAttempted++
+		atTime := time.Now().UTC()
+		result.SubmittedAt = atTime
+		e = smsATWrite(call, at, append([]byte("00"+strings.ToUpper(hex.EncodeToString(p.TPDU))), 26))
+		ref := -1
+		if e == nil {
+			ref, e = smsATRead(call, at, false)
+		}
+		cancel()
+		accepted := e == nil
+		r := vowifi.SMSSubmitPart{Part: p.Part, Total: p.Total, Reference: ref, Accepted: accepted, SubmittedAt: atTime}
+		if accepted {
+			result.PartsAccepted++
+			r.SubmissionStatus = "accepted"
+		}
+		result.PartResults = append(result.PartResults, r)
+		if e != nil {
+			return result, e
+		}
+	}
+	result.AllPartsAccepted = result.PartsAccepted == result.PartsTotal
+	result.SubmissionStatus = "accepted"
+	return result, nil
+}
+func (s *System) ReadCellularSMS(ctx context.Context, c Candidate, identity, card string, store func(context.Context, SMSDelivery) error) error {
+	at, e := s.cellSMS(ctx, c, identity, card)
+	if e != nil {
+		return e
+	}
+	defer at.port.Close()
+	cardGuard := &vocatAT{session: at, device: c.Key, iccid: card}
+	return readCellularInbox(ctx, at, cardGuard.verify, store)
+}
+
+func readCellularInbox(ctx context.Context, at *atSession, verify func(context.Context) error, store func(context.Context, SMSDelivery) error) error {
+	// Received SMS may be in ME even when the current read store is SM.
+	config, e := at.query(ctx, "AT+CPMS?")
+	if e != nil {
+		return e
+	}
+	original := ""
+	for _, line := range config {
+		if strings.HasPrefix(line, "+CPMS:") {
+			f := fields(line)
+			if len(f) > 0 {
+				original = f[0]
+			}
+		}
+	}
+	if original != "SM" && original != "ME" && original != "MT" && original != "SR" {
+		return errors.New("SMS_STORAGE_UNAVAILABLE")
+	}
+	changed := false
+	defer func() {
+		if changed {
+			restore, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			_, _ = at.query(restore, `AT+CPMS="`+original+`"`)
+		}
+	}()
+	stores := []string{original}
+	for _, name := range []string{"SM", "ME", "SR"} {
+		if name != original {
+			stores = append(stores, name)
+		}
+	}
+	var cleanupErr error
+	for _, name := range stores {
+		if name != original || changed {
+			if _, e = at.query(ctx, `AT+CPMS="`+name+`"`); e != nil {
+				if e.Error() == "COMMAND_UNSUPPORTED" {
+					continue
+				}
+				return e
+			}
+			changed = true
+		}
+		lines, e := at.exchange(ctx, "AT+CMGL=4", 8*time.Second)
+		if e != nil {
+			// A rejected storage bank (including broken SR firmware) must not
+			// block the other inboxes. Discard its incomplete response.
+			if e.Error() == "COMMAND_UNSUPPORTED" {
+				cleanupErr = errors.Join(cleanupErr, e)
+				continue
+			}
+			return e
+		}
+		if e = verify(ctx); e != nil {
+			return e
+		}
+		records, err := storeCellularPDU(ctx, lines, store)
+		if err != nil && !errors.Is(err, errCellularRecordRejected) {
+			return err
+		}
+		cleanupErr = errors.Join(cleanupErr, err)
+		for _, record := range records {
+			if e = verify(ctx); e != nil {
+				return e
+			}
+			if e = deleteCellularPDU(ctx, at, record, verify); e != nil {
+				// An unsupported cleanup command must not block other inbox stores.
+				cleanupErr = errors.Join(cleanupErr, e)
+				break
+			}
+		}
+	}
+	return cleanupErr
+}
+
+type cellularStoredPDU struct {
+	index int
+	pdu   string
+}
+
+var errCellularRecordRejected = errors.New("SMS_RECORD_REJECTED")
+
+func storeCellularPDU(ctx context.Context, lines []string, store func(context.Context, SMSDelivery) error) ([]cellularStoredPDU, error) {
+	var stored []cellularStoredPDU
+	var recordErr error
+	for i, line := range lines {
+		if !strings.HasPrefix(line, "+CMGL:") || i+1 >= len(lines) {
+			continue
+		}
+		f := fields(line)
+		if len(f) < 4 || (f[1] != "0" && f[1] != "1") {
+			continue
+		}
+		index, err := strconv.Atoi(f[0])
+		if err != nil || index < 0 || index > 65535 {
+			continue
+		}
+		pdu, e := hex.DecodeString(strings.TrimSpace(lines[i+1]))
+		if e != nil || len(pdu) < 2 {
+			continue
+		}
+		offset := int(pdu[0]) + 1
+		if offset >= len(pdu) {
+			continue
+		}
+		tpdu := pdu[offset:]
+		v, e := device.DecodeSMSDeliverTPDU(tpdu)
+		if v.SIMDataDownload || v.Direction != device.SMSDirectionReceived && v.Direction != device.SMSDirectionStatusReport {
+			continue
+		}
+		d := SMSDelivery{ID: "cellular", From: v.From, Text: v.Text, At: time.Now().UTC(), SCTS: v.ServiceCenterTimestamp, Encoding: string(v.Encoding), Concat: v.Concat, TPDU: strings.ToUpper(hex.EncodeToString(tpdu))}
+		if e != nil {
+			d.DecodeError = "DECODE_FAILED"
+		}
+		if v.MessageReference != nil && v.StatusCode != nil {
+			d.From = v.To
+			d.Status = &SMSReport{Reference: *v.MessageReference, Code: *v.StatusCode}
+		}
+		// The callback commits the raw PDU (including multipart/MMS) or confirms
+		// its durable deduplication before this hardware copy can be removed.
+		if e = store(ctx, d); e != nil {
+			if e.Error() == "INVALID_MESSAGE" {
+				recordErr = errCellularRecordRejected
+				continue
+			}
+			return nil, e
+		}
+		stored = append(stored, cellularStoredPDU{index, strings.ToUpper(hex.EncodeToString(pdu))})
+	}
+	return stored, recordErr
+}
+
+func deleteCellularPDU(ctx context.Context, at *atSession, record cellularStoredPDU, verify func(context.Context) error) error {
+	// Re-read the exact slot: another reader may have removed/reused an index.
+	lines, err := at.exchange(ctx, fmt.Sprintf("AT+CMGR=%d", record.index), 3*time.Second)
+	if err != nil {
+		return err
+	}
+	matched := false
+	for i, line := range lines {
+		if !strings.HasPrefix(line, "+CMGR:") {
+			continue
+		}
+		f := fields(line)
+		if matched || len(f) < 3 || (f[0] != "0" && f[0] != "1") || i+1 >= len(lines) || !strings.EqualFold(strings.TrimSpace(lines[i+1]), record.pdu) {
+			return errors.New("SMS_STORAGE_CHANGED")
+		}
+		matched = true
+	}
+	if !matched {
+		return errors.New("SMS_STORAGE_CHANGED")
+	}
+	if err = verify(ctx); err != nil {
+		return err
+	}
+	// delflag=0 deletes only this archived record, never the whole inbox.
+	_, err = at.exchange(ctx, fmt.Sprintf("AT+CMGD=%d,0", record.index), 3*time.Second)
+	return err
+}

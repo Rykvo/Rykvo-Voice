@@ -1,0 +1,315 @@
+{
+  "sourceCommit": "484cd236dd543e2ba142cf1da2c5808ee8e89a6e",
+  "importRewrite": "vocat/internal/ -> rykvo.local/auth/internal/vocat/",
+  "excluded": [
+    "application integration",
+    "PCSC adapter"
+  ],
+  "files": [
+    {
+      "source": "vowifi/carrier_compat_test.go",
+      "sha256": "b0c90d9910211a0cb9c8a323e4138ed9662a2287ffc35717695a0ae481c5aee7"
+    },
+    {
+      "source": "vowifi/carrier_compat.go",
+      "sha256": "b1b1a5f32beb616fa1ed50a904a2a5113e59f5060173222e9e4c0b6e6b55c567"
+    },
+    {
+      "source": "vowifi/carrier_ipcc_test.go",
+      "sha256": "388615c4f0b60591d80d450a1d6359a8b9154d35a7309da996a0cd805375718a"
+    },
+    {
+      "source": "vowifi/carrier_ipcc.go",
+      "sha256": "6a103b6e07f96242ff6b3b0174ae06afedc7cf040bef71210d2921247b0bb8d3"
+    },
+    {
+      "source": "vowifi/carrier_profiles.json",
+      "sha256": "c8780cd5b65abb0a72646f23fee75b42855acb768b8bc15a56d2d9b0efd2076e"
+    },
+    {
+      "source": "vowifi/ec20_adapter_test.go",
+      "sha256": "00ca0389f800456c949f81aa77a9ed59b46f916c2089d258b698c733f8a0f333"
+    },
+    {
+      "source": "vowifi/ec20_adapter.go",
+      "sha256": "6aae849491c799606b390dc27eb1825d1825dd5486c04b1f1df8ebfdc52f86cc"
+    },
+    {
+      "source": "vowifi/ec20_sms_psi.go",
+      "sha256": "1388af0025505e1419225c425a5085ac909396bfc732465d88ae39f7d9675be7"
+    },
+    {
+      "source": "vowifi/native_qmi_adapter.go",
+      "sha256": "a74066a6e471ef8b5893c552e5cb3afd22effcee6342dc55d3afcab9b438d202"
+    },
+    {
+      "source": "vowifi/orchestrator_test.go",
+      "sha256": "8ffbe5596f52b7d48e792105baf51309efbd80e17fa9e399dc7a71cb625a6078"
+    },
+    {
+      "source": "vowifi/orchestrator.go",
+      "sha256": "78931b85f43cc91626857105796766ef1139744cc9ae4bb0e14cf6ff437e9282"
+    },
+    {
+      "source": "vowifi/phone_test.go",
+      "sha256": "4c1a115065e98c77caa79019cb1d0e41723b86e3367c68143e27466b534f6fc6"
+    },
+    {
+      "source": "vowifi/phone.go",
+      "sha256": "2e0707f606e9014730a8f9f33cf4a8a5bf22c335940debb72dccb4055e21b88d"
+    },
+    {
+      "source": "vowifi/types.go",
+      "sha256": "216b135f6b22074a5edcd32787c6246e53ea768c4a79ecf3f9a61dc8bb6acbed"
+    },
+    {
+      "source": "vowifi/ike/auth.go",
+      "sha256": "f43b50d0e9e5dee690a3c5e9e047910469bb50403e86b5099823ed753d521d5a"
+    },
+    {
+      "source": "vowifi/ike/child.go",
+      "sha256": "2373083ca090eb2e54501da634a73e0640a2c498919ae6b8d372bb38a288e427"
+    },
+    {
+      "source": "vowifi/ike/crypto_single_fragment_test.go",
+      "sha256": "392371a8a46a7616ddcf592dbf715851054c9ea98496064084f3b509b3e743bc"
+    },
+    {
+      "source": "vowifi/ike/crypto_test.go",
+      "sha256": "bf09d2eeac57690e533538d91114b7b2a598eb66a1e4b5fd35e15fe7d82faf1a"
+    },
+    {
+      "source": "vowifi/ike/crypto.go",
+      "sha256": "727fd90717c555458957af1bec0a5dc5dfa748d1ff74603c4986d8fe21ad6a6a"
+    },
+    {
+      "source": "vowifi/ike/doc.go",
+      "sha256": "56bf0f4c18ec563f81fd73e6701e3e8783f49b752f8312818327abe17481129d"
+    },
+    {
+      "source": "vowifi/ike/eap_test.go",
+      "sha256": "6ee9657575ad5fd67eae509782a4680a34d16c4e7a06b8e74e08879597fe8353"
+    },
+    {
+      "source": "vowifi/ike/eap.go",
+      "sha256": "fafff9366dc68999ddcbea2c5cbd950310473ade01712cb196e9267ff351cd69"
+    },
+    {
+      "source": "vowifi/ike/epdg_resolver_test.go",
+      "sha256": "06d3059573334364df96743a0e478d6945c2532bcae9726fc08fd9d81616b3eb"
+    },
+    {
+      "source": "vowifi/ike/epdg_resolver.go",
+      "sha256": "9494b3dd8857501be155cffe3d72c7153c6eae43fdcceb524dcf54ee814f533e"
+    },
+    {
+      "source": "vowifi/ike/esp_test.go",
+      "sha256": "415707c1ed561a06e36c24baed01677d13e379eeecca64bad3a080bd45da0d5c"
+    },
+    {
+      "source": "vowifi/ike/esp.go",
+      "sha256": "ef3c45e37d163026f391268bce5f8288c7f655d671be8e01972a73b1c82b6823"
+    },
+    {
+      "source": "vowifi/ike/ike3gpp_test.go",
+      "sha256": "6b2967bf9679e546c7e7346702c515d6034388ed21f5ab2b6248f300d6c57c4c"
+    },
+    {
+      "source": "vowifi/ike/ike3gpp.go",
+      "sha256": "6a10f5aa7df0f8ca9e7b40d0c8de3cac5a7b49ed8542f37009b16ea76672fd03"
+    },
+    {
+      "source": "vowifi/ike/installer_linux.go",
+      "sha256": "b28cd0294c1b4be9168a64d5f737026fee1f7d484df0623051be2ba38ef3bc62"
+    },
+    {
+      "source": "vowifi/ike/installer_other.go",
+      "sha256": "d792588955013b3543ee6142fcb14d4df661f45ac00033124f00c91468a73276"
+    },
+    {
+      "source": "vowifi/ike/provider_name_test.go",
+      "sha256": "beadba1d5b891e0773edb81e27f2c9d26a2cb8d791c605ed8f5a45a5b35c83ea"
+    },
+    {
+      "source": "vowifi/ike/provider_test.go",
+      "sha256": "2d558f71d0444c6b55abc1139d79bd6eb68aa01a0ca80cc1ec50e00ce6648d45"
+    },
+    {
+      "source": "vowifi/ike/provider.go",
+      "sha256": "ded635056b61043bf0b7fac7aae56f972d26570dc8e8be804367ce753b3624df"
+    },
+    {
+      "source": "vowifi/ike/relay_test.go",
+      "sha256": "d110f19d1bca7f252dc6b6e8084a574b633cb35448074deecc3a14cc710df534"
+    },
+    {
+      "source": "vowifi/ike/relay.go",
+      "sha256": "8bed5d8884f79ccca41bad7dbc6f19fd5b7fd577d060c59f95ad27b590580b8c"
+    },
+    {
+      "source": "vowifi/ike/transport_test.go",
+      "sha256": "36a062148bf7a3f25be6643e15cb3090b85aca5c515b8d8dc9cc2d07db4b8015"
+    },
+    {
+      "source": "vowifi/ike/transport.go",
+      "sha256": "9721d6de26ea91cf4b4f82225258883377abc706da60b21824d707cff942fe61"
+    },
+    {
+      "source": "vowifi/ike/userspace_firewall.go",
+      "sha256": "8408100623c92f016b4e551216218188900c33f009f824d536f15667701ad5e6"
+    },
+    {
+      "source": "vowifi/ike/userspace_linux_test.go",
+      "sha256": "36c4f74855746b09642fa221d179a490e8e1cef30751930ee2c0e2ee5a761af2"
+    },
+    {
+      "source": "vowifi/ike/userspace_linux.go",
+      "sha256": "1509d409b01805327066895e441ef54e76996d8fde06ba3e404e0eefd4657157"
+    },
+    {
+      "source": "vowifi/ike/wire_auth_test.go",
+      "sha256": "26a95f87244817e5f7847744b599fc31d077327b4c6a2f96fdd9524fa4071e5f"
+    },
+    {
+      "source": "vowifi/ike/wire.go",
+      "sha256": "923990e4d94dcf4ed28b9a66b20ceb14f45f0bfe3b5c7ae2accd30ac7d504a3d"
+    },
+    {
+      "source": "vowifi/ims/call_runtime_test.go",
+      "sha256": "129e5884848bc6742f09e92ca3a87d3dcdc2cc712865166afc9134f37f27261f"
+    },
+    {
+      "source": "vowifi/ims/call_runtime.go",
+      "sha256": "d1775b2252dcc65c4673b79bc93a74fbc8954609eabc498820cdab6349df8f69"
+    },
+    {
+      "source": "vowifi/ims/digest_test.go",
+      "sha256": "b8f97ff6f0f4cdc0e0397a06dfdbadca808adb5a555144375c637767f8b02662"
+    },
+    {
+      "source": "vowifi/ims/digest.go",
+      "sha256": "751fffc8c5f49a2904705e8d1ea3d84d6803475d540e9d20385c076378a9122c"
+    },
+    {
+      "source": "vowifi/ims/message_identity_test.go",
+      "sha256": "64cba61fdf8a426cae47480d390b2ca8e4a2c08249840e5d7e5b60837727a377"
+    },
+    {
+      "source": "vowifi/ims/message_identity.go",
+      "sha256": "3926dea7698624089ee063e38016049e3a3fdad1cf2995f1d7bae87f66360902"
+    },
+    {
+      "source": "vowifi/ims/message_test.go",
+      "sha256": "b8b67d95ff1ff335b99fa9d70bb825e1e70d9663f190b8b2a2ccd9b7e7bdff1f"
+    },
+    {
+      "source": "vowifi/ims/message.go",
+      "sha256": "9fe1500574a7bce91ab53fa7c425cd6097a3a98f6c30533d1049c4f33e20de51"
+    },
+    {
+      "source": "vowifi/ims/provider_test.go",
+      "sha256": "0354b97cf70b36b6259750b8ac5cca6142f0174d2df991e1edbd4ee18a7daad4"
+    },
+    {
+      "source": "vowifi/ims/provider.go",
+      "sha256": "f450c04239fea42f04000ac46d248c6a97d97a431461bcf010b25990f9425973"
+    },
+    {
+      "source": "vowifi/ims/rtp_media_test.go",
+      "sha256": "be02fd484297428b45e3f6619956d6650dff92f7ba698b672e140f23d38a16ac"
+    },
+    {
+      "source": "vowifi/ims/rtp_media.go",
+      "sha256": "1864aeaf8e486c48b9e8252b87d23c10ecb63135bb12f6562fdee37a0be7b51c"
+    },
+    {
+      "source": "vowifi/ims/security_linux_test.go",
+      "sha256": "b7df0871f6d73c10b76158a25f76ba64392451e022c1480bdeb07943efe7bed3"
+    },
+    {
+      "source": "vowifi/ims/security_linux.go",
+      "sha256": "dce9adbe9e31068bb023d7531a67bbb0bec49c4ceff5c0732dbbeab0ef336750"
+    },
+    {
+      "source": "vowifi/ims/security_other.go",
+      "sha256": "6a3519f3d7fca1ca2b5142076c30816ca3348c1bb4806711ce3f24f4516137e0"
+    },
+    {
+      "source": "vowifi/ims/security_provider_test.go",
+      "sha256": "062e22460a9846f1a6b18c0f0bd1c48c5cec3e14e3fdc5096648a55ff385e93b"
+    },
+    {
+      "source": "vowifi/ims/security_test.go",
+      "sha256": "0371c18ad0b372172c1e1e184a1f9ecb0ebf8e6fa50dda91e517edda1c12f1a5"
+    },
+    {
+      "source": "vowifi/ims/security.go",
+      "sha256": "5424e999ff4d98f82fd91e98812c32a1303d69a461e1286d7a4f5f27d365ada9"
+    },
+    {
+      "source": "vowifi/ims/sms_psi_test.go",
+      "sha256": "f33dd5cb9c635590ca762b348421bfc3f6a2e0e8a20b06d223d575dd01bc69d9"
+    },
+    {
+      "source": "vowifi/ims/sms_psi.go",
+      "sha256": "94953888fbfebb9c7c071f606c55d1c07b0b479d593b9c7c066161c8d46774d1"
+    },
+    {
+      "source": "vowifi/ims/sms_runtime_test.go",
+      "sha256": "fd627e1803033ebc0880d01f6216c4ea92f77d8461d275e3cd1bdfdc456d8285"
+    },
+    {
+      "source": "vowifi/ims/sms_runtime.go",
+      "sha256": "a1118024436e4861f1b21d96734541aa16538137ab415a0169275b10de2e8f61"
+    },
+    {
+      "source": "vowifi/ims/tcp_linux.go",
+      "sha256": "449116906d685fa1688962bf38cc07ea3394efca497037e2271a56fe41f10687"
+    },
+    {
+      "source": "vowifi/ims/tcp_other.go",
+      "sha256": "eb48241a4f81944d3fdbec39bfa9c9c723936c083b7dd953af8d9d19c9f5ce74"
+    },
+    {
+      "source": "vowifi/runtime/manager_test.go",
+      "sha256": "a61b4b85a2bfeb996e2c45c88e5d052de03183b14686fb2c225884edde8e38db"
+    },
+    {
+      "source": "vowifi/runtime/manager.go",
+      "sha256": "bb7a80e849f37d4a04232c25f691582a6d3ca808f2b77c39b1bf8b555d3b0100"
+    }
+  ],
+  "imported": "2026-09-25T05:18:20.1488657+08:00",
+  "supportFiles": [
+    {
+      "source": "internal/modem/types.go",
+      "sha256": "31e2eecc39e3b5f091cc4e6b0267b4230841c077259b52555886bc1aae0e76a6",
+      "note": "codec/types/metadata extraction; see MODIFICATIONS.md"
+    },
+    {
+      "source": "internal/device/sms_pdu.go",
+      "sha256": "a5d3617f6333aa9e1b0c68dd405ac57313b42bd9d6b8560fe083e50a916e669a",
+      "note": "codec/types/metadata extraction; see MODIFICATIONS.md"
+    },
+    {
+      "source": "internal/device/sms_pdu_test.go",
+      "sha256": "b4e6363f79446e92815b0488ac61e2926b1d99629c3413b09938e41fe6f48334",
+      "note": "codec/types/metadata extraction; see MODIFICATIONS.md"
+    },
+    {
+      "source": "internal/device/types.go",
+      "sha256": "c74e5e93ce459cddb31c9538f253ebcacd616589fc166b6d72e2377a15fce7a3",
+      "note": "codec/types/metadata extraction; see MODIFICATIONS.md"
+    },
+    {
+      "source": "internal/device/snapshot.go",
+      "sha256": "634dd45f333d8a1c543cc54396b17a3782cc7edde4ad2980128b02aeaa434e67",
+      "note": "codec/types/metadata extraction; see MODIFICATIONS.md"
+    },
+    {
+      "source": "internal/device/phone.go",
+      "sha256": "23886c88176601eccf285e03c396d5d40f58a42d5517dab0dc24db6414b39b75",
+      "note": "codec/types/metadata extraction; see MODIFICATIONS.md"
+    }
+  ]
+}

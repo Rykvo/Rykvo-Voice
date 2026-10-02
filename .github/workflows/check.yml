@@ -1,0 +1,236 @@
+name: Check
+on:
+  release:
+    types: [published]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      build:
+        description: Build release bundles after tests
+        type: boolean
+        default: true
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test-only
+          POSTGRES_DB: rykvo_ci_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1'
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test frontend/tests/*.test.cjs
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends python3-cryptography binutils binutils-aarch64-linux-gnu zopfli
+      - run: python3 -m unittest discover -s tests
+      - name: Fresh-host key provisioning (temporary paths only)
+        run: sudo python3 -m unittest discover -s tests -p test_install_key.py
+      - name: Isolated SIP network lifecycle
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends wireguard-tools iptables libopus0 libopencore-amrnb0 libopencore-amrwb0 libvo-amrwbenc0
+          sudo unshare --net python3 tests/sip_network_netns.py
+      - run: bash -n install.sh && bash -n deploy.sh && shellcheck install.sh deploy.sh
+      - name: Public API proxy configuration
+        run: |
+          sudo apt-get install -y --no-install-recommends nginx
+          printf 'events {}\nhttp { include %s/deploy/nginx.conf; }\n' "$GITHUB_WORKSPACE" > /tmp/rykvo-api-nginx.conf
+          sudo nginx -t -c /tmp/rykvo-api-nginx.conf
+      - name: Automatic uplinks with native DHCP
+        run: |
+          sudo apt-get install -y --no-install-recommends dnsmasq-base
+          sudo unshare --mount --net python3 tests/network_auto_netns.py
+      - name: Fixed module uplinks with overlapping subnets
+        working-directory: backend
+        run: |
+          go test -c ./internal/uplink -o /tmp/rykvo-uplink-netns.test
+          sudo unshare --net env RYKVO_UPLINK_NETNS=1 /tmp/rykvo-uplink-netns.test -test.run '^TestUplinkOverlappingNetworks$' -test.v
+      - name: Primary network and VLESS lifecycle
+        run: |
+          sudo apt-get install -y --no-install-recommends nftables
+          python3 - <<'PY'
+          import json, sys
+          from pathlib import Path
+          sys.path.insert(0, 'deploy')
+          import build
+          build.fetch_proxy(json.loads(Path('deploy/runtime.json').read_text()), 'amd64', Path('/tmp/rykvo-network-test-core'))
+          PY
+          sudo unshare --net python3 tests/network_runtime_netns.py
+          sudo unshare --mount --net --propagation private bash -c 'mount -t sysfs sysfs /sys; RYKVO_TEST_NETWORK_CORE=/tmp/rykvo-network-test-core python3 tests/network_core_netns.py'
+      - working-directory: backend
+        env:
+          TEST_DATABASE_URL: postgres://postgres:test-only@localhost:5432/rykvo_ci_test?sslmode=disable
+        run: go test ./... && go vet ./...
+      - name: Runtime persistence and maintenance race tests
+        working-directory: backend
+        env:
+          PGPASSWORD: test-only
+          TEST_RUNTIME_DATABASE_URL: postgres://postgres:test-only@localhost:5432/rykvo_ci_runtime_test?sslmode=disable
+        run: |
+          createdb -h localhost -U postgres rykvo_ci_runtime_test
+          go test -race -run 'TestRuntimeDatabase|TestMaintenance|TestPrivateMaintenance|TestSIPIncomingProbes' .
+      - name: Webhook backlog and priority races
+        working-directory: backend
+        env:
+          PGPASSWORD: test-only
+          TEST_WEBHOOK_DATABASE_URL: postgres://postgres:test-only@localhost:5432/rykvo_ci_webhook_test?sslmode=disable
+        run: |
+          createdb -h localhost -U postgres rykvo_ci_webhook_test
+          go test -race -run '^TestWebhook' .
+      - name: Hardware race tests
+        working-directory: backend
+        run: go test -race ./internal/entitlement ./internal/carrierconfig ./internal/hardware && go test -race -run 'TestModule|TestCellularInbox|TestWiFi' .
+      - name: Independent dispatch and result persistence race tests
+        working-directory: backend
+        run: go test -race ./internal/dispatch ./internal/durable ./internal/uplink
+      - name: API traffic and work admission races
+        working-directory: backend
+        run: go test -race -run '^TestDeveloper(Budget|Work|120|Busy|Rate)|^TestMessageCapacity' .
+      - name: SIP registration and scheduling race tests
+        working-directory: backend
+        run: go test -race ./internal/sipregistrar ./internal/telephony && go test -race -run '^TestSIPGateway' .
+      - name: IMS identity race and parser bounds
+        working-directory: backend
+        run: >-
+          go test -race ./internal/vocat/vowifi/...
+          && go test ./internal/vocat/vowifi -run '^$' -fuzz '^FuzzISIMDecoders$' -fuzztime=20s -parallel=2
+          && go test ./internal/vocat/vowifi/ims -run '^$' -fuzz '^FuzzRTPJitterWindow$' -fuzztime=20s -parallel=2
+          && go test ./internal/vocat/vowifi/ims -run '^$' -fuzz '^FuzzOpusPacket$' -fuzztime=20s -parallel=2
+          && go test ./internal/vocat/vowifi/ims -run '^$' -fuzz '^FuzzAMRPacket$' -fuzztime=20s -parallel=2
+          && go test ./internal/vocat/vowifi/ims -run '^$' -fuzz '^FuzzSIPStreamFraming$' -fuzztime=20s -parallel=2
+      - name: SIP loopback media isolation
+        working-directory: backend
+        env:
+          RYKVO_RTP_SCALE: '70'
+          RYKVO_RTP_SCALE_SECONDS: '6'
+        run: go test ./internal/vocat/vowifi/ims -run '^Test(RTP|Opus)ConcurrentCallMedia$' -count=1 -v
+      - name: EAP packet bounds
+        working-directory: backend
+        run: go test ./internal/hardware -run '^$' -fuzz '^FuzzWiFiEAPPacket$' -fuzztime=20s -parallel=2
+      - name: Wi-Fi transport packet bounds
+        working-directory: backend
+        run: go test ./internal/hardware -run '^$' -fuzz '^FuzzWiFiPacketParsers$' -fuzztime=20s -parallel=2
+      - name: SIP TCP framing bounds
+        working-directory: backend
+        run: go test ./internal/hardware -run '^$' -fuzz '^FuzzWiFiSIPStream$' -fuzztime=20s -parallel=2
+      - name: Private voice control bounds
+        working-directory: backend
+        run: >-
+          go test ./internal/hardware -run '^$' -fuzz '^FuzzVoiceControlBoundary$' -fuzztime=20s -parallel=2
+          && go test ./internal/hardware -run '^$' -fuzz '^FuzzVoiceMediaFrames$' -fuzztime=20s -parallel=2
+      - name: Isolated IMS and MMS bearer routes
+        working-directory: backend
+        run: |
+          go test -c ./internal/vocat/vowifi/ike -o /tmp/rykvo-ike-netns.test
+          sudo unshare --net env VOCAT_NETNS_TEST=1 /tmp/rykvo-ike-netns.test -test.run 'TestLinux(UserspaceInstallerLifecycle|DataBearerRoutesAndCleanup|MediaRoutes)$'
+      - name: MMS PDU bounds
+        working-directory: backend
+        run: go test ./internal/mms -run '^$' -fuzz '^FuzzPDU$' -fuzztime=20s -parallel=2
+      - name: Build both release bundles
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.build)
+        env:
+          RYKVO_UPDATE_SIGNING_KEY: ${{ secrets.RYKVO_UPDATE_SIGNING_KEY }}
+          RYKVO_UPDATE_ENCRYPTION_KEY: ${{ secrets.RYKVO_UPDATE_ENCRYPTION_KEY }}
+        run: python3 deploy/build.py --output dist
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.build)
+        with:
+          name: rykvo-release-bundles
+          path: dist/*
+          if-no-files-found: error
+
+  codecs-arm64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.1'
+          cache-dependency-path: backend/go.sum
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends libopus0 libopencore-amrnb0 libopencore-amrwb0 libvo-amrwbenc0 binutils python3-cryptography
+      - name: Stripped runtime on native arm64
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, subprocess, sys, tempfile
+          sys.path.insert(0, 'deploy')
+          from build import strip_runtime
+          from release import download
+          config = json.loads(pathlib.Path('deploy/runtime.json').read_text())['cloudflared']
+          with tempfile.TemporaryDirectory() as folder:
+              binary = pathlib.Path(folder) / 'cloudflared'
+              download(f"https://github.com/cloudflare/cloudflared/releases/download/{config['version']}/cloudflared-linux-arm64", binary, config['arm64'])
+              strip_runtime(binary, 'arm64')
+              binary.chmod(0o755)
+              subprocess.run([str(binary), '--version'], check=True, timeout=15)
+          PY
+      - working-directory: backend
+        run: CGO_ENABLED=0 go test ./internal/vocat/vowifi/ims && go test -race ./internal/vocat/vowifi/ims
+      - name: Native arm64 release version
+        working-directory: backend
+        run: |
+          VERSION="$(cat ../VERSION)"
+          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X main.buildVersion=$VERSION" -o /tmp/rykvo-version-check .
+          test "$(/tmp/rykvo-version-check -version)" = "$VERSION"
+
+  release:
+    if: github.event_name == 'release' && startsWith(github.ref, 'refs/tags/release/v')
+    needs: [check, codecs-arm64]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: rykvo-release-bundles
+          path: dist
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends python3-cryptography
+      - name: Verify release version and checksums
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re
+          version = pathlib.Path('VERSION').read_text().strip()
+          assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version)
+          assert os.environ['TAG'] == 'release/v' + version
+          manifest = json.loads(pathlib.Path('dist/release.json').read_text())
+          assert manifest['version'] == version
+          assert manifest['schema'] == 2
+          info = manifest['package']
+          assert info['name'] == f'RykvoVoice.{version}.rvu'
+          assert {p.name for p in pathlib.Path('dist').iterdir()} == {'release.json', info['name'], 'install.rvk'}
+          data = pathlib.Path('dist', info['name']).read_bytes()
+          assert len(data) == info['size']
+          assert hashlib.sha256(data).hexdigest() == info['sha256']
+          import sys
+          sys.path.insert(0, 'deploy')
+          import update_crypto
+          update_crypto.inspect_install_key(pathlib.Path('dist/install.rvk').read_bytes())
+          update_crypto.inspect(data[:28], data[-96:], len(data))
+          assert hashlib.sha256(data[:-96]).digest() == data[-96:-64]
+          PY
+      - name: Publish downloadable build artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION="$(cat VERSION)"
+          gh release upload "$TAG" \
+            dist/release.json \
+            dist/install.rvk \
+            "dist/RykvoVoice.${VERSION}.rvu#RykvoVoice ${VERSION}.rvu"

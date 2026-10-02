@@ -1,0 +1,8109 @@
+{
+  "version": 1,
+  "source": "ios-carrier-bundles carrier.plist interoperability facts",
+  "sha256": "64dfe2c78e4f238d248b2df2e1dda3e81ac778860bda7c7414952d4b88e2abb1",
+  "profiles": [
+    {
+      "id": "1and1-de",
+      "match": [
+        {
+          "plmn": "26223"
+        }
+      ],
+      "epdg": "epdg.epc.mnc023.mcc262.pub.3gppnetwork.org"
+    },
+    {
+      "id": "2degrees-nz",
+      "match": [
+        {
+          "plmn": "53024"
+        }
+      ],
+      "epdg": "epdg.ims.2degrees.net.nz"
+    },
+    {
+      "id": "8ta-za",
+      "match": [
+        {
+          "plmn": "65502"
+        }
+      ]
+    },
+    {
+      "id": "affinityclick",
+      "match": [
+        {
+          "plmn": "310840",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "26006",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "52505",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "29505",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "23410",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "26001",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "45400",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "41677",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "52501",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "334020",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "20408",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "26806",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "20809",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "20601",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "20628",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "42202",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "42204",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "41302",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "41311",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "20801",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "53005",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "22201",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "42501",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "42402",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "60202",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "23450",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "53703",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "45204",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "71204",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "72418",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "732123",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "24007",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "20802",
+          "gid1": "616C6F73696D31"
+        },
+        {
+          "plmn": "90131",
+          "gid1": "616C6F73696D31"
+        }
+      ]
+    },
+    {
+      "id": "airgsm",
+      "match": [
+        {
+          "plmn": "29505",
+          "gid1": "616972616C6F31"
+        },
+        {
+          "plmn": "310840",
+          "gid1": "616972616C6F31"
+        },
+        {
+          "plmn": "52505",
+          "gid1": "616972616C6F31"
+        },
+        {
+          "plmn": "23410",
+          "gid1": "616972616C6F31"
+        },
+        {
+          "plmn": "732123",
+          "gid1": "616972616C6F31"
+        },
+        {
+          "plmn": "52501",
+          "gid1": "616972616C6F31"
+        },
+        {
+          "plmn": "52501",
+          "gid1": "41"
+        },
+        {
+          "plmn": "20408",
+          "gid1": "41"
+        },
+        {
+          "plmn": "20801",
+          "gid1": "41"
+        },
+        {
+          "plmn": "20435",
+          "gid1": "41"
+        }
+      ]
+    },
+    {
+      "id": "ais-th",
+      "match": [
+        {
+          "plmn": "52001"
+        },
+        {
+          "plmn": "52003"
+        }
+      ],
+      "epdg": "epdg.epc.mnc003.mcc520.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "alcom-ax",
+      "match": [
+        {
+          "plmn": "24414"
+        }
+      ]
+    },
+    {
+      "id": "alfa-lb",
+      "match": [
+        {
+          "plmn": "41501"
+        }
+      ]
+    },
+    {
+      "id": "algar-br",
+      "match": [
+        {
+          "plmn": "72432"
+        },
+        {
+          "plmn": "72433"
+        },
+        {
+          "plmn": "72434"
+        }
+      ]
+    },
+    {
+      "id": "aliv-bs",
+      "match": [
+        {
+          "plmn": "36449"
+        }
+      ]
+    },
+    {
+      "id": "almadar-ly",
+      "match": [
+        {
+          "plmn": "60601"
+        }
+      ]
+    },
+    {
+      "id": "altice-lte-us",
+      "match": [
+        {
+          "plmn": "313390"
+        }
+      ],
+      "epdg": "epdg.epc.mnc390.mcc313.pub.3gppnetwork.org"
+    },
+    {
+      "id": "antel-uy",
+      "match": [
+        {
+          "plmn": "74801"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "appalachian-lte-us",
+      "match": [
+        {
+          "plmn": "311480",
+          "gid2": "CA"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "appwire-lte-us",
+      "match": [
+        {
+          "plmn": "312130"
+        }
+      ],
+      "epdg": "epdg.myawi.com",
+      "country": "AUTO"
+    },
+    {
+      "id": "apua-ag",
+      "match": [
+        {
+          "plmn": "34403"
+        },
+        {
+          "plmn": "344030"
+        }
+      ]
+    },
+    {
+      "id": "astca-as",
+      "match": [
+        {
+          "plmn": "313120"
+        }
+      ],
+      "epdg": "epdg.epc.mnc780.mcc311.pub.3gppnetwork.org"
+    },
+    {
+      "id": "atn-bm",
+      "match": [
+        {
+          "plmn": "350000"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "atn-gy",
+      "match": [
+        {
+          "plmn": "738002"
+        }
+      ]
+    },
+    {
+      "id": "atn-tc",
+      "match": [
+        {
+          "plmn": "376360"
+        }
+      ]
+    },
+    {
+      "id": "atn-viya-vi",
+      "match": [
+        {
+          "plmn": "311040"
+        },
+        {
+          "plmn": "311320"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "att-aio-nr-us",
+      "match": [
+        {
+          "plmn": "310150",
+          "gid1": "53"
+        }
+      ],
+      "epdg": "epdg.epc.att.net"
+    },
+    {
+      "id": "att-aio-us",
+      "match": [
+        {
+          "plmn": "310150"
+        }
+      ],
+      "epdg": "epdg.epc.att.net"
+    },
+    {
+      "id": "att-cc-us",
+      "match": [
+        {
+          "plmn": "310170",
+          "gid1": "2A"
+        },
+        {
+          "plmn": "310410",
+          "gid1": "2A"
+        },
+        {
+          "plmn": "311180",
+          "gid1": "2A"
+        },
+        {
+          "plmn": "310560",
+          "gid1": "2A"
+        },
+        {
+          "plmn": "310280",
+          "gid1": "2A"
+        },
+        {
+          "plmn": "310030",
+          "gid1": "2A"
+        },
+        {
+          "plmn": "310950",
+          "gid1": "2A"
+        }
+      ],
+      "epdg": "epdg.epc.att.net"
+    },
+    {
+      "id": "att-dish-mvno-us",
+      "match": [
+        {
+          "plmn": "310410",
+          "gid1": "3432"
+        },
+        {
+          "plmn": "310280",
+          "gid1": "3432"
+        },
+        {
+          "plmn": "310410",
+          "gid1": "3436"
+        },
+        {
+          "plmn": "310410",
+          "gid1": "3434"
+        }
+      ],
+      "epdg": "epdg.epc.att.net"
+    },
+    {
+      "id": "att-firstnet-us",
+      "match": [
+        {
+          "plmn": "313100"
+        },
+        {
+          "plmn": "312670"
+        },
+        {
+          "plmn": "313100",
+          "gid1": "52"
+        },
+        {
+          "plmn": "312670",
+          "gid1": "52"
+        }
+      ],
+      "epdg": "epdg.epc.firstnet.com"
+    },
+    {
+      "id": "att-mvno-us",
+      "match": [
+        {
+          "plmn": "310410",
+          "gid1": "4102"
+        },
+        {
+          "plmn": "310280",
+          "gid1": "4102"
+        },
+        {
+          "plmn": "311180",
+          "gid1": "4102"
+        },
+        {
+          "plmn": "310950",
+          "gid1": "4102"
+        },
+        {
+          "plmn": "310410",
+          "gid1": "44"
+        },
+        {
+          "plmn": "310280",
+          "gid1": "44"
+        },
+        {
+          "plmn": "311180",
+          "gid1": "44"
+        },
+        {
+          "plmn": "310950",
+          "gid1": "44"
+        },
+        {
+          "plmn": "310280",
+          "gid1": "20"
+        },
+        {
+          "plmn": "310950",
+          "gid1": "20"
+        }
+      ],
+      "epdg": "epdg.epc.att.net"
+    },
+    {
+      "id": "att-nr-us",
+      "match": [
+        {
+          "plmn": "310410",
+          "gid1": "53"
+        },
+        {
+          "plmn": "310280",
+          "gid1": "53"
+        },
+        {
+          "plmn": "311180",
+          "gid1": "53"
+        },
+        {
+          "plmn": "310560",
+          "gid1": "53"
+        },
+        {
+          "plmn": "310030",
+          "gid1": "53"
+        },
+        {
+          "plmn": "310950",
+          "gid1": "53"
+        },
+        {
+          "plmn": "310950",
+          "gid1": "52"
+        },
+        {
+          "plmn": "310030",
+          "gid1": "52"
+        },
+        {
+          "plmn": "310560",
+          "gid1": "52"
+        },
+        {
+          "plmn": "311180",
+          "gid1": "52"
+        },
+        {
+          "plmn": "310280",
+          "gid1": "52"
+        },
+        {
+          "plmn": "310410",
+          "gid1": "52"
+        }
+      ],
+      "epdg": "epdg.epc.att.net"
+    },
+    {
+      "id": "att-puretalk-us",
+      "match": [
+        {
+          "plmn": "310170",
+          "gid1": "62"
+        },
+        {
+          "plmn": "310410",
+          "gid1": "62"
+        },
+        {
+          "plmn": "311180",
+          "gid1": "62"
+        },
+        {
+          "plmn": "310560",
+          "gid1": "62"
+        },
+        {
+          "plmn": "310280",
+          "gid1": "62"
+        },
+        {
+          "plmn": "310030",
+          "gid1": "62"
+        },
+        {
+          "plmn": "310950",
+          "gid1": "62"
+        }
+      ],
+      "epdg": "epdg.epc.att.net"
+    },
+    {
+      "id": "att-redpocket-us",
+      "match": [
+        {
+          "plmn": "310410",
+          "gid1": "42"
+        },
+        {
+          "plmn": "310280",
+          "gid1": "42"
+        }
+      ],
+      "epdg": "epdg.epc.att.net"
+    },
+    {
+      "id": "att-tfw-us",
+      "match": [
+        {
+          "plmn": "310170",
+          "gid1": "DE"
+        },
+        {
+          "plmn": "310410",
+          "gid1": "DE"
+        },
+        {
+          "plmn": "311180",
+          "gid1": "DE"
+        },
+        {
+          "plmn": "310560",
+          "gid1": "DE"
+        },
+        {
+          "plmn": "310280",
+          "gid1": "DE"
+        },
+        {
+          "plmn": "310030",
+          "gid1": "DE"
+        },
+        {
+          "plmn": "310950",
+          "gid1": "DE"
+        }
+      ],
+      "epdg": "epdg.epc.att.net"
+    },
+    {
+      "id": "att-us",
+      "match": [
+        {
+          "plmn": "310170"
+        },
+        {
+          "plmn": "310030"
+        }
+      ],
+      "epdg": "epdg.epc.att.net"
+    },
+    {
+      "id": "avantel-co",
+      "match": [
+        {
+          "plmn": "732130"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "avea-tr",
+      "match": [
+        {
+          "plmn": "28603"
+        },
+        {
+          "plmn": "28604"
+        }
+      ],
+      "epdg": "epdg.epc.mnc003.mcc286.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "awcc-af",
+      "match": [
+        {
+          "plmn": "41201"
+        }
+      ]
+    },
+    {
+      "id": "azerfon-az",
+      "match": [
+        {
+          "plmn": "40004"
+        }
+      ]
+    },
+    {
+      "id": "bakcell-az",
+      "match": [
+        {
+          "plmn": "40002"
+        }
+      ]
+    },
+    {
+      "id": "banglalink-bd",
+      "match": [
+        {
+          "plmn": "47003"
+        }
+      ]
+    },
+    {
+      "id": "base-be",
+      "match": [
+        {
+          "plmn": "20620"
+        }
+      ],
+      "epdg": "epdg.telco.telenet-ops.be"
+    },
+    {
+      "id": "batelco-bh",
+      "match": [
+        {
+          "plmn": "42601"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc426.pub.3gppnetwork.org"
+    },
+    {
+      "id": "bell-ca",
+      "match": [
+        {
+          "plmn": "302610"
+        },
+        {
+          "plmn": "302630"
+        },
+        {
+          "plmn": "302640"
+        }
+      ],
+      "epdg": "epdg.epc.mnc610.mcc302.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "bell-lucky-ca",
+      "match": [
+        {
+          "plmn": "302610",
+          "gid1": "42"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "bell-virgin-ca",
+      "match": [
+        {
+          "plmn": "302610",
+          "gid1": "3E"
+        }
+      ],
+      "epdg": "epdg.epc.mnc610.mcc302.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "bhartiairtel-bf",
+      "match": [
+        {
+          "plmn": "61302"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-cd",
+      "match": [
+        {
+          "plmn": "63002"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-cg",
+      "match": [
+        {
+          "plmn": "62901"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-ga",
+      "match": [
+        {
+          "plmn": "62803"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-gh",
+      "match": [
+        {
+          "plmn": "62006"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-in",
+      "match": [
+        {
+          "plmn": "40410"
+        },
+        {
+          "plmn": "40492"
+        },
+        {
+          "plmn": "40440"
+        },
+        {
+          "plmn": "40431"
+        },
+        {
+          "plmn": "40490"
+        },
+        {
+          "plmn": "40498"
+        },
+        {
+          "plmn": "40449"
+        },
+        {
+          "plmn": "40445"
+        },
+        {
+          "plmn": "40494"
+        },
+        {
+          "plmn": "40495"
+        },
+        {
+          "plmn": "40402"
+        },
+        {
+          "plmn": "40496"
+        },
+        {
+          "plmn": "40497"
+        },
+        {
+          "plmn": "40554"
+        },
+        {
+          "plmn": "40470"
+        },
+        {
+          "plmn": "40493"
+        },
+        {
+          "plmn": "40551"
+        },
+        {
+          "plmn": "40403"
+        },
+        {
+          "plmn": "40552"
+        },
+        {
+          "plmn": "40553"
+        },
+        {
+          "plmn": "40556"
+        },
+        {
+          "plmn": "40416"
+        },
+        {
+          "plmn": "40555"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-ke",
+      "match": [
+        {
+          "plmn": "63903"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-lk",
+      "match": [
+        {
+          "plmn": "41305"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-mg",
+      "match": [
+        {
+          "plmn": "64601"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-mw",
+      "match": [
+        {
+          "plmn": "65010"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-ne",
+      "match": [
+        {
+          "plmn": "61402"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-ng",
+      "match": [
+        {
+          "plmn": "62120"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-rw",
+      "match": [
+        {
+          "plmn": "63514"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-sc",
+      "match": [
+        {
+          "plmn": "63310"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-sl",
+      "match": [
+        {
+          "plmn": "61901"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-td",
+      "match": [
+        {
+          "plmn": "62201"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-tz",
+      "match": [
+        {
+          "plmn": "64005"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-ug",
+      "match": [
+        {
+          "plmn": "64101"
+        }
+      ]
+    },
+    {
+      "id": "bhartiairtel-zm",
+      "match": [
+        {
+          "plmn": "64501"
+        }
+      ]
+    },
+    {
+      "id": "bhutantelecom-bt",
+      "match": [
+        {
+          "plmn": "40211"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "bics",
+      "match": [
+        {
+          "plmn": "20628"
+        }
+      ]
+    },
+    {
+      "id": "bite-lt",
+      "match": [
+        {
+          "plmn": "24602"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "bluesky-as",
+      "match": [
+        {
+          "plmn": "54411"
+        },
+        {
+          "plmn": "544110"
+        }
+      ]
+    },
+    {
+      "id": "bluesky-ws",
+      "match": [
+        {
+          "plmn": "54927"
+        }
+      ]
+    },
+    {
+      "id": "bmobile-pg",
+      "match": [
+        {
+          "plmn": "53701"
+        }
+      ]
+    },
+    {
+      "id": "bmobile-sb",
+      "match": [
+        {
+          "plmn": "54002"
+        }
+      ]
+    },
+    {
+      "id": "bne",
+      "match": [
+        {
+          "plmn": "26006",
+          "gid1": "626E6573696D31"
+        },
+        {
+          "plmn": "310840",
+          "gid1": "626E6573696D31"
+        },
+        {
+          "plmn": "41677",
+          "gid1": "626E6573696D31"
+        },
+        {
+          "plmn": "42501",
+          "gid1": "626E6573696D31"
+        },
+        {
+          "plmn": "52505",
+          "gid1": "626E6573696D31"
+        },
+        {
+          "plmn": "29505",
+          "gid1": "626E6573696D31"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap-att-us",
+      "match": [
+        {
+          "plmn": "310380",
+          "gid1": "39"
+        }
+      ]
+    },
+    {
+      "id": "bootstrap-verizon-us",
+      "match": [
+        {
+          "plmn": "311270",
+          "gid2": "1D"
+        }
+      ]
+    },
+    {
+      "id": "bouygues-fr",
+      "match": [
+        {
+          "plmn": "20820"
+        },
+        {
+          "plmn": "20820",
+          "gid1": "4C504D"
+        }
+      ],
+      "epdg": "epdg.epc.mnc020.mcc208.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "bt-business-uk",
+      "match": [
+        {
+          "plmn": "23430",
+          "gid1": "B3"
+        }
+      ],
+      "epdg": "epdg.epc.mnc030.mcc234.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "bt-consumer-uk",
+      "match": [
+        {
+          "plmn": "23430",
+          "gid1": "C3"
+        }
+      ],
+      "epdg": "epdg.epc.mnc030.mcc234.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "bt-onephone-uk",
+      "match": [
+        {
+          "plmn": "23408"
+        },
+        {
+          "plmn": "23430",
+          "gid1": "B2"
+        }
+      ],
+      "epdg": "epdg.epc.mnc008.mcc234.pub.3gppnetwork.org"
+    },
+    {
+      "id": "btc-bw",
+      "match": [
+        {
+          "plmn": "65204"
+        }
+      ]
+    },
+    {
+      "id": "btl-bz",
+      "match": [
+        {
+          "plmn": "70267"
+        }
+      ]
+    },
+    {
+      "id": "cablenet-cy",
+      "match": [
+        {
+          "plmn": "28022"
+        }
+      ]
+    },
+    {
+      "id": "carolinawest-lte-us",
+      "match": [
+        {
+          "plmn": "310130"
+        }
+      ],
+      "epdg": "epdg.epc.mnc130.mcc310.pub.3gppnetwork.org"
+    },
+    {
+      "id": "carrierlab",
+      "match": [
+        {
+          "plmn": "00101"
+        },
+        {
+          "plmn": "00281"
+        },
+        {
+          "plmn": "001011"
+        },
+        {
+          "plmn": "00102"
+        },
+        {
+          "plmn": "00111"
+        },
+        {
+          "plmn": "00211"
+        },
+        {
+          "plmn": "00321"
+        },
+        {
+          "plmn": "00431"
+        },
+        {
+          "plmn": "00541"
+        },
+        {
+          "plmn": "00651"
+        },
+        {
+          "plmn": "00761"
+        },
+        {
+          "plmn": "00871"
+        },
+        {
+          "plmn": "00902"
+        },
+        {
+          "plmn": "01012"
+        },
+        {
+          "plmn": "01122"
+        },
+        {
+          "plmn": "01232"
+        },
+        {
+          "plmn": "10101"
+        },
+        {
+          "plmn": "24608"
+        },
+        {
+          "plmn": "246081"
+        },
+        {
+          "plmn": "24681"
+        },
+        {
+          "plmn": "246813"
+        },
+        {
+          "plmn": "311011"
+        },
+        {
+          "plmn": "29981"
+        },
+        {
+          "plmn": "26280"
+        },
+        {
+          "plmn": "26284"
+        },
+        {
+          "plmn": "262820"
+        },
+        {
+          "plmn": "240681"
+        },
+        {
+          "plmn": "240680"
+        }
+      ]
+    },
+    {
+      "id": "cbn-cn",
+      "match": [
+        {
+          "plmn": "46015"
+        }
+      ]
+    },
+    {
+      "id": "celcom-my",
+      "match": [
+        {
+          "plmn": "50219"
+        }
+      ],
+      "epdg": "epdg.epc.mnc019.mcc502.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "cellc-za",
+      "match": [
+        {
+          "plmn": "65507"
+        }
+      ],
+      "epdg": "epdg.epc.mnc007.mcc655.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "cellcard-kh",
+      "match": [
+        {
+          "plmn": "45601"
+        }
+      ]
+    },
+    {
+      "id": "cellcom-golan-il",
+      "match": [
+        {
+          "plmn": "42508"
+        }
+      ]
+    },
+    {
+      "id": "cellcom-il",
+      "match": [
+        {
+          "plmn": "42502"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc425.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "cellcom-lte-us",
+      "match": [
+        {
+          "plmn": "311480",
+          "gid2": "AD"
+        }
+      ]
+    },
+    {
+      "id": "cellcomwi-lte-us",
+      "match": [
+        {
+          "plmn": "311840",
+          "gid1": "C1"
+        }
+      ],
+      "epdg": "epdg.epc.mnc840.mcc311.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "cellularsouth-lte-us",
+      "match": [
+        {
+          "plmn": "311230"
+        }
+      ],
+      "epdg": "epdg.vowifi.cspire.com"
+    },
+    {
+      "id": "charter-nr-us",
+      "match": [
+        {
+          "plmn": "314020"
+        }
+      ]
+    },
+    {
+      "id": "chinatelecom-hk",
+      "match": [
+        {
+          "plmn": "45431"
+        }
+      ]
+    },
+    {
+      "id": "chinatelecom-usim-cn",
+      "match": [
+        {
+          "plmn": "46011"
+        }
+      ]
+    },
+    {
+      "id": "chinatelecom-usim-mo",
+      "match": [
+        {
+          "plmn": "45507"
+        }
+      ]
+    },
+    {
+      "id": "chippie-cw",
+      "match": [
+        {
+          "plmn": "36291"
+        }
+      ]
+    },
+    {
+      "id": "chippie-mf",
+      "match": [
+        {
+          "plmn": "34003"
+        }
+      ]
+    },
+    {
+      "id": "choice-gu",
+      "match": [
+        {
+          "plmn": "310480"
+        }
+      ]
+    },
+    {
+      "id": "chunghwa-tw",
+      "match": [
+        {
+          "plmn": "46692"
+        }
+      ],
+      "epdg": "epdg.epc.mnc092.mcc466.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "claro-ar",
+      "match": [
+        {
+          "plmn": "722310"
+        }
+      ],
+      "epdg": "epdg.epc.mnc310.mcc722.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "claro-br",
+      "match": [
+        {
+          "plmn": "72405"
+        }
+      ],
+      "epdg": "epdg.ims.mnc005.mcc724.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "claro-cl",
+      "match": [
+        {
+          "plmn": "73003"
+        }
+      ],
+      "epdg": "epdg.ims.mnc003.mcc730.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "claro-cr",
+      "match": [
+        {
+          "plmn": "71230"
+        },
+        {
+          "plmn": "71203"
+        },
+        {
+          "plmn": "712300"
+        },
+        {
+          "plmn": "712030"
+        }
+      ],
+      "epdg": "epdg.ims.mnc003.mcc712.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "claro-do",
+      "match": [
+        {
+          "plmn": "37002"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "claro-gt",
+      "match": [
+        {
+          "plmn": "70401"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "claro-hn",
+      "match": [
+        {
+          "plmn": "70800"
+        },
+        {
+          "plmn": "70801"
+        },
+        {
+          "plmn": "708001"
+        }
+      ],
+      "epdg": "epdg.ims.mnc001.mcc708.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "claro-ni",
+      "match": [
+        {
+          "plmn": "71021"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "claro-pa",
+      "match": [
+        {
+          "plmn": "71403"
+        }
+      ],
+      "epdg": "epdg.ims.mnc003.mcc714.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "claro-pe",
+      "match": [
+        {
+          "plmn": "71610"
+        }
+      ],
+      "epdg": "epdg.ims.mnc010.mcc716.pub.3gppnetwork.org"
+    },
+    {
+      "id": "claro-pr",
+      "match": [
+        {
+          "plmn": "330110"
+        },
+        {
+          "plmn": "33011"
+        }
+      ],
+      "epdg": "epdg.epc.mnc110.mcc330.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "claro-py",
+      "match": [
+        {
+          "plmn": "74402"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc744.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "claro-sv",
+      "match": [
+        {
+          "plmn": "70601"
+        }
+      ],
+      "epdg": "epdg.ims.mnc001.mcc706.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "claro-uy",
+      "match": [
+        {
+          "plmn": "74810"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "cmcc-cn",
+      "match": [
+        {
+          "plmn": "46000"
+        },
+        {
+          "plmn": "46002"
+        },
+        {
+          "plmn": "46007"
+        },
+        {
+          "plmn": "46008"
+        }
+      ]
+    },
+    {
+      "id": "cmcc-hk",
+      "match": [
+        {
+          "plmn": "45412"
+        }
+      ],
+      "epdg": "epdg.epc.mnc012.mcc454.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "cmcc-hkbn-hk",
+      "match": [
+        {
+          "plmn": "45412",
+          "gid1": "0009"
+        }
+      ],
+      "epdg": "epdg.epc.mnc012.mcc454.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "comcast-nr-us",
+      "match": [
+        {
+          "plmn": "310014"
+        },
+        {
+          "plmn": "314200"
+        }
+      ]
+    },
+    {
+      "id": "comcel-co",
+      "match": [
+        {
+          "plmn": "732101"
+        }
+      ],
+      "epdg": "epdg.ims.mnc101.mcc732.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "comviq-se",
+      "match": [
+        {
+          "plmn": "24007",
+          "gid1": "4951"
+        }
+      ],
+      "epdg": "epdg.epc.mnc007.mcc240.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "coppervalley-lte-us",
+      "match": [
+        {
+          "plmn": "311480",
+          "gid2": "C"
+        }
+      ]
+    },
+    {
+      "id": "coppervalleytelecom-lte-us",
+      "match": [
+        {
+          "plmn": "312380"
+        }
+      ],
+      "epdg": "epdg.epc.mnc290.mcc312.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "coriolis-fr",
+      "match": [
+        {
+          "plmn": "20827"
+        }
+      ],
+      "epdg": "epdg.epc.mnc027.mcc208.pub.3gppnetwork.org",
+      "unsupported": "eap-method"
+    },
+    {
+      "id": "crosswireless-bravado-lte-us",
+      "match": [
+        {
+          "plmn": "313010"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "csl-hk",
+      "match": [
+        {
+          "plmn": "45400"
+        },
+        {
+          "plmn": "45402"
+        },
+        {
+          "plmn": "45410"
+        },
+        {
+          "plmn": "45418"
+        }
+      ],
+      "epdg": "epdg.epc.mnc000.mcc454.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "csl-sunmobile-hk",
+      "match": [
+        {
+          "plmn": "45400",
+          "gid1": "0103"
+        }
+      ],
+      "epdg": "epdg.epc.mnc000.mcc454.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "ctm-mo",
+      "match": [
+        {
+          "plmn": "45501"
+        },
+        {
+          "plmn": "45504"
+        }
+      ]
+    },
+    {
+      "id": "cw-bs",
+      "match": [
+        {
+          "plmn": "364039"
+        },
+        {
+          "plmn": "36439"
+        },
+        {
+          "plmn": "364390"
+        }
+      ]
+    },
+    {
+      "id": "cw-pa",
+      "match": [
+        {
+          "plmn": "71401"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc714.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "cw-sc",
+      "match": [
+        {
+          "plmn": "63301"
+        }
+      ]
+    },
+    {
+      "id": "cw-tt",
+      "match": [
+        {
+          "plmn": "37412"
+        },
+        {
+          "plmn": "374012"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "cw-wi",
+      "match": [
+        {
+          "plmn": "338180"
+        },
+        {
+          "plmn": "346140"
+        },
+        {
+          "plmn": "344920"
+        },
+        {
+          "plmn": "365840"
+        },
+        {
+          "plmn": "342600"
+        },
+        {
+          "plmn": "348170"
+        },
+        {
+          "plmn": "366110"
+        },
+        {
+          "plmn": "352110"
+        },
+        {
+          "plmn": "354860"
+        },
+        {
+          "plmn": "356110"
+        },
+        {
+          "plmn": "358110"
+        },
+        {
+          "plmn": "360110"
+        },
+        {
+          "plmn": "376350"
+        },
+        {
+          "plmn": "35611"
+        },
+        {
+          "plmn": "35486"
+        },
+        {
+          "plmn": "37635"
+        },
+        {
+          "plmn": "35811"
+        }
+      ]
+    },
+    {
+      "id": "cyta-cy",
+      "match": [
+        {
+          "plmn": "28001"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc280.pub.3gppnetwork.org",
+      "unsupported": "eap-method"
+    },
+    {
+      "id": "datapro",
+      "match": [
+        {
+          "plmn": "52501",
+          "gid1": "45736B696D6"
+        }
+      ]
+    },
+    {
+      "id": "dentwireless",
+      "match": [
+        {
+          "plmn": "311882",
+          "gid1": "3597BFD533"
+        },
+        {
+          "plmn": "26001",
+          "gid1": "3597BFD533"
+        },
+        {
+          "plmn": "26001",
+          "gid1": "3597BFD534"
+        },
+        {
+          "plmn": "26001",
+          "gid1": "3597BFD535"
+        },
+        {
+          "plmn": "27877",
+          "gid1": "3597BFD533"
+        },
+        {
+          "plmn": "44011",
+          "gid1": "3597BFD533"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "3597BFD533"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "3597BFD533"
+        },
+        {
+          "plmn": "26003",
+          "gid1": "3597BFD533"
+        },
+        {
+          "plmn": "23450",
+          "gid1": "3597BFD533"
+        },
+        {
+          "plmn": "42501",
+          "gid1": "3597BFD533"
+        },
+        {
+          "plmn": "45403",
+          "gid1": "3597BFD533"
+        },
+        {
+          "plmn": "51503",
+          "gid1": "3597BFD533"
+        },
+        {
+          "plmn": "26006",
+          "gid1": "3597BFD533"
+        }
+      ]
+    },
+    {
+      "id": "dhiraagu-mv",
+      "match": [
+        {
+          "plmn": "47201"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "dialog-lk",
+      "match": [
+        {
+          "plmn": "41302"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc413.pub.3gppnetwork.org"
+    },
+    {
+      "id": "digi-my",
+      "match": [
+        {
+          "plmn": "50216"
+        }
+      ],
+      "epdg": "epdg.epc.mnc016.mcc502.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "digicel-aw",
+      "match": [
+        {
+          "plmn": "36302"
+        }
+      ]
+    },
+    {
+      "id": "digicel-cw",
+      "match": [
+        {
+          "plmn": "36269"
+        }
+      ]
+    },
+    {
+      "id": "digicel-gy",
+      "match": [
+        {
+          "plmn": "73801"
+        }
+      ]
+    },
+    {
+      "id": "digicel-ht",
+      "match": [
+        {
+          "plmn": "37201"
+        }
+      ]
+    },
+    {
+      "id": "digicel-mq",
+      "match": [
+        {
+          "plmn": "34020"
+        }
+      ]
+    },
+    {
+      "id": "digicel-pa",
+      "match": [
+        {
+          "plmn": "71404"
+        }
+      ]
+    },
+    {
+      "id": "digicel-pg",
+      "match": [
+        {
+          "plmn": "53703"
+        }
+      ]
+    },
+    {
+      "id": "digicel-sr",
+      "match": [
+        {
+          "plmn": "74603"
+        }
+      ]
+    },
+    {
+      "id": "digicel-sv",
+      "match": [
+        {
+          "plmn": "70602"
+        }
+      ]
+    },
+    {
+      "id": "digicel-to",
+      "match": [
+        {
+          "plmn": "53988"
+        }
+      ]
+    },
+    {
+      "id": "digicel-tt",
+      "match": [
+        {
+          "plmn": "374130"
+        },
+        {
+          "plmn": "37413"
+        }
+      ]
+    },
+    {
+      "id": "digicel-vg",
+      "match": [
+        {
+          "plmn": "348770"
+        }
+      ]
+    },
+    {
+      "id": "digicel-vu",
+      "match": [
+        {
+          "plmn": "54105"
+        }
+      ]
+    },
+    {
+      "id": "digicel-ws",
+      "match": [
+        {
+          "plmn": "54900"
+        }
+      ]
+    },
+    {
+      "id": "dish-mvno-us",
+      "match": [
+        {
+          "plmn": "310240",
+          "gid1": "6432"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6434"
+        }
+      ]
+    },
+    {
+      "id": "dish-ting-us",
+      "match": [
+        {
+          "plmn": "310240",
+          "gid1": "6430"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6430"
+        }
+      ]
+    },
+    {
+      "id": "dish-us",
+      "match": [
+        {
+          "plmn": "313340",
+          "gid1": "6332"
+        },
+        {
+          "plmn": "302220",
+          "gid1": "6336"
+        },
+        {
+          "plmn": "313340",
+          "gid1": "6336"
+        },
+        {
+          "plmn": "302220",
+          "gid1": "6332"
+        },
+        {
+          "plmn": "313340",
+          "gid1": "6530"
+        },
+        {
+          "plmn": "313340",
+          "gid2": "6531"
+        }
+      ],
+      "epdg": "epdg.epc.mnc340.mcc313.pub.3gppnetwork.org"
+    },
+    {
+      "id": "djezzy-dz",
+      "match": [
+        {
+          "plmn": "60302"
+        }
+      ]
+    },
+    {
+      "id": "dna-fi",
+      "match": [
+        {
+          "plmn": "24403"
+        },
+        {
+          "plmn": "24412"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "docomo-gu",
+      "match": [
+        {
+          "plmn": "310370"
+        },
+        {
+          "plmn": "310470"
+        },
+        {
+          "plmn": "313110"
+        }
+      ]
+    },
+    {
+      "id": "docomo-jp",
+      "match": [
+        {
+          "plmn": "44010"
+        },
+        {
+          "plmn": "44010",
+          "gid1": "01"
+        }
+      ]
+    },
+    {
+      "id": "dstcom-bn",
+      "match": [
+        {
+          "plmn": "52811"
+        },
+        {
+          "plmn": "52803"
+        }
+      ]
+    },
+    {
+      "id": "dtac-th",
+      "match": [
+        {
+          "plmn": "52018"
+        },
+        {
+          "plmn": "52005"
+        }
+      ],
+      "epdg": "epdg.epc.mnc005.mcc520.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "du-ae",
+      "match": [
+        {
+          "plmn": "42403"
+        }
+      ]
+    },
+    {
+      "id": "eastlink-ca",
+      "match": [
+        {
+          "plmn": "302270"
+        }
+      ],
+      "epdg": "epdg.epc.mnc270.mcc302.pub.3gppnetwork.org"
+    },
+    {
+      "id": "econet-zw",
+      "match": [
+        {
+          "plmn": "64804"
+        }
+      ]
+    },
+    {
+      "id": "elisa-ee",
+      "match": [
+        {
+          "plmn": "24802"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc248.pub.3gppnetwork.org",
+      "unsupported": "eap-method",
+      "country": "AUTO"
+    },
+    {
+      "id": "elisa-fi",
+      "match": [
+        {
+          "plmn": "24405"
+        }
+      ],
+      "unsupported": "eap-method"
+    },
+    {
+      "id": "emt-ee",
+      "match": [
+        {
+          "plmn": "24801"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc248.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "enetworks-gy",
+      "match": [
+        {
+          "plmn": "738040"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "entel-pe",
+      "match": [
+        {
+          "plmn": "71617"
+        }
+      ],
+      "epdg": "epdg.epc.mnc017.mcc716.pub.3gppnetwork.org"
+    },
+    {
+      "id": "entelpcs-cl",
+      "match": [
+        {
+          "plmn": "73001"
+        },
+        {
+          "plmn": "73010"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "eplus-de",
+      "match": [
+        {
+          "plmn": "26203"
+        }
+      ],
+      "epdg": "epdg.epc.mnc007.mcc262.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "esimgo",
+      "match": [
+        {
+          "plmn": "23210",
+          "gid1": "0409"
+        },
+        {
+          "plmn": "20601",
+          "gid1": "0409"
+        },
+        {
+          "plmn": "20628",
+          "gid1": "0409"
+        },
+        {
+          "plmn": "23457",
+          "gid1": "0409"
+        },
+        {
+          "plmn": "27225",
+          "gid1": "0409"
+        },
+        {
+          "plmn": "20809",
+          "gid1": "0409"
+        },
+        {
+          "plmn": "26050",
+          "gid1": "0409"
+        }
+      ]
+    },
+    {
+      "id": "etisalat-ae",
+      "match": [
+        {
+          "plmn": "42402"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc424.etisalat.ae"
+    },
+    {
+      "id": "etisalat-af",
+      "match": [
+        {
+          "plmn": "41250"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "etisalat-bj",
+      "match": [
+        {
+          "plmn": "61602"
+        }
+      ]
+    },
+    {
+      "id": "etisalat-ci",
+      "match": [
+        {
+          "plmn": "61202"
+        }
+      ]
+    },
+    {
+      "id": "etisalat-eg",
+      "match": [
+        {
+          "plmn": "60203"
+        }
+      ]
+    },
+    {
+      "id": "etisalat-ng",
+      "match": [
+        {
+          "plmn": "62160"
+        }
+      ]
+    },
+    {
+      "id": "etisalat-tz",
+      "match": [
+        {
+          "plmn": "64003"
+        }
+      ]
+    },
+    {
+      "id": "familymobile-us",
+      "match": [
+        {
+          "plmn": "310240",
+          "gid1": "4D4B"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "4D4B"
+        }
+      ]
+    },
+    {
+      "id": "fareastone-tw",
+      "match": [
+        {
+          "plmn": "46601"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc466.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "fastweb-it",
+      "match": [
+        {
+          "plmn": "22208"
+        },
+        {
+          "plmn": "22801",
+          "gid1": "D8"
+        }
+      ],
+      "epdg": "epdg.fastweb.it",
+      "unsupported": "eap-method",
+      "country": "AUTO"
+    },
+    {
+      "id": "fido-ca",
+      "match": [
+        {
+          "plmn": "302370"
+        }
+      ],
+      "epdg": "epdg.epc.mnc370.mcc302.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "flexiroam",
+      "match": [
+        {
+          "plmn": "23450",
+          "gid1": "46526F616D313054"
+        }
+      ]
+    },
+    {
+      "id": "free-fr",
+      "match": [
+        {
+          "plmn": "20815"
+        }
+      ],
+      "unsupported": "eap-method"
+    },
+    {
+      "id": "free-mq",
+      "match": [
+        {
+          "plmn": "34009"
+        },
+        {
+          "plmn": "34004"
+        },
+        {
+          "plmn": "20815",
+          "gid1": "F007"
+        },
+        {
+          "plmn": "20815",
+          "gid1": "F008"
+        }
+      ]
+    },
+    {
+      "id": "free-re",
+      "match": [
+        {
+          "plmn": "64703"
+        },
+        {
+          "plmn": "20815",
+          "gid1": "F006"
+        }
+      ]
+    },
+    {
+      "id": "free-yt",
+      "match": [
+        {
+          "plmn": "64702",
+          "gid1": "F004"
+        }
+      ]
+    },
+    {
+      "id": "freedommobile-ca",
+      "match": [
+        {
+          "plmn": "302490"
+        }
+      ],
+      "epdg": "epdg.epc.mnc490.mcc302.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "fsmtc-fm",
+      "match": [
+        {
+          "plmn": "55001"
+        }
+      ]
+    },
+    {
+      "id": "gci-us",
+      "match": [
+        {
+          "plmn": "311370",
+          "gid1": "0050"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "genesis",
+      "match": [
+        {
+          "plmn": "26001",
+          "gid1": "596553494D313054"
+        }
+      ]
+    },
+    {
+      "id": "gigsky-us",
+      "match": [
+        {
+          "plmn": "22201",
+          "gid1": "6"
+        },
+        {
+          "plmn": "20404",
+          "gid1": "6"
+        },
+        {
+          "plmn": "23801",
+          "gid1": "6"
+        },
+        {
+          "plmn": "24007",
+          "gid1": "6"
+        },
+        {
+          "plmn": "338050",
+          "gid1": "6"
+        },
+        {
+          "plmn": "310380",
+          "gid1": "6"
+        },
+        {
+          "plmn": "312870",
+          "gid1": "6"
+        },
+        {
+          "plmn": "20809",
+          "gid1": "6"
+        }
+      ]
+    },
+    {
+      "id": "globacom-bj",
+      "match": [
+        {
+          "plmn": "61605"
+        }
+      ]
+    },
+    {
+      "id": "globacom-gh",
+      "match": [
+        {
+          "plmn": "62007"
+        }
+      ]
+    },
+    {
+      "id": "globacom-ng",
+      "match": [
+        {
+          "plmn": "62150"
+        }
+      ]
+    },
+    {
+      "id": "globe-ph",
+      "match": [
+        {
+          "plmn": "51502"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "gomobile-mt",
+      "match": [
+        {
+          "plmn": "27821"
+        }
+      ]
+    },
+    {
+      "id": "grameenphone-bd",
+      "match": [
+        {
+          "plmn": "47001"
+        }
+      ]
+    },
+    {
+      "id": "gta-gu",
+      "match": [
+        {
+          "plmn": "310140"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "hutchison-at",
+      "match": [
+        {
+          "plmn": "23210"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "hutchison-dk",
+      "match": [
+        {
+          "plmn": "23806"
+        }
+      ],
+      "epdg": "epdg.epc.mnc006.mcc238.pub.3gppnetwork.org"
+    },
+    {
+      "id": "hutchison-hk",
+      "match": [
+        {
+          "plmn": "45403"
+        },
+        {
+          "plmn": "45404"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "hutchison-hkbn-hk",
+      "match": [
+        {
+          "plmn": "45403",
+          "gid1": "0009"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "hutchison-id-uk",
+      "match": [
+        {
+          "plmn": "23420",
+          "gid1": "0305"
+        }
+      ],
+      "epdg": "epdg.epc.mnc020.mcc234.pub.3gppnetwork.org"
+    },
+    {
+      "id": "hutchison-ie",
+      "match": [
+        {
+          "plmn": "27205"
+        }
+      ],
+      "epdg": "epdg.three.ie",
+      "unsupported": "eap-method",
+      "country": "AUTO"
+    },
+    {
+      "id": "hutchison-it",
+      "match": [
+        {
+          "plmn": "22299"
+        }
+      ],
+      "epdg": "epdg.epc.mnc099.mcc222.pub.3gppnetwork.org",
+      "unsupported": "eap-method"
+    },
+    {
+      "id": "hutchison-lk",
+      "match": [
+        {
+          "plmn": "41308"
+        }
+      ]
+    },
+    {
+      "id": "hutchison-mo",
+      "match": [
+        {
+          "plmn": "45503"
+        },
+        {
+          "plmn": "45505"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "hutchison-se",
+      "match": [
+        {
+          "plmn": "24002"
+        },
+        {
+          "plmn": "24002",
+          "gid1": "00000002"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc240.pub.3gppnetwork.org"
+    },
+    {
+      "id": "hutchison-uk",
+      "match": [
+        {
+          "plmn": "23420"
+        }
+      ],
+      "epdg": "epdg.epc.mnc020.mcc234.pub.3gppnetwork.org"
+    },
+    {
+      "id": "hutchison-wind-it",
+      "match": [
+        {
+          "plmn": "22288"
+        }
+      ],
+      "epdg": "epdg.epc.mnc088.mcc222.pub.3gppnetwork.org",
+      "unsupported": "eap-method"
+    },
+    {
+      "id": "ice-cr",
+      "match": [
+        {
+          "plmn": "71201"
+        },
+        {
+          "plmn": "71202"
+        }
+      ]
+    },
+    {
+      "id": "ice-no",
+      "match": [
+        {
+          "plmn": "24214"
+        }
+      ],
+      "epdg": "epdg.epc.mnc014.mcc242.pub.3gppnetwork.org",
+      "unsupported": "eap-method",
+      "country": "AUTO"
+    },
+    {
+      "id": "idea-in",
+      "match": [
+        {
+          "plmn": "40422"
+        },
+        {
+          "plmn": "40424"
+        },
+        {
+          "plmn": "40407"
+        },
+        {
+          "plmn": "40478"
+        },
+        {
+          "plmn": "40404"
+        },
+        {
+          "plmn": "40412"
+        },
+        {
+          "plmn": "40456"
+        },
+        {
+          "plmn": "40419"
+        },
+        {
+          "plmn": "40489"
+        },
+        {
+          "plmn": "40487"
+        },
+        {
+          "plmn": "40482"
+        },
+        {
+          "plmn": "405799"
+        },
+        {
+          "plmn": "40570"
+        },
+        {
+          "plmn": "405845"
+        },
+        {
+          "plmn": "405846"
+        },
+        {
+          "plmn": "40444"
+        },
+        {
+          "plmn": "405848"
+        },
+        {
+          "plmn": "405849"
+        },
+        {
+          "plmn": "405850"
+        },
+        {
+          "plmn": "40414"
+        },
+        {
+          "plmn": "405852"
+        },
+        {
+          "plmn": "405853"
+        }
+      ]
+    },
+    {
+      "id": "iliad-it",
+      "match": [
+        {
+          "plmn": "22250"
+        },
+        {
+          "plmn": "22250",
+          "gid1": "F003"
+        },
+        {
+          "plmn": "20815",
+          "gid1": "F003"
+        }
+      ]
+    },
+    {
+      "id": "imagine-bn",
+      "match": [
+        {
+          "plmn": "52801"
+        }
+      ]
+    },
+    {
+      "id": "indosat-id",
+      "match": [
+        {
+          "plmn": "51001"
+        },
+        {
+          "plmn": "51089"
+        },
+        {
+          "plmn": "51021"
+        }
+      ]
+    },
+    {
+      "id": "inland-lte-us",
+      "match": [
+        {
+          "plmn": "310580"
+        }
+      ],
+      "epdg": "epdg.epc.mnc580.mcc310.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "inwi-ma",
+      "match": [
+        {
+          "plmn": "60402"
+        }
+      ]
+    },
+    {
+      "id": "ite-gu",
+      "match": [
+        {
+          "plmn": "310110"
+        }
+      ],
+      "epdg": "epdg.pti.mnc110.mcc310.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "iusacell-mx",
+      "match": [
+        {
+          "plmn": "33405"
+        },
+        {
+          "plmn": "334050"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "iusacell-unefon-mx",
+      "match": [
+        {
+          "plmn": "33405",
+          "gid2": "FFFFFF55"
+        },
+        {
+          "plmn": "334050",
+          "gid2": "FFFFFF55"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "iusacell-wim-mx",
+      "match": [
+        {
+          "plmn": "334050",
+          "gid1": "4F4E45"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "jawwal-ps",
+      "match": [
+        {
+          "plmn": "42505"
+        }
+      ]
+    },
+    {
+      "id": "jerseytelecom-je",
+      "match": [
+        {
+          "plmn": "23450"
+        }
+      ]
+    },
+    {
+      "id": "kddi-biglobe-lte-only-jp",
+      "match": [
+        {
+          "plmn": "44051",
+          "gid1": "24",
+          "gid2": "00"
+        }
+      ]
+    },
+    {
+      "id": "kddi-jcom-lte-only-jp",
+      "match": [
+        {
+          "plmn": "44051",
+          "gid1": "22",
+          "gid2": "00"
+        }
+      ]
+    },
+    {
+      "id": "kddi-lte-only-jp",
+      "match": [
+        {
+          "plmn": "44051",
+          "gid1": "26",
+          "gid2": "00"
+        },
+        {
+          "plmn": "44051",
+          "gid1": "21",
+          "gid2": "00"
+        },
+        {
+          "plmn": "44051",
+          "gid1": "23",
+          "gid2": "00"
+        },
+        {
+          "plmn": "44051",
+          "gid1": "25",
+          "gid2": "00"
+        },
+        {
+          "plmn": "44051",
+          "gid1": "30",
+          "gid2": "00"
+        },
+        {
+          "plmn": "44051"
+        }
+      ]
+    },
+    {
+      "id": "kddi-nr-jp",
+      "match": [
+        {
+          "plmn": "44054"
+        },
+        {
+          "plmn": "44055"
+        }
+      ]
+    },
+    {
+      "id": "kddi-povo-nr-jp",
+      "match": [
+        {
+          "plmn": "44054",
+          "gid1": "26",
+          "gid2": "00"
+        }
+      ]
+    },
+    {
+      "id": "kddi-uq-lte-only-jp",
+      "match": [
+        {
+          "plmn": "44051",
+          "gid1": "20",
+          "gid2": "00"
+        }
+      ]
+    },
+    {
+      "id": "kddi-uq-nr-jp",
+      "match": [
+        {
+          "plmn": "44054",
+          "gid1": "20",
+          "gid2": "00"
+        }
+      ]
+    },
+    {
+      "id": "knowroaming",
+      "match": [
+        {
+          "plmn": "310840",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "22201",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "42501",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "26006",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "42402",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "60202",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "52505",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "23450",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "53703",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "29505",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "41677",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "45204",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "71204",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "72418",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "732123",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "23410",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "24007",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "26001",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "45400",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "52501",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "334020",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "20408",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "26806",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "20809",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "20628",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "20601",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "42202",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "42204",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "41302",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "41311",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "20801",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "20802",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "90131",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "53005",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "42003",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "51001",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "72236",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "72234",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "41909",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "41904",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "42702",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "51010",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "31399",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "313790",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "314720",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "21405",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "334170",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "302691",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "302690",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "302610",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "45201",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "51502",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "502012",
+          "gid1": "636F6E6E65637431"
+        },
+        {
+          "plmn": "722368",
+          "gid1": "636F6E6E65637431"
+        }
+      ]
+    },
+    {
+      "id": "korek-iq",
+      "match": [
+        {
+          "plmn": "41840"
+        }
+      ]
+    },
+    {
+      "id": "kpn-nl",
+      "match": [
+        {
+          "plmn": "20408"
+        },
+        {
+          "plmn": "20469"
+        }
+      ],
+      "epdg": "epdg.epc.mnc008.mcc204.pub.3gppnetwork.org"
+    },
+    {
+      "id": "kpn-telfort-nl",
+      "match": [
+        {
+          "plmn": "20412"
+        }
+      ]
+    },
+    {
+      "id": "ktf-kr",
+      "match": [
+        {
+          "plmn": "45008"
+        },
+        {
+          "plmn": "45002"
+        }
+      ]
+    },
+    {
+      "id": "kyivstar-ua",
+      "match": [
+        {
+          "plmn": "25503"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "laotel-la",
+      "match": [
+        {
+          "plmn": "45701"
+        }
+      ]
+    },
+    {
+      "id": "lgu-kr",
+      "match": [
+        {
+          "plmn": "45006"
+        },
+        {
+          "plmn": "45010"
+        }
+      ]
+    },
+    {
+      "id": "liberty-pr",
+      "match": [
+        {
+          "plmn": "313790"
+        }
+      ],
+      "epdg": "epdg.epc.mnc790.mcc313.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "life-by",
+      "match": [
+        {
+          "plmn": "25704"
+        }
+      ]
+    },
+    {
+      "id": "lmt-lv",
+      "match": [
+        {
+          "plmn": "24701"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "lotusflare",
+      "match": [
+        {
+          "plmn": "52501",
+          "gid1": "4745544E4F4D4144"
+        }
+      ]
+    },
+    {
+      "id": "luxgsm-lu",
+      "match": [
+        {
+          "plmn": "27001"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc270.pub.3gppnetwork.org"
+    },
+    {
+      "id": "magticom-ge",
+      "match": [
+        {
+          "plmn": "28202"
+        }
+      ]
+    },
+    {
+      "id": "manxtelecom-im",
+      "match": [
+        {
+          "plmn": "23458"
+        }
+      ]
+    },
+    {
+      "id": "maroc-ma",
+      "match": [
+        {
+          "plmn": "60401"
+        }
+      ]
+    },
+    {
+      "id": "mascom-bw",
+      "match": [
+        {
+          "plmn": "65201"
+        }
+      ]
+    },
+    {
+      "id": "maxis-my",
+      "match": [
+        {
+          "plmn": "50212"
+        }
+      ],
+      "epdg": "epdg.epc.mnc012.mcc502.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "mcel-mz",
+      "match": [
+        {
+          "plmn": "64301"
+        }
+      ]
+    },
+    {
+      "id": "meditel-ma",
+      "match": [
+        {
+          "plmn": "60400"
+        }
+      ]
+    },
+    {
+      "id": "megafon-ru",
+      "match": [
+        {
+          "plmn": "25002"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc250.pub.3gppnetwork.org"
+    },
+    {
+      "id": "megafon-yota-ru",
+      "match": [
+        {
+          "plmn": "25011"
+        }
+      ]
+    },
+    {
+      "id": "melita-mt",
+      "match": [
+        {
+          "plmn": "27877"
+        }
+      ]
+    },
+    {
+      "id": "meteor-ie",
+      "match": [
+        {
+          "plmn": "27203"
+        }
+      ],
+      "epdg": "epdg.epc.mnc003.mcc272.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "metfone-kh",
+      "match": [
+        {
+          "plmn": "45608"
+        }
+      ]
+    },
+    {
+      "id": "mirs-il",
+      "match": [
+        {
+          "plmn": "42507"
+        }
+      ],
+      "epdg": "epdg.epc.mnc007.mcc425.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "mobicom-mn",
+      "match": [
+        {
+          "plmn": "42899"
+        }
+      ]
+    },
+    {
+      "id": "mobifone-vn",
+      "match": [
+        {
+          "plmn": "45201"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "mobiland-ad",
+      "match": [
+        {
+          "plmn": "21303"
+        }
+      ]
+    },
+    {
+      "id": "mobileone-sg",
+      "match": [
+        {
+          "plmn": "52503"
+        }
+      ],
+      "epdg": "epdg.mobileone.net.sg"
+    },
+    {
+      "id": "mobilink-pk",
+      "match": [
+        {
+          "plmn": "41001"
+        }
+      ]
+    },
+    {
+      "id": "mobilis-dz",
+      "match": [
+        {
+          "plmn": "60301"
+        }
+      ]
+    },
+    {
+      "id": "mobilkom-at",
+      "match": [
+        {
+          "plmn": "23201"
+        },
+        {
+          "plmn": "23202"
+        },
+        {
+          "plmn": "23211"
+        },
+        {
+          "plmn": "23212"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc232.pub.3gppnetwork.org"
+    },
+    {
+      "id": "mobilkom-bg",
+      "match": [
+        {
+          "plmn": "28401"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "mobilkom-by",
+      "match": [
+        {
+          "plmn": "25701"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "mobilkom-hr",
+      "match": [
+        {
+          "plmn": "21910"
+        }
+      ]
+    },
+    {
+      "id": "mobilkom-mk",
+      "match": [
+        {
+          "plmn": "29403"
+        }
+      ]
+    },
+    {
+      "id": "mobilkom-rs",
+      "match": [
+        {
+          "plmn": "22005"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "mobilkom-si",
+      "match": [
+        {
+          "plmn": "29340"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "mobily-sa",
+      "match": [
+        {
+          "plmn": "42003"
+        }
+      ],
+      "epdg": "epdg.mobily.com.sa",
+      "unsupported": "eap-method"
+    },
+    {
+      "id": "mobinil-eg",
+      "match": [
+        {
+          "plmn": "60201"
+        }
+      ]
+    },
+    {
+      "id": "mobistar-be",
+      "match": [
+        {
+          "plmn": "20610"
+        }
+      ],
+      "epdg": "epdg.epc.mnc010.mcc206.pub.3gppnetwork.org"
+    },
+    {
+      "id": "mobitel-lk",
+      "match": [
+        {
+          "plmn": "41301"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc413.pub.3gppnetwork.org"
+    },
+    {
+      "id": "monacotel-mc",
+      "match": [
+        {
+          "plmn": "21210"
+        }
+      ],
+      "epdg": "epdg.monaco-telecom.mc",
+      "unsupported": "eap-method"
+    },
+    {
+      "id": "moov-ga",
+      "match": [
+        {
+          "plmn": "62802"
+        }
+      ]
+    },
+    {
+      "id": "movicel-ao",
+      "match": [
+        {
+          "plmn": "63104"
+        }
+      ]
+    },
+    {
+      "id": "movistar-ar",
+      "match": [
+        {
+          "plmn": "72207"
+        },
+        {
+          "plmn": "722070"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "movistar-cl",
+      "match": [
+        {
+          "plmn": "73002"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "movistar-co",
+      "match": [
+        {
+          "plmn": "732123"
+        }
+      ]
+    },
+    {
+      "id": "movistar-cr",
+      "match": [
+        {
+          "plmn": "71204"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "movistar-ec",
+      "match": [
+        {
+          "plmn": "74000"
+        },
+        {
+          "plmn": "740005"
+        }
+      ]
+    },
+    {
+      "id": "movistar-gt",
+      "match": [
+        {
+          "plmn": "70403"
+        }
+      ]
+    },
+    {
+      "id": "movistar-mx",
+      "match": [
+        {
+          "plmn": "33403"
+        }
+      ]
+    },
+    {
+      "id": "movistar-ni",
+      "match": [
+        {
+          "plmn": "71030"
+        },
+        {
+          "plmn": "710300"
+        }
+      ]
+    },
+    {
+      "id": "movistar-pa",
+      "match": [
+        {
+          "plmn": "71402"
+        },
+        {
+          "plmn": "71420"
+        }
+      ]
+    },
+    {
+      "id": "movistar-pe",
+      "match": [
+        {
+          "plmn": "71606"
+        }
+      ],
+      "epdg": "epdg.epc.mnc006.mcc716.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "movistar-sv",
+      "match": [
+        {
+          "plmn": "70604"
+        }
+      ]
+    },
+    {
+      "id": "movistar-uy",
+      "match": [
+        {
+          "plmn": "74807"
+        }
+      ]
+    },
+    {
+      "id": "mtc-na",
+      "match": [
+        {
+          "plmn": "64901"
+        }
+      ]
+    },
+    {
+      "id": "mtn-bj",
+      "match": [
+        {
+          "plmn": "61603"
+        }
+      ]
+    },
+    {
+      "id": "mtn-cg",
+      "match": [
+        {
+          "plmn": "62910"
+        }
+      ]
+    },
+    {
+      "id": "mtn-ci",
+      "match": [
+        {
+          "plmn": "61205"
+        }
+      ]
+    },
+    {
+      "id": "mtn-cm",
+      "match": [
+        {
+          "plmn": "62401"
+        }
+      ]
+    },
+    {
+      "id": "mtn-cy",
+      "match": [
+        {
+          "plmn": "28010"
+        }
+      ]
+    },
+    {
+      "id": "mtn-gh",
+      "match": [
+        {
+          "plmn": "62001"
+        }
+      ]
+    },
+    {
+      "id": "mtn-ng",
+      "match": [
+        {
+          "plmn": "62130"
+        }
+      ]
+    },
+    {
+      "id": "mtn-rw",
+      "match": [
+        {
+          "plmn": "63510"
+        }
+      ]
+    },
+    {
+      "id": "mtn-ug",
+      "match": [
+        {
+          "plmn": "64110"
+        }
+      ]
+    },
+    {
+      "id": "mtn-za",
+      "match": [
+        {
+          "plmn": "65510"
+        }
+      ],
+      "epdg": "epdg.epc.mnc010.mcc655.pub.3gppnetwork.org",
+      "unsupported": "eap-method",
+      "country": "AUTO"
+    },
+    {
+      "id": "mtn-zm",
+      "match": [
+        {
+          "plmn": "64502"
+        }
+      ]
+    },
+    {
+      "id": "mts-am",
+      "match": [
+        {
+          "plmn": "28305"
+        }
+      ],
+      "epdg": "epdg.epc.mnc005.mcc283.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "mts-by",
+      "match": [
+        {
+          "plmn": "25702"
+        }
+      ]
+    },
+    {
+      "id": "mts-ru",
+      "match": [
+        {
+          "plmn": "25001"
+        }
+      ]
+    },
+    {
+      "id": "mts-ua",
+      "match": [
+        {
+          "plmn": "25501"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "mtx-b2b-lu",
+      "match": [
+        {
+          "plmn": "27002",
+          "gid1": "1"
+        },
+        {
+          "plmn": "90139",
+          "gid1": "1"
+        }
+      ]
+    },
+    {
+      "id": "mtx-lu",
+      "match": [
+        {
+          "plmn": "27002"
+        },
+        {
+          "plmn": "90139"
+        }
+      ]
+    },
+    {
+      "id": "multibyte",
+      "match": [
+        {
+          "plmn": "45424"
+        },
+        {
+          "plmn": "45406",
+          "gid1": "58300",
+          "gid2": "58301"
+        },
+        {
+          "plmn": "45412",
+          "gid1": "0331"
+        },
+        {
+          "plmn": "45413",
+          "gid1": "0331"
+        },
+        {
+          "plmn": "45403",
+          "gid1": "0227",
+          "gid2": "02280"
+        },
+        {
+          "plmn": "45404",
+          "gid1": "0227",
+          "gid2": "02280"
+        },
+        {
+          "plmn": "45501",
+          "gid1": "1501"
+        },
+        {
+          "plmn": "42501",
+          "gid1": "9601"
+        }
+      ]
+    },
+    {
+      "id": "mysim",
+      "match": [
+        {
+          "plmn": "310840",
+          "gid1": "434F423236303036"
+        },
+        {
+          "plmn": "26006",
+          "gid1": "434F423236303036"
+        },
+        {
+          "plmn": "52505",
+          "gid1": "434F423236303036"
+        },
+        {
+          "plmn": "23410",
+          "gid1": "434F423236303036"
+        },
+        {
+          "plmn": "26001",
+          "gid1": "434F423236303036"
+        },
+        {
+          "plmn": "45400",
+          "gid1": "434F423236303036"
+        },
+        {
+          "plmn": "29505",
+          "gid1": "434F423236303036"
+        },
+        {
+          "plmn": "41677",
+          "gid1": "434F423236303036"
+        },
+        {
+          "plmn": "45204",
+          "gid1": "434F423236303036"
+        },
+        {
+          "plmn": "71204",
+          "gid1": "434F423236303036"
+        },
+        {
+          "plmn": "732123",
+          "gid1": "434F423236303036"
+        },
+        {
+          "plmn": "24007",
+          "gid1": "434F423236303036"
+        },
+        {
+          "plmn": "52501",
+          "gid1": "434F423236303036"
+        },
+        {
+          "plmn": "20837",
+          "gid1": "434F423236303036"
+        },
+        {
+          "plmn": "20839",
+          "gid1": "434F423236303036"
+        }
+      ]
+    },
+    {
+      "id": "natcom-ht",
+      "match": [
+        {
+          "plmn": "37203"
+        }
+      ]
+    },
+    {
+      "id": "ncell-np",
+      "match": [
+        {
+          "plmn": "42902"
+        }
+      ]
+    },
+    {
+      "id": "nemontwireless-lte-us",
+      "match": [
+        {
+          "plmn": "312480",
+          "gid2": "CA000000000004C4A0"
+        },
+        {
+          "plmn": "312480"
+        }
+      ],
+      "epdg": "epdgn.epc.mnc480.mcc312.pub.3gppnetwork.org"
+    },
+    {
+      "id": "nepaltelecom-np",
+      "match": [
+        {
+          "plmn": "42901"
+        }
+      ]
+    },
+    {
+      "id": "netcom-no",
+      "match": [
+        {
+          "plmn": "24202"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc242.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "networknorway-no",
+      "match": [
+        {
+          "plmn": "24205"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc242.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "nextech-lte-us",
+      "match": [
+        {
+          "plmn": "312420"
+        }
+      ],
+      "epdg": "epdg.epc.mnc420.mcc312.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "nextel-cl",
+      "match": [
+        {
+          "plmn": "73009"
+        },
+        {
+          "plmn": "730090"
+        }
+      ],
+      "epdg": "epdg.epc.mnc009.mcc730.pub.3gppnetwork.org"
+    },
+    {
+      "id": "nextel-mx",
+      "match": [
+        {
+          "plmn": "33490"
+        },
+        {
+          "plmn": "334090"
+        },
+        {
+          "plmn": "33409"
+        }
+      ]
+    },
+    {
+      "id": "nonpublicnetwork",
+      "match": [
+        {
+          "plmn": "315010"
+        },
+        {
+          "plmn": "24065"
+        },
+        {
+          "plmn": "24066"
+        },
+        {
+          "plmn": "26298"
+        },
+        {
+          "plmn": "26892"
+        },
+        {
+          "plmn": "24271"
+        },
+        {
+          "plmn": "24272"
+        },
+        {
+          "plmn": "24273"
+        },
+        {
+          "plmn": "24274"
+        },
+        {
+          "plmn": "24275"
+        },
+        {
+          "plmn": "45040"
+        },
+        {
+          "plmn": "45041"
+        },
+        {
+          "plmn": "45042"
+        },
+        {
+          "plmn": "45043"
+        },
+        {
+          "plmn": "45044"
+        },
+        {
+          "plmn": "45045"
+        },
+        {
+          "plmn": "45046"
+        },
+        {
+          "plmn": "45047"
+        },
+        {
+          "plmn": "45048"
+        },
+        {
+          "plmn": "45049"
+        },
+        {
+          "plmn": "20690"
+        },
+        {
+          "plmn": "20691"
+        }
+      ]
+    },
+    {
+      "id": "nova-is",
+      "match": [
+        {
+          "plmn": "27411"
+        }
+      ],
+      "epdg": "epdg.epc.mnc011.mcc274.pub.3gppnetwork.org",
+      "unsupported": "eap-method"
+    },
+    {
+      "id": "nrj-fr",
+      "match": [
+        {
+          "plmn": "20826"
+        }
+      ]
+    },
+    {
+      "id": "o2-1and1-de",
+      "match": [
+        {
+          "plmn": "26207",
+          "gid1": "250109"
+        }
+      ]
+    },
+    {
+      "id": "o2-cz",
+      "match": [
+        {
+          "plmn": "23002"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc230.pub.3gppnetwork.org",
+      "unsupported": "eap-method",
+      "country": "AUTO"
+    },
+    {
+      "id": "o2-debitel-de",
+      "match": [
+        {
+          "plmn": "26207",
+          "gid1": "000002"
+        }
+      ]
+    },
+    {
+      "id": "o2-germany",
+      "match": [
+        {
+          "plmn": "26207"
+        }
+      ],
+      "epdg": "epdg.epc.mnc007.mcc262.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "o2-giffgaff-uk",
+      "match": [
+        {
+          "plmn": "23410",
+          "gid1": "508"
+        }
+      ],
+      "epdg": "epdg.epc.mnc010.mcc234.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "o2-ie",
+      "match": [
+        {
+          "plmn": "27202"
+        }
+      ],
+      "epdg": "epdg.three.ie",
+      "unsupported": "eap-method",
+      "country": "AUTO"
+    },
+    {
+      "id": "o2-prepaid-uk",
+      "match": [
+        {
+          "plmn": "23410",
+          "gid1": "99"
+        },
+        {
+          "plmn": "23410",
+          "gid1": "61"
+        },
+        {
+          "plmn": "23410",
+          "gid1": "67"
+        },
+        {
+          "plmn": "23410",
+          "gid1": "85"
+        }
+      ],
+      "epdg": "epdg.epc.mnc010.mcc234.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "o2-sk",
+      "match": [
+        {
+          "plmn": "23106"
+        }
+      ],
+      "epdg": "epdg.epc.mnc006.mcc231.pub.3gppnetwork.org",
+      "unsupported": "eap-method"
+    },
+    {
+      "id": "o2-sky-uk",
+      "match": [
+        {
+          "plmn": "23457",
+          "gid1": "0C"
+        }
+      ],
+      "epdg": "epdg.epc.mnc057.mcc234.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "o2-tesco-uk",
+      "match": [
+        {
+          "plmn": "23410",
+          "gid1": "0A"
+        }
+      ],
+      "epdg": "epdg.epc.mnc010.mcc234.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "o2-uk",
+      "match": [
+        {
+          "plmn": "23410"
+        },
+        {
+          "plmn": "23410",
+          "gid1": "520"
+        }
+      ],
+      "epdg": "epdg.epc.mnc010.mcc234.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "oi-br",
+      "match": [
+        {
+          "plmn": "72431"
+        }
+      ]
+    },
+    {
+      "id": "oi-brt-br",
+      "match": [
+        {
+          "plmn": "72416"
+        }
+      ]
+    },
+    {
+      "id": "omantel-om",
+      "match": [
+        {
+          "plmn": "42202"
+        }
+      ]
+    },
+    {
+      "id": "omnitel-lt",
+      "match": [
+        {
+          "plmn": "24601"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "one-at",
+      "match": [
+        {
+          "plmn": "23205"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "openmobile-lte-pr",
+      "match": [
+        {
+          "plmn": "33012"
+        },
+        {
+          "plmn": "330120"
+        }
+      ]
+    },
+    {
+      "id": "opt-nc",
+      "match": [
+        {
+          "plmn": "54601"
+        }
+      ]
+    },
+    {
+      "id": "optimus-pt",
+      "match": [
+        {
+          "plmn": "26803"
+        }
+      ],
+      "epdg": "epdg.epc.mnc003.mcc268.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "optus-au",
+      "match": [
+        {
+          "plmn": "50502"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc505.pub.3gppnetwork.org"
+    },
+    {
+      "id": "orange-am",
+      "match": [
+        {
+          "plmn": "28310"
+        }
+      ]
+    },
+    {
+      "id": "orange-bw",
+      "match": [
+        {
+          "plmn": "65202"
+        }
+      ]
+    },
+    {
+      "id": "orange-cd",
+      "match": [
+        {
+          "plmn": "63086"
+        }
+      ]
+    },
+    {
+      "id": "orange-cf",
+      "match": [
+        {
+          "plmn": "62303"
+        }
+      ]
+    },
+    {
+      "id": "orange-ch",
+      "match": [
+        {
+          "plmn": "22803"
+        }
+      ]
+    },
+    {
+      "id": "orange-ci",
+      "match": [
+        {
+          "plmn": "61203"
+        }
+      ]
+    },
+    {
+      "id": "orange-cm",
+      "match": [
+        {
+          "plmn": "62402"
+        }
+      ]
+    },
+    {
+      "id": "orange-do",
+      "match": [
+        {
+          "plmn": "37001"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "orange-es",
+      "match": [
+        {
+          "plmn": "21403"
+        }
+      ],
+      "epdg": "epdg.epc.mnc003.mcc214.pub.3gppnetwork.org"
+    },
+    {
+      "id": "orange-france",
+      "match": [
+        {
+          "plmn": "20801"
+        },
+        {
+          "plmn": "20802"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc208.pub.3gppnetwork.org"
+    },
+    {
+      "id": "orange-gn",
+      "match": [
+        {
+          "plmn": "61101"
+        }
+      ]
+    },
+    {
+      "id": "orange-gw",
+      "match": [
+        {
+          "plmn": "63203"
+        }
+      ]
+    },
+    {
+      "id": "orange-il",
+      "match": [
+        {
+          "plmn": "42501"
+        },
+        {
+          "plmn": "42510"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "orange-jo",
+      "match": [
+        {
+          "plmn": "41677"
+        }
+      ]
+    },
+    {
+      "id": "orange-ke",
+      "match": [
+        {
+          "plmn": "63907"
+        }
+      ]
+    },
+    {
+      "id": "orange-li",
+      "match": [
+        {
+          "plmn": "29502"
+        }
+      ]
+    },
+    {
+      "id": "orange-lr",
+      "match": [
+        {
+          "plmn": "61807"
+        }
+      ]
+    },
+    {
+      "id": "orange-md",
+      "match": [
+        {
+          "plmn": "25901"
+        }
+      ]
+    },
+    {
+      "id": "orange-mg",
+      "match": [
+        {
+          "plmn": "64602"
+        }
+      ]
+    },
+    {
+      "id": "orange-ml",
+      "match": [
+        {
+          "plmn": "61002"
+        }
+      ]
+    },
+    {
+      "id": "orange-mq",
+      "match": [
+        {
+          "plmn": "34001"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc340.pub.3gppnetwork.org"
+    },
+    {
+      "id": "orange-mu",
+      "match": [
+        {
+          "plmn": "61701"
+        }
+      ]
+    },
+    {
+      "id": "orange-ne",
+      "match": [
+        {
+          "plmn": "61404"
+        }
+      ]
+    },
+    {
+      "id": "orange-pl",
+      "match": [
+        {
+          "plmn": "26003"
+        }
+      ],
+      "epdg": "epdg.epc.mnc003.mcc260.pub.3gppnetwork.org"
+    },
+    {
+      "id": "orange-pm",
+      "match": [
+        {
+          "plmn": "30803"
+        }
+      ]
+    },
+    {
+      "id": "orange-re",
+      "match": [
+        {
+          "plmn": "64700"
+        }
+      ],
+      "epdg": "epdg.epc.mnc000.mcc647.pub.3gppnetwork.org"
+    },
+    {
+      "id": "orange-ro",
+      "match": [
+        {
+          "plmn": "22610"
+        }
+      ],
+      "epdg": "epdg.epc.mnc010.mcc226.pub.3gppnetwork.org"
+    },
+    {
+      "id": "orange-sk",
+      "match": [
+        {
+          "plmn": "23101"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc231.pub.3gppnetwork.org",
+      "unsupported": "eap-method",
+      "country": "AUTO"
+    },
+    {
+      "id": "orange-sn",
+      "match": [
+        {
+          "plmn": "60801"
+        }
+      ]
+    },
+    {
+      "id": "orange-tn",
+      "match": [
+        {
+          "plmn": "60501"
+        }
+      ]
+    },
+    {
+      "id": "orange-uk",
+      "match": [
+        {
+          "plmn": "23433"
+        }
+      ],
+      "epdg": "epdg.epc.mnc033.mcc234.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "orange-vu",
+      "match": [
+        {
+          "plmn": "54101"
+        }
+      ]
+    },
+    {
+      "id": "paradise-bm",
+      "match": [
+        {
+          "plmn": "350007"
+        }
+      ],
+      "epdg": "epdg.epc.mnc007.mcc350.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "pccw-hk",
+      "match": [
+        {
+          "plmn": "45419"
+        },
+        {
+          "plmn": "45416"
+        },
+        {
+          "plmn": "45420"
+        }
+      ],
+      "epdg": "epdg.epc.mnc019.mcc454.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "pelephone-il",
+      "match": [
+        {
+          "plmn": "42503"
+        }
+      ],
+      "epdg": "epdg.epc.mnc003.mcc425.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "personal-ar",
+      "match": [
+        {
+          "plmn": "72234"
+        },
+        {
+          "plmn": "722341"
+        }
+      ],
+      "epdg": "epdg.epc.mnc034.mcc722.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "play-pl",
+      "match": [
+        {
+          "plmn": "26006"
+        }
+      ],
+      "epdg": "epdg.epc.mnc006.mcc260.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "pncc-pw",
+      "match": [
+        {
+          "plmn": "55201"
+        }
+      ]
+    },
+    {
+      "id": "polkomtel-pl",
+      "match": [
+        {
+          "plmn": "26001"
+        }
+      ]
+    },
+    {
+      "id": "porta-ec",
+      "match": [
+        {
+          "plmn": "74001"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc740.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "primemobile",
+      "match": [
+        {
+          "plmn": "42512",
+          "gid1": "2636"
+        },
+        {
+          "plmn": "42501",
+          "gid1": "2636"
+        },
+        {
+          "plmn": "26006",
+          "gid1": "2636"
+        },
+        {
+          "plmn": "26003",
+          "gid1": "2636"
+        },
+        {
+          "plmn": "23450",
+          "gid1": "2636"
+        }
+      ]
+    },
+    {
+      "id": "primetel-cy",
+      "match": [
+        {
+          "plmn": "28020"
+        }
+      ]
+    },
+    {
+      "id": "progresif-bn",
+      "match": [
+        {
+          "plmn": "52802"
+        }
+      ]
+    },
+    {
+      "id": "proximus-be",
+      "match": [
+        {
+          "plmn": "20601"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "ptci-lte-only-us",
+      "match": [
+        {
+          "plmn": "311450"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "qtel-dz",
+      "match": [
+        {
+          "plmn": "60303"
+        }
+      ]
+    },
+    {
+      "id": "qtel-iq",
+      "match": [
+        {
+          "plmn": "41805"
+        }
+      ]
+    },
+    {
+      "id": "qtel-kw",
+      "match": [
+        {
+          "plmn": "41903"
+        }
+      ],
+      "unsupported": "eap-method"
+    },
+    {
+      "id": "qtel-mm",
+      "match": [
+        {
+          "plmn": "41405"
+        }
+      ]
+    },
+    {
+      "id": "qtel-mv",
+      "match": [
+        {
+          "plmn": "47202"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc472.pub.3gppnetwork.org"
+    },
+    {
+      "id": "qtel-om",
+      "match": [
+        {
+          "plmn": "42203"
+        }
+      ]
+    },
+    {
+      "id": "qtel-ps",
+      "match": [
+        {
+          "plmn": "42506"
+        }
+      ]
+    },
+    {
+      "id": "qtel-qa",
+      "match": [
+        {
+          "plmn": "42701"
+        }
+      ]
+    },
+    {
+      "id": "qtel-tn",
+      "match": [
+        {
+          "plmn": "60503"
+        }
+      ]
+    },
+    {
+      "id": "rakuten-jp",
+      "match": [
+        {
+          "plmn": "44011"
+        }
+      ]
+    },
+    {
+      "id": "reliancejio-in",
+      "match": [
+        {
+          "plmn": "405874"
+        },
+        {
+          "plmn": "405840"
+        },
+        {
+          "plmn": "405854"
+        },
+        {
+          "plmn": "405855"
+        },
+        {
+          "plmn": "405856"
+        },
+        {
+          "plmn": "405857"
+        },
+        {
+          "plmn": "405858"
+        },
+        {
+          "plmn": "405859"
+        },
+        {
+          "plmn": "405860"
+        },
+        {
+          "plmn": "405861"
+        },
+        {
+          "plmn": "405862"
+        },
+        {
+          "plmn": "405863"
+        },
+        {
+          "plmn": "405864"
+        },
+        {
+          "plmn": "405865"
+        },
+        {
+          "plmn": "405866"
+        },
+        {
+          "plmn": "405867"
+        },
+        {
+          "plmn": "405868"
+        },
+        {
+          "plmn": "405869"
+        },
+        {
+          "plmn": "405870"
+        },
+        {
+          "plmn": "405871"
+        },
+        {
+          "plmn": "405872"
+        },
+        {
+          "plmn": "405873"
+        }
+      ]
+    },
+    {
+      "id": "roamless",
+      "match": [
+        {
+          "plmn": "20601",
+          "gid1": "4D2E3F1A6B7C8D9E"
+        },
+        {
+          "plmn": "20628",
+          "gid1": "4D2E3F1A6B7C8D9E"
+        },
+        {
+          "plmn": "732123",
+          "gid1": "4D2E3F1A6B7C8D9E"
+        },
+        {
+          "plmn": "310840",
+          "gid1": "4D2E3F1A6B7C8D9E"
+        },
+        {
+          "plmn": "45400",
+          "gid1": "4D2E3F1A6B7C8D9E"
+        }
+      ]
+    },
+    {
+      "id": "robi-bd",
+      "match": [
+        {
+          "plmn": "47002"
+        }
+      ]
+    },
+    {
+      "id": "robi-bhartiairtel-bd",
+      "match": [
+        {
+          "plmn": "47007"
+        }
+      ]
+    },
+    {
+      "id": "rogers-ca",
+      "match": [
+        {
+          "plmn": "302720"
+        }
+      ],
+      "epdg": "epdg.epc.mnc720.mcc302.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "rogers-chatr-ca",
+      "match": [
+        {
+          "plmn": "302720",
+          "gid1": "D2"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "rogers-cityfone-ca",
+      "match": [
+        {
+          "plmn": "302720",
+          "gid1": "CC"
+        }
+      ]
+    },
+    {
+      "id": "safaricom-ke",
+      "match": [
+        {
+          "plmn": "63902"
+        }
+      ]
+    },
+    {
+      "id": "sasktel-ca",
+      "match": [
+        {
+          "plmn": "302780"
+        }
+      ],
+      "epdg": "epdg.epc.mnc780.mcc302.pub.3gppnetwork.org"
+    },
+    {
+      "id": "sasktel-lum-ca",
+      "match": [
+        {
+          "plmn": "302780",
+          "gid1": "5B"
+        }
+      ],
+      "epdg": "epdg.epc.mnc780.mcc302.pub.3gppnetwork.org"
+    },
+    {
+      "id": "saunalahti-fi",
+      "match": [
+        {
+          "plmn": "24421"
+        }
+      ]
+    },
+    {
+      "id": "seatel-kh",
+      "match": [
+        {
+          "plmn": "45611"
+        }
+      ]
+    },
+    {
+      "id": "setar-aw",
+      "match": [
+        {
+          "plmn": "36301"
+        }
+      ]
+    },
+    {
+      "id": "sfr-fr",
+      "match": [
+        {
+          "plmn": "20810"
+        }
+      ],
+      "epdg": "epdg.epc.mnc010.mcc208.pub.3gppnetwork.org"
+    },
+    {
+      "id": "sfr-lpm-fr",
+      "match": [
+        {
+          "plmn": "20810",
+          "gid1": "4C504D"
+        }
+      ],
+      "epdg": "epdg.epc.mnc010.mcc208.pub.3gppnetwork.org"
+    },
+    {
+      "id": "sfr-re",
+      "match": [
+        {
+          "plmn": "64710"
+        }
+      ]
+    },
+    {
+      "id": "shinetown",
+      "match": [
+        {
+          "plmn": "45400",
+          "gid1": "AAAA"
+        },
+        {
+          "plmn": "45501",
+          "gid1": "AAAA"
+        },
+        {
+          "plmn": "26006",
+          "gid1": "AAAA"
+        },
+        {
+          "plmn": "45403",
+          "gid1": "AAAA"
+        },
+        {
+          "plmn": "45407",
+          "gid1": "AAAA"
+        }
+      ]
+    },
+    {
+      "id": "siminn-is",
+      "match": [
+        {
+          "plmn": "27401"
+        }
+      ]
+    },
+    {
+      "id": "simly",
+      "match": [
+        {
+          "plmn": "310840",
+          "gid1": "73696D6C7931"
+        },
+        {
+          "plmn": "90188",
+          "gid1": "73696D6C7931"
+        },
+        {
+          "plmn": "20801",
+          "gid1": "73696D6C7931"
+        },
+        {
+          "plmn": "45400",
+          "gid1": "73696D6C7931"
+        },
+        {
+          "plmn": "26001",
+          "gid1": "73696D6C7931"
+        },
+        {
+          "plmn": "52505",
+          "gid1": "73696D6C7931"
+        },
+        {
+          "plmn": "42402",
+          "gid1": "73696D6C7931"
+        },
+        {
+          "plmn": "26006",
+          "gid1": "73696D6C7931"
+        }
+      ]
+    },
+    {
+      "id": "singtel-sg",
+      "match": [
+        {
+          "plmn": "52501"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc525.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "skt-kr",
+      "match": [
+        {
+          "plmn": "45005"
+        }
+      ]
+    },
+    {
+      "id": "sky-ie",
+      "match": [
+        {
+          "plmn": "27225"
+        },
+        {
+          "plmn": "24007",
+          "gid1": "0D"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "smart-bz",
+      "match": [
+        {
+          "plmn": "70269"
+        }
+      ]
+    },
+    {
+      "id": "smart-kh",
+      "match": [
+        {
+          "plmn": "45602"
+        },
+        {
+          "plmn": "45605"
+        },
+        {
+          "plmn": "45606"
+        }
+      ],
+      "epdg": "epdg.epc.mnc006.mcc456.pub.3gppnetwork.org"
+    },
+    {
+      "id": "smart-ph",
+      "match": [
+        {
+          "plmn": "51503"
+        }
+      ],
+      "epdg": "epdg.epc.mnc003.mcc515.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "smartfren-id",
+      "match": [
+        {
+          "plmn": "51009"
+        },
+        {
+          "plmn": "51028"
+        }
+      ],
+      "epdg": "epdg.epc.mnc009.mcc510.pub.3gppnetwork.org",
+      "unsupported": "eap-method"
+    },
+    {
+      "id": "smartone-hk",
+      "match": [
+        {
+          "plmn": "45406"
+        },
+        {
+          "plmn": "45415"
+        },
+        {
+          "plmn": "45417"
+        }
+      ],
+      "epdg": "epdg.epc.mnc006.mcc454.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "smartone-hkbn-hk",
+      "match": [
+        {
+          "plmn": "45406",
+          "gid1": "0009"
+        }
+      ],
+      "epdg": "epdg.epc.mnc006.mcc454.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "smartone-mo",
+      "match": [
+        {
+          "plmn": "45500"
+        },
+        {
+          "plmn": "45506"
+        }
+      ]
+    },
+    {
+      "id": "softbank-bbb-jp",
+      "match": [
+        {
+          "plmn": "44015"
+        }
+      ]
+    },
+    {
+      "id": "softbank-jp",
+      "match": [
+        {
+          "plmn": "44020"
+        },
+        {
+          "plmn": "44020",
+          "gid1": "48"
+        }
+      ]
+    },
+    {
+      "id": "softbank-ymobile-jp",
+      "match": [
+        {
+          "plmn": "44020",
+          "gid1": "01"
+        },
+        {
+          "plmn": "44020",
+          "gid1": "16"
+        }
+      ]
+    },
+    {
+      "id": "sonera-fi",
+      "match": [
+        {
+          "plmn": "24491"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "sprint-boost-isim-lte-us",
+      "match": [
+        {
+          "plmn": "310120",
+          "gid2": "13"
+        },
+        {
+          "plmn": "312530",
+          "gid2": "13"
+        }
+      ]
+    },
+    {
+      "id": "sprint-isim-lte-us",
+      "match": [
+        {
+          "plmn": "310120",
+          "gid2": "11"
+        },
+        {
+          "plmn": "312530",
+          "gid2": "11"
+        }
+      ],
+      "epdg": "epdg.epc.mnc530.mcc312.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "spt-wf",
+      "match": [
+        {
+          "plmn": "54301"
+        }
+      ]
+    },
+    {
+      "id": "starhub-giga-sg",
+      "match": [
+        {
+          "plmn": "52505",
+          "gid1": "4442"
+        }
+      ],
+      "epdg": "epdg.epc.mnc005.mcc525.pub.3gppnetwork.org"
+    },
+    {
+      "id": "starhub-sg",
+      "match": [
+        {
+          "plmn": "52505"
+        }
+      ],
+      "epdg": "epdg.epc.mnc005.mcc525.pub.3gppnetwork.org"
+    },
+    {
+      "id": "stc-sa",
+      "match": [
+        {
+          "plmn": "42001"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc420.pub.3gppnetwork.org"
+    },
+    {
+      "id": "stratanetwork-lte-us",
+      "match": [
+        {
+          "plmn": "312290"
+        }
+      ],
+      "epdg": "epdg.epc.mnc290.mcc312.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "sunrise-ch",
+      "match": [
+        {
+          "plmn": "22802"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc228.pub.3gppnetwork.org"
+    },
+    {
+      "id": "sure-im",
+      "match": [
+        {
+          "plmn": "23455"
+        }
+      ]
+    },
+    {
+      "id": "swisscom-ch",
+      "match": [
+        {
+          "plmn": "22801"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc228.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "swisscom-wingo-ch",
+      "match": [
+        {
+          "plmn": "22801",
+          "gid1": "01",
+          "gid2": "01"
+        }
+      ]
+    },
+    {
+      "id": "taiwanmobile-tw",
+      "match": [
+        {
+          "plmn": "46697"
+        }
+      ],
+      "epdg": "epdg.epc.mnc097.mcc466.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "talkmobile-uk",
+      "match": [
+        {
+          "plmn": "23415",
+          "gid1": "C1"
+        }
+      ],
+      "epdg": "epdg.epc.mnc015.mcc234.pub.3gppnetwork.org"
+    },
+    {
+      "id": "tango",
+      "match": [
+        {
+          "plmn": "313770"
+        },
+        {
+          "plmn": "23453"
+        }
+      ]
+    },
+    {
+      "id": "tango-lu",
+      "match": [
+        {
+          "plmn": "27077"
+        }
+      ],
+      "epdg": "epdg.epc.mnc077.mcc270.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "tashicell-bt",
+      "match": [
+        {
+          "plmn": "40277"
+        }
+      ]
+    },
+    {
+      "id": "tbaytel-ca",
+      "match": [
+        {
+          "plmn": "302720",
+          "gid1": "BA"
+        }
+      ],
+      "epdg": "epdg.epc.mnc720.mcc302.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "tcc-to",
+      "match": [
+        {
+          "plmn": "53901"
+        }
+      ]
+    },
+    {
+      "id": "tdc-dk",
+      "match": [
+        {
+          "plmn": "23801"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc238.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "telcel-aztecamovil-mx",
+      "match": [
+        {
+          "plmn": "334020",
+          "gid1": "FFFFFFFFFFFFFF4F5549"
+        },
+        {
+          "plmn": "334020",
+          "gid2": "FFFFFFFFFFFFFF4F5549"
+        }
+      ]
+    },
+    {
+      "id": "telcel-mx",
+      "match": [
+        {
+          "plmn": "33402"
+        },
+        {
+          "plmn": "334020"
+        },
+        {
+          "plmn": "33420"
+        }
+      ],
+      "epdg": "epdg.ims.mnc020.mcc334.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "tele-gl",
+      "match": [
+        {
+          "plmn": "29001"
+        }
+      ]
+    },
+    {
+      "id": "tele2-ee",
+      "match": [
+        {
+          "plmn": "24803"
+        }
+      ]
+    },
+    {
+      "id": "tele2-lt",
+      "match": [
+        {
+          "plmn": "24603"
+        }
+      ]
+    },
+    {
+      "id": "tele2-lv",
+      "match": [
+        {
+          "plmn": "24702"
+        }
+      ]
+    },
+    {
+      "id": "tele2-ru",
+      "match": [
+        {
+          "plmn": "25020"
+        }
+      ]
+    },
+    {
+      "id": "tele2-sberbank-ru",
+      "match": [
+        {
+          "plmn": "25050"
+        },
+        {
+          "plmn": "25020",
+          "gid1": "FA3207"
+        }
+      ]
+    },
+    {
+      "id": "tele2-se",
+      "match": [
+        {
+          "plmn": "24007",
+          "gid1": "4900"
+        },
+        {
+          "plmn": "24007"
+        }
+      ],
+      "epdg": "epdg.epc.mnc007.mcc240.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "telecom-nz",
+      "match": [
+        {
+          "plmn": "53005"
+        }
+      ],
+      "epdg": "epdg.epc.mnc005.mcc530.pub.3gppnetwork.spark.co.nz"
+    },
+    {
+      "id": "telecomcook-ck",
+      "match": [
+        {
+          "plmn": "54801"
+        }
+      ]
+    },
+    {
+      "id": "telecomegypt-eg",
+      "match": [
+        {
+          "plmn": "60204"
+        }
+      ]
+    },
+    {
+      "id": "telecomliechtenstein-li",
+      "match": [
+        {
+          "plmn": "29505"
+        }
+      ]
+    },
+    {
+      "id": "telecomnamibia-na",
+      "match": [
+        {
+          "plmn": "64903"
+        }
+      ]
+    },
+    {
+      "id": "telefonica-es",
+      "match": [
+        {
+          "plmn": "21407"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "telefonica-esimflag",
+      "match": [
+        {
+          "plmn": "21405",
+          "gid1": "80"
+        }
+      ]
+    },
+    {
+      "id": "telefonica-tuenti-ar",
+      "match": [
+        {
+          "plmn": "722010"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "telekom-si",
+      "match": [
+        {
+          "plmn": "29341"
+        }
+      ],
+      "epdg": "epdg.epc.mnc041.mcc293.pub.3gppnetwork.org"
+    },
+    {
+      "id": "telekomslovenije-ba",
+      "match": [
+        {
+          "plmn": "21890"
+        }
+      ]
+    },
+    {
+      "id": "telekomslovenije-gi",
+      "match": [
+        {
+          "plmn": "26601"
+        }
+      ]
+    },
+    {
+      "id": "telekomslovenije-mk",
+      "match": [
+        {
+          "plmn": "29402"
+        }
+      ]
+    },
+    {
+      "id": "telekomslovenije-xk",
+      "match": [
+        {
+          "plmn": "22102"
+        },
+        {
+          "plmn": "29341",
+          "gid1": "90"
+        }
+      ]
+    },
+    {
+      "id": "telekomsrbija-ba",
+      "match": [
+        {
+          "plmn": "21805"
+        }
+      ]
+    },
+    {
+      "id": "telekomsrbija-me",
+      "match": [
+        {
+          "plmn": "29703"
+        }
+      ]
+    },
+    {
+      "id": "telekomsrbija-rs",
+      "match": [
+        {
+          "plmn": "22003"
+        }
+      ]
+    },
+    {
+      "id": "telemach-hr",
+      "match": [
+        {
+          "plmn": "21902"
+        }
+      ]
+    },
+    {
+      "id": "telemach-si",
+      "match": [
+        {
+          "plmn": "29370"
+        }
+      ]
+    },
+    {
+      "id": "telenet-be",
+      "match": [
+        {
+          "plmn": "20605"
+        }
+      ],
+      "epdg": "epdg.telco.telenet-ops.be"
+    },
+    {
+      "id": "telenor-dk",
+      "match": [
+        {
+          "plmn": "23802"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc238.pub.3gppnetwork.org"
+    },
+    {
+      "id": "telenor-hu",
+      "match": [
+        {
+          "plmn": "21601"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "telenor-me",
+      "match": [
+        {
+          "plmn": "29701"
+        }
+      ]
+    },
+    {
+      "id": "telenor-mm",
+      "match": [
+        {
+          "plmn": "41406"
+        }
+      ]
+    },
+    {
+      "id": "telenor-no",
+      "match": [
+        {
+          "plmn": "24201"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc242.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "telenor-pk",
+      "match": [
+        {
+          "plmn": "41006"
+        }
+      ]
+    },
+    {
+      "id": "telenor-rs",
+      "match": [
+        {
+          "plmn": "22001"
+        }
+      ]
+    },
+    {
+      "id": "telenor-se",
+      "match": [
+        {
+          "plmn": "24008"
+        }
+      ],
+      "epdg": "epdg.epc.mnc008.mcc240.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "telesur-sr",
+      "match": [
+        {
+          "plmn": "74602"
+        }
+      ]
+    },
+    {
+      "id": "telia-az",
+      "match": [
+        {
+          "plmn": "40001"
+        }
+      ]
+    },
+    {
+      "id": "telia-dk",
+      "match": [
+        {
+          "plmn": "23820"
+        },
+        {
+          "plmn": "23830"
+        }
+      ]
+    },
+    {
+      "id": "telia-ge",
+      "match": [
+        {
+          "plmn": "28201"
+        }
+      ]
+    },
+    {
+      "id": "telia-kz",
+      "match": [
+        {
+          "plmn": "40102"
+        }
+      ]
+    },
+    {
+      "id": "telia-md",
+      "match": [
+        {
+          "plmn": "25902"
+        }
+      ]
+    },
+    {
+      "id": "telia-se",
+      "match": [
+        {
+          "plmn": "24001"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc240.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "telia-tj",
+      "match": [
+        {
+          "plmn": "43601"
+        },
+        {
+          "plmn": "43602"
+        }
+      ]
+    },
+    {
+      "id": "telkomsel-id",
+      "match": [
+        {
+          "plmn": "51010"
+        }
+      ]
+    },
+    {
+      "id": "telma-mg",
+      "match": [
+        {
+          "plmn": "64604"
+        }
+      ]
+    },
+    {
+      "id": "telstra-au",
+      "match": [
+        {
+          "plmn": "50501"
+        },
+        {
+          "plmn": "50571"
+        },
+        {
+          "plmn": "50572"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc505.pub.3gppnetwork.org"
+    },
+    {
+      "id": "telus-ca",
+      "match": [
+        {
+          "plmn": "302220"
+        },
+        {
+          "plmn": "302221"
+        },
+        {
+          "plmn": "302222"
+        }
+      ],
+      "epdg": "epdg.epc.mnc220.mcc302.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "telus-koodo-ca",
+      "match": [
+        {
+          "plmn": "302222",
+          "gid1": "4B"
+        },
+        {
+          "plmn": "302221",
+          "gid1": "4B"
+        },
+        {
+          "plmn": "302220",
+          "gid1": "4B"
+        }
+      ],
+      "epdg": "epdg.epc.mnc220.mcc302.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "telus-publicmobile-ca",
+      "match": [
+        {
+          "plmn": "302220",
+          "gid1": "4D"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "thc-lte-us",
+      "match": [
+        {
+          "plmn": "311480",
+          "gid2": "AE"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "tigo-bo",
+      "match": [
+        {
+          "plmn": "73603"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "tigo-cd",
+      "match": [
+        {
+          "plmn": "63089"
+        }
+      ]
+    },
+    {
+      "id": "tigo-co",
+      "match": [
+        {
+          "plmn": "732103"
+        }
+      ]
+    },
+    {
+      "id": "tigo-gh",
+      "match": [
+        {
+          "plmn": "62003"
+        }
+      ]
+    },
+    {
+      "id": "tigo-gt",
+      "match": [
+        {
+          "plmn": "70402"
+        }
+      ]
+    },
+    {
+      "id": "tigo-hn",
+      "match": [
+        {
+          "plmn": "70802"
+        }
+      ]
+    },
+    {
+      "id": "tigo-mu",
+      "match": [
+        {
+          "plmn": "61710"
+        }
+      ]
+    },
+    {
+      "id": "tigo-py",
+      "match": [
+        {
+          "plmn": "74404"
+        }
+      ]
+    },
+    {
+      "id": "tigo-rw",
+      "match": [
+        {
+          "plmn": "63513"
+        }
+      ]
+    },
+    {
+      "id": "tigo-sn",
+      "match": [
+        {
+          "plmn": "60802"
+        }
+      ]
+    },
+    {
+      "id": "tigo-sv",
+      "match": [
+        {
+          "plmn": "70603"
+        }
+      ]
+    },
+    {
+      "id": "tigo-td",
+      "match": [
+        {
+          "plmn": "62203"
+        }
+      ]
+    },
+    {
+      "id": "tigo-tz",
+      "match": [
+        {
+          "plmn": "64002"
+        }
+      ]
+    },
+    {
+      "id": "tim-br",
+      "match": [
+        {
+          "plmn": "72402"
+        },
+        {
+          "plmn": "72403"
+        },
+        {
+          "plmn": "72404"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "tim-italy",
+      "match": [
+        {
+          "plmn": "22201"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc222.pub.3gppnetwork.org",
+      "unsupported": "eap-method",
+      "country": "AUTO"
+    },
+    {
+      "id": "tim-kena-it",
+      "match": [
+        {
+          "plmn": "22207"
+        }
+      ]
+    },
+    {
+      "id": "timortelecom-tl",
+      "match": [
+        {
+          "plmn": "51402"
+        }
+      ]
+    },
+    {
+      "id": "tmn-pt",
+      "match": [
+        {
+          "plmn": "26806"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "tmobile-al",
+      "match": [
+        {
+          "plmn": "27601"
+        }
+      ]
+    },
+    {
+      "id": "tmobile-at",
+      "match": [
+        {
+          "plmn": "23223"
+        },
+        {
+          "plmn": "23207",
+          "gid1": "07"
+        },
+        {
+          "plmn": "23207",
+          "gid1": "31"
+        },
+        {
+          "plmn": "23207",
+          "gid1": "74"
+        },
+        {
+          "plmn": "23207",
+          "gid1": "75"
+        },
+        {
+          "plmn": "23207",
+          "gid1": "72"
+        },
+        {
+          "plmn": "23207",
+          "gid1": "70"
+        },
+        {
+          "plmn": "23207",
+          "gid1": "30"
+        },
+        {
+          "plmn": "23203"
+        }
+      ],
+      "epdg": "epdg.epc.mnc003.mcc232.pub.3gppnetwork.org"
+    },
+    {
+      "id": "tmobile-bg",
+      "match": [
+        {
+          "plmn": "28405"
+        }
+      ]
+    },
+    {
+      "id": "tmobile-boost-us",
+      "match": [
+        {
+          "plmn": "310240",
+          "gid1": "6230"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6230"
+        }
+      ]
+    },
+    {
+      "id": "tmobile-cc-us",
+      "match": [
+        {
+          "plmn": "310240",
+          "gid1": "2AC9"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "2AC9"
+        }
+      ]
+    },
+    {
+      "id": "tmobile-charter-us",
+      "match": [
+        {
+          "plmn": "310240",
+          "gid1": "BA02"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "tmobile-comcast-us",
+      "match": [
+        {
+          "plmn": "310240",
+          "gid1": "CC01"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "tmobile-cz",
+      "match": [
+        {
+          "plmn": "23001"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc230.pub.3gppnetwork.org"
+    },
+    {
+      "id": "tmobile-germany",
+      "match": [
+        {
+          "plmn": "26298",
+          "gid1": "CA"
+        },
+        {
+          "plmn": "26201"
+        },
+        {
+          "plmn": "26206"
+        },
+        {
+          "plmn": "26278"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc262.pub.3gppnetwork.org"
+    },
+    {
+      "id": "tmobile-gr",
+      "match": [
+        {
+          "plmn": "20201"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc202.pub.3gppnetwork.org"
+    },
+    {
+      "id": "tmobile-hr",
+      "match": [
+        {
+          "plmn": "21901"
+        },
+        {
+          "plmn": "21920"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc219.pub.3gppnetwork.org"
+    },
+    {
+      "id": "tmobile-hu",
+      "match": [
+        {
+          "plmn": "21630"
+        }
+      ],
+      "epdg": "epdg.epc.mnc030.mcc216.pub.3gppnetwork.org"
+    },
+    {
+      "id": "tmobile-me",
+      "match": [
+        {
+          "plmn": "29702"
+        }
+      ]
+    },
+    {
+      "id": "tmobile-metropcs-us",
+      "match": [
+        {
+          "plmn": "310260",
+          "gid1": "6D"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6D"
+        }
+      ]
+    },
+    {
+      "id": "tmobile-mk",
+      "match": [
+        {
+          "plmn": "29401"
+        }
+      ]
+    },
+    {
+      "id": "tmobile-mvno-us",
+      "match": [
+        {
+          "plmn": "310240",
+          "gid1": "DD"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "DD"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "4753"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "4753"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "AB"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "AB"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6C"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6C"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "43"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "43"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "4201"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "4201"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "4276"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "4276"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "73"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "73"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "57"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "57"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6133"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6133"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6134"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6134"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6136"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6136"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6137"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6137"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6138"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6138"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "4C"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "4C"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "4E"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "4E"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "4B"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "4B"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "82"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "82"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "74"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "74"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "72"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "72"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "70"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "70"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "69"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "69"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "514C"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "514C"
+        }
+      ]
+    },
+    {
+      "id": "tmobile-nl",
+      "match": [
+        {
+          "plmn": "20416"
+        }
+      ],
+      "epdg": "epdg.epc.mnc016.mcc204.pub.3gppnetwork.org"
+    },
+    {
+      "id": "tmobile-pl",
+      "match": [
+        {
+          "plmn": "26002"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc260.pub.3gppnetwork.org"
+    },
+    {
+      "id": "tmobile-ro",
+      "match": [
+        {
+          "plmn": "22603"
+        },
+        {
+          "plmn": "22606"
+        }
+      ]
+    },
+    {
+      "id": "tmobile-sk",
+      "match": [
+        {
+          "plmn": "23102"
+        }
+      ]
+    },
+    {
+      "id": "tmobile-tfw-simple-us",
+      "match": [
+        {
+          "plmn": "310240",
+          "gid1": "DE"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "534D"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "DE"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "534D"
+        }
+      ]
+    },
+    {
+      "id": "tmobile-uk",
+      "match": [
+        {
+          "plmn": "23430"
+        }
+      ],
+      "epdg": "epdg.epc.mnc030.mcc234.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "tmobile-ultramint-us",
+      "match": [
+        {
+          "plmn": "310240",
+          "gid1": "4153"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6132"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "354D"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "364D"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "756D"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "4154"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "4153"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6132"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "354D"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "364D"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "756D"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "4154"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "tmobile-us",
+      "match": [
+        {
+          "plmn": "310240",
+          "gid1": "54"
+        },
+        {
+          "plmn": "310160"
+        },
+        {
+          "plmn": "310200"
+        },
+        {
+          "plmn": "310210"
+        },
+        {
+          "plmn": "310220"
+        },
+        {
+          "plmn": "310230"
+        },
+        {
+          "plmn": "310250"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "54"
+        },
+        {
+          "plmn": "310270"
+        },
+        {
+          "plmn": "310310"
+        },
+        {
+          "plmn": "310490"
+        },
+        {
+          "plmn": "310660"
+        },
+        {
+          "plmn": "310800"
+        },
+        {
+          "plmn": "311660"
+        },
+        {
+          "plmn": "311882"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "tmobile-wholesale-us",
+      "match": [
+        {
+          "plmn": "310240",
+          "gid1": "1A53"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6923"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6927"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6911"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6957"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6924"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6919"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6913"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6918"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6917"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "6928"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "80"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "1A53"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6923"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6927"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6911"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6957"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6924"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6919"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6913"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6918"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6917"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "6928"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "80"
+        },
+        {
+          "plmn": "310260",
+          "gid1": "8135"
+        },
+        {
+          "plmn": "310240",
+          "gid1": "8135"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "transatel",
+      "match": [
+        {
+          "plmn": "90137"
+        }
+      ]
+    },
+    {
+      "id": "trueh-th",
+      "match": [
+        {
+          "plmn": "52000",
+          "gid1": "01"
+        },
+        {
+          "plmn": "52004"
+        }
+      ],
+      "epdg": "epdg.epc.mnc004.mcc520.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "truphone-us",
+      "match": [
+        {
+          "plmn": "23410",
+          "gid1": "547275554B3030656E"
+        },
+        {
+          "plmn": "45400",
+          "gid1": "547275554B3030656E"
+        },
+        {
+          "plmn": "20408",
+          "gid1": "547275554B3030656E"
+        },
+        {
+          "plmn": "20433",
+          "gid1": "547275554B3030656E"
+        },
+        {
+          "plmn": "20404",
+          "gid1": "547275554B3030656E"
+        },
+        {
+          "plmn": "23425",
+          "gid1": "547275554B3030656E"
+        },
+        {
+          "plmn": "310300",
+          "gid1": "547275554B3030656E"
+        },
+        {
+          "plmn": "45408",
+          "gid1": "547275554B3030656E"
+        },
+        {
+          "plmn": "21427",
+          "gid1": "547275554B3030656E"
+        },
+        {
+          "plmn": "26242",
+          "gid1": "547275554B3030656E"
+        },
+        {
+          "plmn": "26033",
+          "gid1": "547275554B3030656E"
+        },
+        {
+          "plmn": "50538",
+          "gid1": "547275554B3030656E"
+        },
+        {
+          "plmn": "20809",
+          "gid1": "547275554B3030656E"
+        },
+        {
+          "plmn": "20812",
+          "gid1": "547275554B3030656E"
+        },
+        {
+          "plmn": "72455",
+          "gid1": "547275554B3030656E"
+        },
+        {
+          "plmn": "27227",
+          "gid1": "547275554B3030656E"
+        },
+        {
+          "plmn": "22876",
+          "gid1": "547275554B3030656E"
+        }
+      ],
+      "epdg": "epdg.eps.truphone.net"
+    },
+    {
+      "id": "tuntel-tn",
+      "match": [
+        {
+          "plmn": "60502"
+        }
+      ]
+    },
+    {
+      "id": "turkcell-kktcell-tr",
+      "match": [
+        {
+          "plmn": "28601",
+          "gid1": "4B4B5443454C4C"
+        }
+      ]
+    },
+    {
+      "id": "turkcell-lifecell-ua",
+      "match": [
+        {
+          "plmn": "25506"
+        }
+      ],
+      "epdg": "epdg.epc.mnc006.mcc255.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "turkcell-tr",
+      "match": [
+        {
+          "plmn": "28601"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc286.pub.3gppnetwork.org"
+    },
+    {
+      "id": "ufone-pk",
+      "match": [
+        {
+          "plmn": "41003"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "umniah-jo",
+      "match": [
+        {
+          "plmn": "41603"
+        }
+      ]
+    },
+    {
+      "id": "umobile-my",
+      "match": [
+        {
+          "plmn": "50218"
+        }
+      ],
+      "epdg": "epdg.epc.mnc018.mcc502.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "unicom-cn",
+      "match": [
+        {
+          "plmn": "46001"
+        },
+        {
+          "plmn": "46009"
+        }
+      ]
+    },
+    {
+      "id": "unicom-hk",
+      "match": [
+        {
+          "plmn": "45407"
+        }
+      ],
+      "epdg": "epdg.epc.mnc007.mcc454.pub.3gppnetwork.org",
+      "unsupported": "eap-method"
+    },
+    {
+      "id": "unionwireless-us",
+      "match": [
+        {
+          "plmn": "310020"
+        }
+      ]
+    },
+    {
+      "id": "unitedwireless-lte-us",
+      "match": [
+        {
+          "plmn": "311650"
+        }
+      ],
+      "epdg": "epdg.epc.mnc650.mcc311.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "unitel-ao",
+      "match": [
+        {
+          "plmn": "63102"
+        }
+      ]
+    },
+    {
+      "id": "unitel-la",
+      "match": [
+        {
+          "plmn": "45703"
+        }
+      ]
+    },
+    {
+      "id": "unitel-mn",
+      "match": [
+        {
+          "plmn": "42888"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "uros",
+      "match": [
+        {
+          "plmn": "24042",
+          "gid1": "C5"
+        }
+      ]
+    },
+    {
+      "id": "uscellular-lte-us",
+      "match": [
+        {
+          "plmn": "311580"
+        },
+        {
+          "plmn": "311589"
+        }
+      ],
+      "epdg": "epdg.epc.mnc580.mcc311.pub.3gppnetwork.org"
+    },
+    {
+      "id": "uztelecom-uz",
+      "match": [
+        {
+          "plmn": "43408"
+        }
+      ]
+    },
+    {
+      "id": "verizon-charter-lte-us",
+      "match": [
+        {
+          "plmn": "311480",
+          "gid2": "A7"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "A7"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "A7"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "verizon-comcast-lte-us",
+      "match": [
+        {
+          "plmn": "311480",
+          "gid2": "A3"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "A3"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "A3"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "verizon-core-visible-lte-us",
+      "match": [
+        {
+          "plmn": "311480",
+          "gid2": "1C"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "1C"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "1C"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "verizon-cox-lte-us",
+      "match": [
+        {
+          "plmn": "311480",
+          "gid2": "B100000000000000"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "B100000000000000"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "B100000000000000"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "verizon-lte-us",
+      "match": [
+        {
+          "plmn": "311480",
+          "gid2": "A8"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "A8"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "A8"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "verizon-mvno-us",
+      "match": [
+        {
+          "plmn": "311480",
+          "gid2": "B7"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "B7"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "B7"
+        },
+        {
+          "plmn": "311480",
+          "gid2": "C4"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "C4"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "C4"
+        },
+        {
+          "plmn": "311480",
+          "gid2": "A6"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "A6"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "A6"
+        },
+        {
+          "plmn": "311480",
+          "gid2": "B9"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "B9"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "B9"
+        },
+        {
+          "plmn": "311480",
+          "gid2": "B6"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "B6"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "B6"
+        },
+        {
+          "plmn": "311480",
+          "gid2": "C3"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "C3"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "C3"
+        },
+        {
+          "plmn": "311480",
+          "gid2": "C2"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "C2"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "C2"
+        },
+        {
+          "plmn": "311480",
+          "gid2": "C5"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "C5"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "C5"
+        },
+        {
+          "plmn": "311480",
+          "gid2": "B3"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "B3"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "B3"
+        },
+        {
+          "plmn": "311480",
+          "gid2": "C6"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "C6"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "C6"
+        },
+        {
+          "plmn": "311480",
+          "gid2": "C7"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "C7"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "C8"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "C7"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "C8"
+        },
+        {
+          "plmn": "311480",
+          "gid2": "C8"
+        },
+        {
+          "plmn": "311480",
+          "gid2": "D0"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "D0"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "D0"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "verizon-response-lte-us",
+      "match": [
+        {
+          "plmn": "311480",
+          "gid2": "1B"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "1B"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "1B"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "verizon-tfw-lte-us",
+      "match": [
+        {
+          "plmn": "311480",
+          "gid2": "A1"
+        },
+        {
+          "plmn": "310599",
+          "gid2": "A1"
+        },
+        {
+          "plmn": "310590",
+          "gid2": "A1"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "verizon-ting-lte-us",
+      "match": [
+        {
+          "plmn": "311480",
+          "gid2": "A9"
+        }
+      ]
+    },
+    {
+      "id": "verizon-visible-lte-us",
+      "match": [
+        {
+          "plmn": "311480",
+          "gid2": "1A"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "vibo-tw",
+      "match": [
+        {
+          "plmn": "46689"
+        },
+        {
+          "plmn": "46690"
+        },
+        {
+          "plmn": "466891"
+        }
+      ]
+    },
+    {
+      "id": "videotron-ca",
+      "match": [
+        {
+          "plmn": "302500"
+        }
+      ],
+      "epdg": "epdg.epc.mnc500.mcc302.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "videotron-fizz-ca",
+      "match": [
+        {
+          "plmn": "302500",
+          "gid1": "55"
+        }
+      ],
+      "epdg": "epdg.epc.mnc500.mcc302.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "viettel-vn",
+      "match": [
+        {
+          "plmn": "45204"
+        }
+      ],
+      "epdg": "epdg.epc.mnc004.mcc452.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "vimpelcom-am",
+      "match": [
+        {
+          "plmn": "28301"
+        }
+      ]
+    },
+    {
+      "id": "vimpelcom-ge",
+      "match": [
+        {
+          "plmn": "28204"
+        }
+      ]
+    },
+    {
+      "id": "vimpelcom-kg",
+      "match": [
+        {
+          "plmn": "43701"
+        }
+      ]
+    },
+    {
+      "id": "vimpelcom-kz",
+      "match": [
+        {
+          "plmn": "40101"
+        }
+      ]
+    },
+    {
+      "id": "vimpelcom-ru",
+      "match": [
+        {
+          "plmn": "25099"
+        }
+      ],
+      "epdg": "epdg.epc.mnc099.mcc250.pub.3gppnetwork.org",
+      "unsupported": "eap-method",
+      "country": "AUTO"
+    },
+    {
+      "id": "vimpelcom-tj",
+      "match": [
+        {
+          "plmn": "43605"
+        }
+      ]
+    },
+    {
+      "id": "vimpelcom-uz",
+      "match": [
+        {
+          "plmn": "43404"
+        }
+      ]
+    },
+    {
+      "id": "vinaphone-vn",
+      "match": [
+        {
+          "plmn": "45202"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc452.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "vini-pf",
+      "match": [
+        {
+          "plmn": "54720"
+        }
+      ]
+    },
+    {
+      "id": "viva-bh",
+      "match": [
+        {
+          "plmn": "42604"
+        }
+      ],
+      "epdg": "epdg.epc.mnc004.mcc426.pub.stc.com.bh",
+      "unsupported": "eap-method",
+      "country": "AUTO"
+    },
+    {
+      "id": "viva-kw",
+      "match": [
+        {
+          "plmn": "41904"
+        }
+      ],
+      "epdg": "epdg.epc.mnc004.mcc419.pub.3gppnetwork.org",
+      "unsupported": "eap-method",
+      "country": "AUTO"
+    },
+    {
+      "id": "vivacom-bg",
+      "match": [
+        {
+          "plmn": "28403"
+        }
+      ]
+    },
+    {
+      "id": "vivo-br",
+      "match": [
+        {
+          "plmn": "72406"
+        },
+        {
+          "plmn": "72410"
+        },
+        {
+          "plmn": "72411"
+        },
+        {
+          "plmn": "72423"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-1and1-de",
+      "match": [
+        {
+          "plmn": "26202",
+          "gid1": "11"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-al",
+      "match": [
+        {
+          "plmn": "27602"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc276.pub.3gppnetwork.org",
+      "unsupported": "eap-method"
+    },
+    {
+      "id": "vodafone-au",
+      "match": [
+        {
+          "plmn": "50503"
+        }
+      ],
+      "epdg": "epdg.epc.mnc003.mcc505.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "vodafone-cd",
+      "match": [
+        {
+          "plmn": "63001"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-cz",
+      "match": [
+        {
+          "plmn": "23003"
+        }
+      ],
+      "epdg": "epdg.epc.mnc003.mcc230.pub.3gppnetwork.org"
+    },
+    {
+      "id": "vodafone-de",
+      "match": [
+        {
+          "plmn": "26202"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-eg",
+      "match": [
+        {
+          "plmn": "60202"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-es",
+      "match": [
+        {
+          "plmn": "21401"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc214.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "vodafone-fj",
+      "match": [
+        {
+          "plmn": "54201"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-gr",
+      "match": [
+        {
+          "plmn": "20205"
+        }
+      ],
+      "epdg": "epdg.epc.mnc005.mcc202.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "vodafone-ho-it",
+      "match": [
+        {
+          "plmn": "22210",
+          "gid1": "20"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-hu",
+      "match": [
+        {
+          "plmn": "21670"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "vodafone-ie",
+      "match": [
+        {
+          "plmn": "27201",
+          "gid1": "21"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc272.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "vodafone-in",
+      "match": [
+        {
+          "plmn": "40427"
+        },
+        {
+          "plmn": "40446"
+        },
+        {
+          "plmn": "40443"
+        },
+        {
+          "plmn": "40460"
+        },
+        {
+          "plmn": "40401"
+        },
+        {
+          "plmn": "40415"
+        },
+        {
+          "plmn": "40430"
+        },
+        {
+          "plmn": "40405"
+        },
+        {
+          "plmn": "40420"
+        },
+        {
+          "plmn": "40411"
+        },
+        {
+          "plmn": "40413"
+        },
+        {
+          "plmn": "40484"
+        },
+        {
+          "plmn": "40486"
+        },
+        {
+          "plmn": "40567"
+        },
+        {
+          "plmn": "40566"
+        },
+        {
+          "plmn": "40488"
+        },
+        {
+          "plmn": "405750"
+        },
+        {
+          "plmn": "405751"
+        },
+        {
+          "plmn": "405752"
+        },
+        {
+          "plmn": "405753"
+        },
+        {
+          "plmn": "405754"
+        },
+        {
+          "plmn": "405755"
+        },
+        {
+          "plmn": "405756"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-is",
+      "match": [
+        {
+          "plmn": "27402"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-it",
+      "match": [
+        {
+          "plmn": "22210"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-ki",
+      "match": [
+        {
+          "plmn": "54501"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-lebara-au",
+      "match": [
+        {
+          "plmn": "50503",
+          "gid1": "01"
+        }
+      ],
+      "epdg": "epdg.epc.mnc003.mcc505.pub.3gppnetwork.org",
+      "country": "AUTO"
+    },
+    {
+      "id": "vodafone-ls",
+      "match": [
+        {
+          "plmn": "65101"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-mt",
+      "match": [
+        {
+          "plmn": "27801"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-mz",
+      "match": [
+        {
+          "plmn": "64304"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-nl",
+      "match": [
+        {
+          "plmn": "20404"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "vodafone-nz",
+      "match": [
+        {
+          "plmn": "53001"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc530.pub.3gppnetwork.org"
+    },
+    {
+      "id": "vodafone-om",
+      "match": [
+        {
+          "plmn": "42206"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-pt",
+      "match": [
+        {
+          "plmn": "26801"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-qa",
+      "match": [
+        {
+          "plmn": "42702"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-ro",
+      "match": [
+        {
+          "plmn": "22601"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-tr",
+      "match": [
+        {
+          "plmn": "28602"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "vodafone-travel",
+      "match": [
+        {
+          "plmn": "20404",
+          "gid1": "C2"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-tz",
+      "match": [
+        {
+          "plmn": "64004"
+        }
+      ]
+    },
+    {
+      "id": "vodafone-uk",
+      "match": [
+        {
+          "plmn": "23415"
+        }
+      ],
+      "epdg": "epdg.epc.mnc015.mcc234.pub.3gppnetwork.org"
+    },
+    {
+      "id": "vodafone-za",
+      "match": [
+        {
+          "plmn": "65501"
+        }
+      ],
+      "epdg": "epdg.epc.mnc001.mcc655.pub.3gppnetwork.org"
+    },
+    {
+      "id": "vox-lu",
+      "match": [
+        {
+          "plmn": "27099"
+        }
+      ],
+      "epdg": "epdg.epc.mnc099.mcc270.pub.3gppnetwork.org",
+      "unsupported": "eap-method"
+    },
+    {
+      "id": "vtr-cl",
+      "match": [
+        {
+          "plmn": "73008"
+        }
+      ]
+    },
+    {
+      "id": "warid-pk",
+      "match": [
+        {
+          "plmn": "41007"
+        }
+      ]
+    },
+    {
+      "id": "wind-gr",
+      "match": [
+        {
+          "plmn": "20210"
+        }
+      ],
+      "epdg": "epdg.epc.mnc010.mcc202.pub.3gppnetwork.org",
+      "unsupported": "eap-method",
+      "country": "AUTO"
+    },
+    {
+      "id": "wind-very-it",
+      "match": [
+        {
+          "plmn": "22299",
+          "gid1": "0000000099"
+        },
+        {
+          "plmn": "22288",
+          "gid1": "0000000099"
+        }
+      ],
+      "epdg": "epdg.epc.mnc088.mcc222.pub.3gppnetwork.org",
+      "unsupported": "eap-method"
+    },
+    {
+      "id": "wom-co",
+      "match": [
+        {
+          "plmn": "732360"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "wonet",
+      "match": [
+        {
+          "plmn": "20801",
+          "gid1": "CC11"
+        }
+      ]
+    },
+    {
+      "id": "xl-id",
+      "match": [
+        {
+          "plmn": "51011"
+        }
+      ]
+    },
+    {
+      "id": "xplornet-ca",
+      "match": [
+        {
+          "plmn": "302130"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "yes-my",
+      "match": [
+        {
+          "plmn": "502152"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "yoigo-es",
+      "match": [
+        {
+          "plmn": "21404"
+        }
+      ]
+    },
+    {
+      "id": "zain-bh",
+      "match": [
+        {
+          "plmn": "42602"
+        }
+      ],
+      "country": "AUTO"
+    },
+    {
+      "id": "zain-iq",
+      "match": [
+        {
+          "plmn": "41820"
+        },
+        {
+          "plmn": "41830"
+        }
+      ]
+    },
+    {
+      "id": "zain-jo",
+      "match": [
+        {
+          "plmn": "41601"
+        }
+      ]
+    },
+    {
+      "id": "zain-kw",
+      "match": [
+        {
+          "plmn": "41902"
+        }
+      ],
+      "epdg": "epdg.epc.mnc002.mcc419.pub.3gppnetwork.org"
+    },
+    {
+      "id": "zain-lb",
+      "match": [
+        {
+          "plmn": "41503"
+        }
+      ]
+    },
+    {
+      "id": "zain-sa",
+      "match": [
+        {
+          "plmn": "42004"
+        }
+      ],
+      "epdg": "epdg.epc.mnc004.mcc420.pub.3gppnetwork.org"
+    },
+    {
+      "id": "zain-salammobile-sa",
+      "match": [
+        {
+          "plmn": "42009"
+        }
+      ]
+    },
+    {
+      "id": "zeop-re",
+      "match": [
+        {
+          "plmn": "64704"
+        }
+      ]
+    },
+    {
+      "id": "zong-pk",
+      "match": [
+        {
+          "plmn": "41004"
+        }
+      ]
+    }
+  ]
+}

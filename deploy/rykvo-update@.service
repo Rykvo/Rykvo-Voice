@@ -1,0 +1,25 @@
+[Unit]
+Description=Rykvo Voice local update control
+
+[Service]
+ExecStart=/usr/bin/python3 -I /opt/rykvo-manager/deploy/local-update.py
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+StateDirectory=rykvo-update
+StateDirectoryMode=0700
+RuntimeMaxSec=85
+TimeoutStopSec=10
+NoNewPrivileges=true
+CapabilityBoundingSet=
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX
+MemoryMax=256M
+TasksMax=16
+UMask=0077
