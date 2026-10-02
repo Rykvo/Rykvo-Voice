@@ -138,6 +138,7 @@ SIP 仅转发 APP 私有音频。蜂窝模块在打开 USB PCM 前仍保留模�
 `GET /settings/networks` 返回 networks、modules 和 revision。网络状态是链路配置证据，不代表互联网或运营商已连通。
 `PUT /settings/networks` 接收 `{id, revision, modules:[模块ID]}` 替换该网络的分配，或 `{id, revision, label}` 改名。每次仅一种操作；忙碌模块返回 DEVICE_BUSY，过期版本返回 NETWORK_CONFLICT。
 绑定持久化；指定网络断开不回退。模块分配不修改 SIP 专用 VPN，主网络切换前将未分配模块固定到原出口。
+选中其他网络的模块会在同一事务内移入目标网络；取消当前分配后使用主网络，未设置时使用系统默认网络，不恢复旧分配。
 
 `GET /settings/network-control` 返回主网络、VPN 状态、`routingRevision` 与 `vpnRevision`；`?node=网络ID` 仅向管理员返回节点链接。
 `POST /settings/network-control` 使用同一管理员、Origin 与 CSRF 校验：

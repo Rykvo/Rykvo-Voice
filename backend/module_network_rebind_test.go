@@ -66,7 +66,7 @@ func TestModuleNetworkRebindLatestChoice(t *testing.T) {
 				t.Fatal("first worker not started")
 			}
 			m.mu.Lock()
-			m.applyNetworkLocked(1, "")
+			m.applyNetworkLocked(1, b)
 			m.mu.Unlock()
 			select {
 			case <-f.cleaning:

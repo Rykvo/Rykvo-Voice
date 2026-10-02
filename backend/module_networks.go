@@ -198,7 +198,7 @@ func (s *server) networksAPI(ctx context.Context, w http.ResponseWriter, r *http
 			switch err.Error() {
 			case "INVALID_NETWORK":
 				status = 400
-			case "NETWORK_CONFLICT", "NETWORK_ASSIGNED", "NETWORK_HOST_DEFAULT", "DEVICE_BUSY":
+			case "NETWORK_CONFLICT", "NETWORK_HOST_DEFAULT", "DEVICE_BUSY":
 				status = 409
 			}
 			fail(w, status, err.Error())
@@ -341,7 +341,6 @@ func (m *moduleManager) changeNetwork(ctx context.Context, input networkChange) 
 	}
 	m.mu.RLock()
 	changes := map[int64]string{}
-	assignedElsewhere := false
 	affected := []moduleRecord{}
 	for _, v := range records {
 		if input.Modules == nil {
@@ -350,7 +349,6 @@ func (m *moduleManager) changeNetwork(ctx context.Context, input networkChange) 
 		old := m.networks[v.ID]
 		next := old
 		if wanted[v.ID] {
-			assignedElsewhere = assignedElsewhere || old != "" && old != input.ID
 			next = input.ID
 			delete(wanted, v.ID)
 		} else if old == input.ID {
@@ -420,9 +418,6 @@ func (m *moduleManager) changeNetwork(ctx context.Context, input networkChange) 
 	}
 	if revision != input.Revision {
 		return errors.New("NETWORK_CONFLICT")
-	}
-	if assignedElsewhere {
-		return errors.New("NETWORK_ASSIGNED")
 	}
 	raw, _ := json.Marshal(target)
 	label := target.Label

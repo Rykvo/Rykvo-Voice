@@ -17,7 +17,6 @@ const NetworkSettings = (() => {
     NETWORK_CONTROL_UNAVAILABLE: "网络服务暂不可用",
     VPN_DISABLE_FIRST: "请先关闭 VPN 再修改节点",
     DEVICE_BUSY: "模块使用中，请稍后修改",
-    NETWORK_ASSIGNED: "请先在原网络关闭分配",
     NETWORK_CONFLICT: "配置已更新，请重新打开",
     NETWORK_UNAVAILABLE: "指定网络不可用",
     INVALID_NETWORK: "请检查网络和模块选择",
@@ -157,7 +156,7 @@ const NetworkSettings = (() => {
     }
   }
   function assignmentLocked(module, network) {
-    return module.busy || Boolean(module.network && module.network !== network.id) || network.state !== "configured" && module.network !== network.id;
+    return module.busy || network.state !== "configured" && module.network !== network.id;
   }
   function assignmentUpdate(modules, network, moduleID, enabled) {
     const target = modules.find(m => m.id === moduleID);

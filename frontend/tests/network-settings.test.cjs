@@ -42,11 +42,37 @@ test('only blank backdrop is outside, not interior space or controls',()=>{
  assert.equal(api.outsideDialog({...event,target:{}},dialog),false);
  assert.equal(api.outsideDialog({...event,clientX:300,clientY:800},dialog),true);
 });
-test('existing module protections retained',()=>{
+test('direct switching preserves other modules and busy protection',()=>{
  const net={...n,hostDefault:[]};
  const modules=[{id:'module-01',network:'b'.repeat(32),busy:false},{id:'module-02',network:id,busy:true}];
- assert.equal(api.assignmentUpdate(modules,net,'module-01',true),null);
+ assert.deepEqual(Array.from(api.assignmentUpdate(modules,net,'module-01',true)),['module-01','module-02']);
  assert.equal(api.assignmentUpdate(modules,net,'module-02',false),null);
+ assert.equal(modules[0].network,'b'.repeat(32));
+ assert.equal(api.assignmentUpdate(modules,{...net,state:'no-carrier'},'module-01',true),null);
+ assert.equal(api.assignmentUpdate(modules,net,'missing',true),null);
+});
+test('only the assigned network is checked and other connected networks remain clickable',()=>{
+ const b={...n,id:'b'.repeat(32),label:'USB'};
+ const module={id:'module-01',label:'01',network:id,busy:false};
+ const selected=()=>api.assignmentRows([module],n,[n,b]);
+ const other=()=>api.assignmentRows([module],b,[n,b]);
+ assert.match(selected(),/checked/);assert.doesNotMatch(selected(),/disabled/);
+ assert.doesNotMatch(other(),/checked|disabled/);
+ module.network=b.id;
+ assert.doesNotMatch(selected(),/checked|disabled/);assert.match(other(),/checked/);
+ assert.deepEqual(Array.from(api.assignmentUpdate([module],b,module.id,false)),[]);
+ module.network='';
+ assert.doesNotMatch(selected()+other(),/checked|disabled/);
+ assert.match(other(),/主机网络/);
+});
+test('offline assigned networks can be cleared but never selected as new targets',()=>{
+ const offline={...n,state:'unavailable'};
+ const module={id:'module-01',label:'01',network:id,busy:false};
+ assert.deepEqual(Array.from(api.assignmentUpdate([module],offline,module.id,false)),[]);
+ assert.doesNotMatch(api.assignmentRows([module],offline,[offline]),/disabled/);
+ module.network='';
+ assert.equal(api.assignmentUpdate([module],offline,module.id,true),null);
+ assert.match(api.assignmentRows([module],offline,[offline]),/disabled/);
 });
 test('unchanged polling text does not replace DOM nodes',()=>{
  let value='未开启',writes=0;
@@ -139,4 +165,44 @@ test('a recovered read unlocks switches even when cached markup is unchanged',as
  fail=true;await poll();assert.equal(input.disabled,true);
  fail=false;await poll();assert.equal(input.disabled,false);
  assert.equal(error.textContent,'');ui.unmount();
+});
+
+test('switch saves once, waits for confirmation and reconciles failure without resending',async()=>{
+ const b='b'.repeat(32),listeners={},notices=[],writes=[];
+ const data={revision:1,networks:[n,{...n,id:b,label:'USB'}],modules:[{id:'module-01',label:'01',number:'',network:id,busy:false}]};
+ const list={innerHTML:''},dialog={addEventListener(){},close(){}},error={textContent:''};
+ let form=null,resolveWrite,rejectWrite;
+ const context=vm.createContext({
+  AbortController,clearInterval(){},setInterval(){return 1;},
+  document:{hidden:false,activeElement:null,addEventListener(name,fn){listeners[name]=fn;},querySelectorAll(){return [];}},
+  Forms:{header:s=>s},
+  UI:{escape:String,toast:s=>notices.push(s),
+   $:s=>({'#network-list':list,'#network-error':error,'#dialog':dialog,'#network-edit':form}[s]||null),
+   modal(title,html){form={dataset:{network:html.match(/data-network="([a-f0-9]+)"/)[1]},innerHTML:'',events:{},attrs:{},
+    contains(){return false;},querySelector(){return null;},querySelectorAll(){return [];},remove(){form=null;},
+    getAttribute(k){return this.attrs[k];},setAttribute(k,v){this.attrs[k]=v;},addEventListener(k,fn){this.events[k]=fn;}};}
+  },
+  Http:{async request(){return structuredClone(data);}},
+  Backend:{networks:{update({body}){writes.push(JSON.parse(JSON.stringify(body)));return new Promise((resolve,reject)=>{resolveWrite=resolve;rejectWrite=reject;});}}}
+ });
+ vm.runInContext(fs.readFileSync(__dirname+'/../network-settings.js','utf8'),context);
+ const ui=vm.runInContext('NetworkSettings',context),tick=()=>new Promise(resolve=>setImmediate(resolve));
+ const open=network=>listeners.click({target:{closest:s=>s==='[data-network-assign]'?{dataset:{networkAssign:network}}:null}});
+ const toggle=enabled=>form.events.change({target:{closest:()=>({dataset:{module:'module-01'},checked:enabled})}});
+ await ui.mount();open(b);
+ assert.doesNotMatch(form.innerHTML,/checked|disabled/);
+ toggle(true);toggle(true);
+ assert.equal(writes.length,1);
+ assert.deepEqual(writes[0],{id:b,revision:1,modules:['module-01']});
+ assert.equal(data.modules[0].network,id);
+ data.modules[0].network=b;data.revision=2;resolveWrite();await tick();
+ assert.match(form.innerHTML,/checked/);
+ open(id);assert.doesNotMatch(form.innerHTML,/checked|disabled/);
+ open(b);toggle(false);rejectWrite({code:'NETWORK_CONFLICT'});await tick();
+ assert.equal(writes.length,2);assert.match(form.innerHTML,/checked/);
+ assert.equal(notices.length,1);
+ toggle(false);data.modules[0].network='';data.revision=3;resolveWrite();await tick();
+ assert.equal(writes.length,3);assert.doesNotMatch(form.innerHTML,/checked|disabled/);
+ assert.match(form.innerHTML,/主机网络/);
+ ui.unmount();
 });

@@ -27,6 +27,9 @@ func TestRuntimePolicyFailsClosed(t *testing.T) {
 	if err := os.WriteFile(runtimePolicyPath, []byte(data), 0600); err != nil {
 		t.Fatal(err)
 	}
+	if DefaultNetwork() != n.ID {
+		t.Fatal("unassigned module did not select the configured primary")
+	}
 	if _, err := runtimeUplink(n); err == nil {
 		t.Fatal("failed VPN allowed direct")
 	}
