@@ -514,29 +514,8 @@ func (session *Session) processSMSMessage(request *sipRequest) {
 			session.sendLoggedDeliveryReport(request, buildRPError(rpdu.reference, 95), "rp_error")
 			return
 		}
-		if session.provider.config.OnSIMDataDownload == nil {
-			session.logInboundSMS(slog.LevelWarn, "IMS SIM data download has no UICC handler", request,
-				"stage", "uicc", "rp_reference", int(rpdu.reference))
-			session.sendLoggedDeliveryReport(request, []byte{0x02, rpdu.reference}, "rp_ack")
-			return
-		}
-		if err := session.provider.config.OnSIMDataDownload(context.Background(), SIMDataDownload{
-			DeviceID: session.request.DeviceID,
-			IMSI:     session.request.Identity.IMSI,
-			PID:      byte(message.ProtocolID),
-			DCS:      byte(message.DataCodingScheme),
-			TPDU:     append([]byte(nil), rpdu.tpdu...),
-			RPDU:     append([]byte(nil), payload...),
-		}); err != nil {
-			session.logInboundSMS(slog.LevelWarn, "IMS SIM data download UICC delivery failed", request,
-				"stage", "uicc", "rp_reference", int(rpdu.reference), "error", err)
-			session.sendLoggedDeliveryReport(request, buildRPError(rpdu.reference, 22), "rp_error")
-			return
-		}
-		// The callback has completed the UICC ENVELOPE transaction.
-		session.logInboundSMS(slog.LevelInfo, "IMS SIM data download suppressed from SMS inbox", request,
-			"stage", "tpdu", "rp_reference", int(rpdu.reference))
-		session.sendLoggedDeliveryReport(request, []byte{0x02, rpdu.reference}, "rp_ack")
+		report := session.processSIMDownload(request, rpdu, payload, byte(message.ProtocolID), byte(message.DataCodingScheme))
+		session.sendLoggedDeliveryReport(request, report, "uicc_report")
 		return
 	}
 
@@ -570,7 +549,7 @@ func (session *Session) processSMSMessage(request *sipRequest) {
 		if err != nil {
 			session.logInboundSMS(slog.LevelWarn, "IMS inbound SMS status persistence failed", request,
 				"stage", "status_callback", "rp_reference", int(rpdu.reference), "error", err)
-			session.sendLoggedDeliveryReport(request, buildRPError(rpdu.reference, 22), "rp_error")
+			session.sendLoggedDeliveryReport(request, buildRPError(rpdu.reference, 111), "rp_error")
 			return
 		}
 		session.logInboundSMS(slog.LevelInfo, "IMS inbound SMS status report processed", request,
@@ -609,7 +588,7 @@ func (session *Session) processSMSMessage(request *sipRequest) {
 		if err != nil {
 			session.logInboundSMS(slog.LevelWarn, "IMS inbound SMS persistence failed", request,
 				"stage", "sms_callback", "rp_reference", int(rpdu.reference), "error", err)
-			session.sendLoggedDeliveryReport(request, buildRPError(rpdu.reference, 22), "rp_error")
+			session.sendLoggedDeliveryReport(request, buildRPError(rpdu.reference, 111), "rp_error")
 			return
 		}
 		session.logInboundSMS(slog.LevelInfo, "IMS inbound SMS processed", request,
@@ -617,6 +596,7 @@ func (session *Session) processSMSMessage(request *sipRequest) {
 			"rp_reference", int(rpdu.reference), "encoding", message.Encoding,
 			"concatenated", message.Concat != nil, "decode_error", decodeErr != nil)
 		session.sendLoggedDeliveryReport(request, []byte{0x02, rpdu.reference}, "rp_ack")
+		session.notifySMSMemoryAvailable(request)
 
 	default:
 		session.logInboundSMS(slog.LevelWarn, "IMS inbound SMS has unexpected TPDU direction", request,
@@ -1293,7 +1273,7 @@ func (session *Session) sendSIPMessageWithIdentity(
 		"", "",
 	)
 	request := append([]byte(strings.Join(lines, "\r\n")), body...)
-	if contentType == smsContentType && len(body) >= 2 && body[0] == 0 {
+	if contentType == smsContentType && len(body) >= 2 && (body[0] == 0 || body[0] == 6) {
 		session.mu.Lock()
 		if pending := session.pendingRP[body[1]]; pending != nil {
 			pending.callID = callID

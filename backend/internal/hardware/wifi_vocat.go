@@ -272,7 +272,13 @@ func (engine *VocatWiFi) WiFi(ctx context.Context, c Candidate, identity, iccid 
 			}
 			return engine.messaging.receive(ctx, SMSDelivery{ID: message.CallID, From: message.To, At: message.Timestamp, SCTS: message.ServiceCenterTimestamp, TPDU: message.RawTPDU, Status: &SMSReport{Reference: message.MessageReference, Code: message.StatusCode}})
 		},
-		OnSIMDataDownload: func(context.Context, ims.SIMDataDownload) error { return errors.New("SIM download not connected") },
+		NotifySMSMemoryAvailable: true,
+		OnSIMDataDownload: func(ctx context.Context, download ims.SIMDataDownload) (vowifi.SMSPPResult, error) {
+			if download.DeviceID != at.device {
+				return vowifi.SMSPPResult{}, errors.New("DEVICE_CHANGED")
+			}
+			return adapter.SMSPPDownload(ctx, vowifi.SIMIdentity{ICCID: iccid, IMSI: download.IMSI}, download.TPDU, download.RPDU)
+		},
 	})
 	if err != nil {
 		return errors.New("WIFI_CONNECTION_FAILED")

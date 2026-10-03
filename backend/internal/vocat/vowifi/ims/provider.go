@@ -79,9 +79,10 @@ type Config struct {
 	OnSMSStatus func(context.Context, ReceivedSMSStatus) error
 	// OnSIMDataDownload receives a decoded SMS-PP download for delivery to the
 	// UICC. The callback must return only after the UICC has processed the
-	// ENVELOPE command; a nil callback causes an RP-ACK delivery report to
-	// acknowledge transport receipt.
-	OnSIMDataDownload func(context.Context, SIMDataDownload) error
+	// ENVELOPE command. Its status and response data determine the RP report.
+	OnSIMDataDownload func(context.Context, SIMDataDownload) (vowifi.SMSPPResult, error)
+	// Send one memory-available notice after durable inbound storage succeeds.
+	NotifySMSMemoryAvailable bool
 	// OnUSSD is invoked for a network-originated USSD MESSAGE received over
 	// IMS (3GPP TS 24.390). Returning an error is logged but does not affect
 	// the 200 OK already sent, because USSI has no RP-ACK transport.
@@ -653,20 +654,24 @@ type Session struct {
 	inboundMu          sync.Mutex
 	inboundConnections map[net.Conn]struct{}
 	smsMu              sync.Mutex
+	simDownloadMu      sync.Mutex
+	simDownloadReports map[[32]byte][]byte
+	simDownloadOrder   [][32]byte
 	nextRPReference    byte
 	pendingRP          map[byte]*rpPending
 	rpReuseAfter       [256]time.Time
 	callMu             sync.Mutex
 	calls              map[string]*imsCall
 
-	mu                  sync.Mutex
-	closed              bool
-	evidence            vowifi.IMSEvidence
-	smsContactConfirmed bool
-	expiresAt           time.Time
-	refreshContext      context.Context
-	refreshCancel       context.CancelFunc
-	refreshDone         chan struct{}
+	mu                     sync.Mutex
+	closed                 bool
+	evidence               vowifi.IMSEvidence
+	smsContactConfirmed    bool
+	smsMemoryNoticeStarted bool
+	expiresAt              time.Time
+	refreshContext         context.Context
+	refreshCancel          context.CancelFunc
+	refreshDone            chan struct{}
 }
 
 func newSession(

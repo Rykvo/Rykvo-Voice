@@ -838,13 +838,13 @@ func TestSessionSuppressesSIMDataDownloadFromSMSInbox(t *testing.T) {
 		provider: &Provider{config: Config{
 			Logger:             slog.Default(),
 			TransactionTimeout: time.Second,
-			OnSIMDataDownload: func(_ context.Context, download SIMDataDownload) error {
+			OnSIMDataDownload: func(_ context.Context, download SIMDataDownload) (vowifi.SMSPPResult, error) {
 				uiccCalled = true
 				if download.DeviceID != "ec20" || download.PID != 0x7f || download.DCS != 0xf6 ||
 					!bytes.Equal(download.TPDU, tpdu) {
 					t.Fatalf("SIM data download = %#v", download)
 				}
-				return nil
+				return vowifi.SMSPPResult{Status: 0x9000}, nil
 			},
 			OnSMS: func(context.Context, ReceivedSMS) error {
 				called = true
@@ -877,7 +877,7 @@ func TestSessionSuppressesSIMDataDownloadFromSMSInbox(t *testing.T) {
 	}
 }
 
-func TestSessionAcknowledgesSIMDataDownloadWhenCallbackNil(t *testing.T) {
+func TestSessionRejectsSIMDataDownloadWhenCallbackNil(t *testing.T) {
 	tpdu, err := hex.DecodeString("440C919471071610007FF6629041718111403D02700000381516001212B201000D5F284696D1470A06A44E649D62B3BC7B6A11D49874DBE86C379BD4A87805BDA5ED2FF2DE9416A43640832306C159E1")
 	if err != nil {
 		t.Fatal(err)
@@ -907,7 +907,7 @@ func TestSessionAcknowledgesSIMDataDownloadWhenCallbackNil(t *testing.T) {
 		provider: &Provider{config: Config{
 			Logger:             slog.Default(),
 			TransactionTimeout: time.Second,
-			OnSIMDataDownload:  nil, // 模拟未注册 UICC 回调的场景
+			OnSIMDataDownload:  nil,
 			OnSMS: func(context.Context, ReceivedSMS) error {
 				called = true
 				return nil
@@ -929,9 +929,9 @@ func TestSessionAcknowledgesSIMDataDownloadWhenCallbackNil(t *testing.T) {
 	if called {
 		t.Fatal("SIM data download was delivered to the SMS inbox callback")
 	}
-	// 校验必须回执 RP-ACK (0x02 = RP-ACK, 0x62 = RP-Message Reference)
-	if !bytes.Equal(reportBody, []byte{0x02, 0x62}) {
-		t.Fatalf("SIM data download RP-ACK body = %X, want 0262", reportBody)
+	// Missing UICC handling must not acknowledge or claim memory full.
+	if !bytes.Equal(reportBody, []byte{0x04, 0x62, 0x01, 111, 0x41, 3, 0, 0xd5, 0}) {
+		t.Fatalf("SIM data download RP-ACK body = %X, want RP-ERROR 111 with TP-FCS D5", reportBody)
 	}
 }
 
